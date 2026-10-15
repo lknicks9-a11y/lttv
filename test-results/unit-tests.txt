@@ -1,0 +1,570 @@
+
+> lttv@1.0.0 test
+> node --import tsx --test tests/*.test.ts
+
+TAP version 13
+# Subtest: foreign-script text is told apart from English (and accented Latin)
+ok 1 - foreign-script text is told apart from English (and accented Latin)
+  ---
+  duration_ms: 1.249011
+  type: 'test'
+  ...
+# Subtest: XMLTV: the English title/description is chosen when there are several languages
+ok 2 - XMLTV: the English title/description is chosen when there are several languages
+  ---
+  duration_ms: 3.516543
+  type: 'test'
+  ...
+# Subtest: English channel with an Arabic guide switches to an English source when there is one
+ok 3 - English channel with an Arabic guide switches to an English source when there is one
+  ---
+  duration_ms: 4.683321
+  type: 'test'
+  ...
+# Subtest: My TV New York local matched to another city's guide uses the New York station's listings
+ok 4 - My TV New York local matched to another city's guide uses the New York station's listings
+  ---
+  duration_ms: 1.67989
+  type: 'test'
+  ...
+# Subtest: event channels are told apart from linear channels
+ok 5 - event channels are told apart from linear channels
+  ---
+  duration_ms: 9.605063
+  type: 'test'
+  ...
+# Subtest: the game and start time are read from the channel name
+ok 6 - the game and start time are read from the channel name
+  ---
+  duration_ms: 24.906463
+  type: 'test'
+  ...
+# Subtest: event channels show the game on now; others keep their name
+ok 7 - event channels show the game on now; others keep their name
+  ---
+  duration_ms: 3.988866
+  type: 'test'
+  ...
+# Subtest: a game listed in the guide names an event channel too
+ok 8 - a game listed in the guide names an event channel too
+  ---
+  duration_ms: 0.466031
+  type: 'test'
+  ...
+# Subtest: a user rename always wins
+ok 9 - a user rename always wins
+  ---
+  duration_ms: 0.675356
+  type: 'test'
+  ...
+# Subtest: provider guide fills channels the guide file misses, never overriding a real match
+ok 10 - provider guide fills channels the guide file misses, never overriding a real match
+  ---
+  duration_ms: 0.936527
+  type: 'test'
+  ...
+# Subtest: provider short EPG is decoded (base64 titles, unix times)
+ok 11 - provider short EPG is decoded (base64 titles, unix times)
+  ---
+  duration_ms: 2.088914
+  type: 'test'
+  ...
+# Subtest: stream format alternates for Xtream channels
+ok 12 - stream format alternates for Xtream channels
+  ---
+  duration_ms: 1.018947
+  type: 'test'
+  ...
+# Subtest: guide matching handles country prefixes and duplicate guide entries
+ok 13 - guide matching handles country prefixes and duplicate guide entries
+  ---
+  duration_ms: 11.078815
+  type: 'test'
+  ...
+# Subtest: country menu: My TV and each provider group, with the country word removed
+ok 14 - country menu: My TV and each provider group, with the country word removed
+  ---
+  duration_ms: 40.81126
+  type: 'test'
+  ...
+# Subtest: high-quality logos match the channel exactly, within its country
+ok 15 - high-quality logos match the channel exactly, within its country
+  ---
+  duration_ms: 6.273624
+  type: 'test'
+  ...
+# Subtest: Champions League is a league; league logo read from the scoreboard
+ok 16 - Champions League is a league; league logo read from the scoreboard
+  ---
+  duration_ms: 0.48344
+  type: 'test'
+  ...
+# Subtest: country tabs follow the provider's code on each group; a whole group goes under one country
+ok 17 - country tabs follow the provider's code on each group; a whole group goes under one country
+  ---
+  duration_ms: 1.539711
+  type: 'test'
+  ...
+# Subtest: parses standard extended M3U with attributes
+ok 18 - parses standard extended M3U with attributes
+  ---
+  duration_ms: 4.325928
+  type: 'test'
+  ...
+# Subtest: handles commas inside quoted attributes and title commas
+ok 19 - handles commas inside quoted attributes and title commas
+  ---
+  duration_ms: 0.699938
+  type: 'test'
+  ...
+# Subtest: single quotes, unquoted values, uppercase keys, extra spaces
+ok 20 - single quotes, unquoted values, uppercase keys, extra spaces
+  ---
+  duration_ms: 0.19784
+  type: 'test'
+  ...
+# Subtest: CRLF, BOM, blank lines and missing \#EXTM3U header
+ok 21 - CRLF, BOM, blank lines and missing \#EXTM3U header
+  ---
+  duration_ms: 0.589105
+  type: 'test'
+  ...
+# Subtest: malformed entries: EXTINF without URL, junk lines, bare URLs
+ok 22 - malformed entries: EXTINF without URL, junk lines, bare URLs
+  ---
+  duration_ms: 0.944358
+  type: 'test'
+  ...
+# Subtest: Unicode names and URL-encoded values
+ok 23 - Unicode names and URL-encoded values
+  ---
+  duration_ms: 0.636512
+  type: 'test'
+  ...
+# Subtest: stream headers from EXTVLCOPT and Kodi pipe syntax
+ok 24 - stream headers from EXTVLCOPT and Kodi pipe syntax
+  ---
+  duration_ms: 0.394949
+  type: 'test'
+  ...
+# Subtest: EXTGRP group and tvg-chno
+ok 25 - EXTGRP group and tvg-chno
+  ---
+  duration_ms: 0.248849
+  type: 'test'
+  ...
+# Subtest: stable keys survive URL/token changes and disambiguate duplicates
+ok 26 - stable keys survive URL/token changes and disambiguate duplicates
+  ---
+  duration_ms: 0.522171
+  type: 'test'
+  ...
+# Subtest: rejects non-playlists with clear errors
+ok 27 - rejects non-playlists with clear errors
+  ---
+  duration_ms: 1.090696
+  type: 'test'
+  ...
+# Subtest: handles large playlists (20,000 channels) quickly
+ok 28 - handles large playlists (20,000 channels) quickly
+  ---
+  duration_ms: 252.5444
+  type: 'test'
+  ...
+# Subtest: tidyName normalises spacing and decorations but keeps meaningful identifiers
+ok 29 - tidyName normalises spacing and decorations but keeps meaningful identifiers
+  ---
+  duration_ms: 2.254214
+  type: 'test'
+  ...
+# Subtest: redundant prefixes are removed only when redundant and never cause collisions
+ok 30 - redundant prefixes are removed only when redundant and never cause collisions
+  ---
+  duration_ms: 0.781822
+  type: 'test'
+  ...
+# Subtest: normalisation for matching keeps numbers, +1 and regions distinct
+ok 31 - normalisation for matching keeps numbers, +1 and regions distinct
+  ---
+  duration_ms: 2.120757
+  type: 'test'
+  ...
+# Subtest: categories come from evidence only
+ok 32 - categories come from evidence only
+  ---
+  duration_ms: 4.92421
+  type: 'test'
+  ...
+# Subtest: EPG matching follows priority: tvg-id, tvg-name, normalised name, fuzzy (pending)
+ok 33 - EPG matching follows priority: tvg-id, tvg-name, normalised name, fuzzy (pending)
+  ---
+  duration_ms: 1.594595
+  type: 'test'
+  ...
+# Subtest: ambiguous normalised names are not auto-assigned
+ok 34 - ambiguous normalised names are not auto-assigned
+  ---
+  duration_ms: 0.62292
+  type: 'test'
+  ...
+# Subtest: user decisions override automatic matching and persist rejections
+ok 35 - user decisions override automatic matching and persist rejections
+  ---
+  duration_ms: 0.298113
+  type: 'test'
+  ...
+# Subtest: fuzzy auto-approve threshold is opt-in
+ok 36 - fuzzy auto-approve threshold is opt-in
+  ---
+  duration_ms: 0.377546
+  type: 'test'
+  ...
+# Subtest: duplicate detection flags same URL and same name+id but never merges distinct feeds
+ok 37 - duplicate detection flags same URL and same name+id but never merges distinct feeds
+  ---
+  duration_ms: 1.190469
+  type: 'test'
+  ...
+# Subtest: lineup: customisations, numbering, sorting, filtering, reorder, zapping
+ok 38 - lineup: customisations, numbering, sorting, filtering, reorder, zapping
+  ---
+  duration_ms: 34.100234
+  type: 'test'
+  ...
+# Subtest: search: channels by name/number/category and programmes by title
+ok 39 - search: channels by name/number/category and programmes by title
+  ---
+  duration_ms: 2.140595
+  type: 'test'
+  ...
+# Subtest: redactUrl hides credentials, tokens and query strings
+ok 40 - redactUrl hides credentials, tokens and query strings
+  ---
+  duration_ms: 0.379883
+  type: 'test'
+  ...
+# Subtest: My TV pins: your chosen New York streams win their numbers
+ok 41 - My TV pins: your chosen New York streams win their numbers
+  ---
+  duration_ms: 23.164784
+  type: 'test'
+  ...
+# Subtest: Pins and your edits follow you to another provider with different names
+ok 42 - Pins and your edits follow you to another provider with different names
+  ---
+  duration_ms: 6.428671
+  type: 'test'
+  ...
+# Subtest: full import pipeline + restart restores lineup, guide, matches and customisations
+ok 43 - full import pipeline + restart restores lineup, guide, matches and customisations
+  ---
+  duration_ms: 65.631816
+  type: 'test'
+  ...
+# Subtest: a failed guide refresh keeps the previous cache
+ok 44 - a failed guide refresh keeps the previous cache
+  ---
+  duration_ms: 2.987593
+  type: 'test'
+  ...
+# Subtest: invalid playlist text produces a clear error and leaves storage untouched
+ok 45 - invalid playlist text produces a clear error and leaves storage untouched
+  ---
+  duration_ms: 0.34376
+  type: 'test'
+  ...
+# Subtest: titles are cleaned before looking them up
+ok 46 - titles are cleaned before looking them up
+  ---
+  duration_ms: 3.305434
+  type: 'test'
+  ...
+# Subtest: only an exact title match is accepted from TVmaze and Wikipedia
+ok 47 - only an exact title match is accepted from TVmaze and Wikipedia
+  ---
+  duration_ms: 0.614731
+  type: 'test'
+  ...
+# Subtest: game descriptions come from the schedule
+ok 48 - game descriptions come from the schedule
+  ---
+  duration_ms: 0.536268
+  type: 'test'
+  ...
+# Subtest: ESPN scoreboard parsed into games with logos, scores and broadcasts
+ok 49 - ESPN scoreboard parsed into games with logos, scores and broadcasts
+  ---
+  duration_ms: 3.506311
+  type: 'test'
+  ...
+# Subtest: league tabs and scoreboard URLs
+ok 50 - league tabs and scoreboard URLs
+  ---
+  duration_ms: 0.381391
+  type: 'test'
+  ...
+# Subtest: a game is recognised in event names and guide titles only when both teams are named
+ok 51 - a game is recognised in event names and guide titles only when both teams are named
+  ---
+  duration_ms: 0.960761
+  type: 'test'
+  ...
+# Subtest: schedule network names resolve to playlist channels
+ok 52 - schedule network names resolve to playlist channels
+  ---
+  duration_ms: 3.523029
+  type: 'test'
+  ...
+# Subtest: best streams: event channel, chosen team broadcast, national; other cities and countries excluded
+ok 53 - best streams: event channel, chosen team broadcast, national; other cities and countries excluded
+  ---
+  duration_ms: 39.269878
+  type: 'test'
+  ...
+# Subtest: My TV: DIRECTV New York/NJ numbers, best copy wins, filters and sorts
+ok 54 - My TV: DIRECTV New York/NJ numbers, best copy wins, filters and sorts
+  ---
+  duration_ms: 15.810031
+  type: 'test'
+  ...
+# Subtest: country tabs: every country from name prefixes and groups
+ok 55 - country tabs: every country from name prefixes and groups
+  ---
+  duration_ms: 12.818483
+  type: 'test'
+  ...
+# Subtest: caps endpoint
+ok 56 - caps endpoint
+  ---
+  duration_ms: 48.476458
+  type: 'test'
+  ...
+# Subtest: fetch follows redirects and passes content through
+ok 57 - fetch follows redirects and passes content through
+  ---
+  duration_ms: 15.878455
+  type: 'test'
+  ...
+# Subtest: gunzip=auto decompresses gzipped guides by magic bytes
+ok 58 - gunzip=auto decompresses gzipped guides by magic bytes
+  ---
+  duration_ms: 7.335159
+  type: 'test'
+  ...
+# 20:17:47 upstream 403 http://127.0.0.1:40031/…
+# Subtest: custom headers from the playlist are forwarded
+ok 59 - custom headers from the playlist are forwarded
+  ---
+  duration_ms: 7.548213
+  type: 'test'
+  ...
+# 20:17:47 upstream 404 http://127.0.0.1:40031/…
+# 20:17:47 fetch failed http://no-such-host.invalid/… The server name could not be found (DNS). Check the URL and your internet connection.
+# Subtest: upstream errors become clear JSON errors
+ok 60 - upstream errors become clear JSON errors
+  ---
+  duration_ms: 11.188628
+  type: 'test'
+  ...
+# Subtest: HLS playlists are rewritten so segments and keys go through the helper
+ok 61 - HLS playlists are rewritten so segments and keys go through the helper
+  ---
+  duration_ms: 5.64318
+  type: 'test'
+  ...
+# Subtest: cross-site requests to the helper are refused
+ok 62 - cross-site requests to the helper are refused
+  ---
+  duration_ms: 2.870773
+  type: 'test'
+  ...
+# Subtest: probe detects HLS and MPEG-TS
+ok 63 - probe detects HLS and MPEG-TS
+  ---
+  duration_ms: 7.212134
+  type: 'test'
+  ...
+# 20:17:47 remux http://127.0.0.1:40031/…
+# Subtest: remux converts a raw MPEG-TS stream into fragmented MP4 (ffmpeg)
+ok 64 - remux converts a raw MPEG-TS stream into fragmented MP4 (ffmpeg)
+  ---
+  duration_ms: 347.295722
+  type: 'test'
+  ...
+# Subtest: upstream requests look like a media player, not a browser
+ok 65 - upstream requests look like a media player, not a browser
+  ---
+  duration_ms: 4.022808
+  type: 'test'
+  ...
+# Subtest: catalog is complete and ids are unique
+ok 66 - catalog is complete and ids are unique
+  ---
+  duration_ms: 1.81486
+  type: 'test'
+  ...
+# Subtest: full team names match on their own
+ok 67 - full team names match on their own
+  ---
+  duration_ms: 8.947119
+  type: 'test'
+  ...
+# Subtest: ambiguous nicknames need league context or a same-league opponent
+ok 68 - ambiguous nicknames need league context or a same-league opponent
+  ---
+  duration_ms: 9.99153
+  type: 'test'
+  ...
+# Subtest: everyday-word nicknames do not match ordinary programmes
+ok 69 - everyday-word nicknames do not match ordinary programmes
+  ---
+  duration_ms: 6.721545
+  type: 'test'
+  ...
+# Subtest: custom teams match their own keywords
+ok 70 - custom teams match their own keywords
+  ---
+  duration_ms: 2.402417
+  type: 'test'
+  ...
+# Subtest: game detection
+ok 71 - game detection
+  ---
+  duration_ms: 0.358193
+  type: 'test'
+  ...
+# Subtest: finds live and upcoming games in the guide, grouped across channels
+ok 72 - finds live and upcoming games in the guide, grouped across channels
+  ---
+  duration_ms: 6.680488
+  type: 'test'
+  ...
+# Subtest: team channels require a full name or nickname with the league
+ok 73 - team channels require a full name or nickname with the league
+  ---
+  duration_ms: 3.85099
+  type: 'test'
+  ...
+# Subtest: XMLTV timestamps with offsets, Z, compact offsets and colon offsets
+ok 74 - XMLTV timestamps with offsets, Z, compact offsets and colon offsets
+  ---
+  duration_ms: 1.885018
+  type: 'test'
+  ...
+# Subtest: timestamps without offset follow the configured policy
+ok 75 - timestamps without offset follow the configured policy
+  ---
+  duration_ms: 25.879684
+  type: 'test'
+  ...
+# Subtest: DST gaps and overlaps resolve deterministically
+ok 76 - DST gaps and overlaps resolve deterministically
+  ---
+  duration_ms: 0.543563
+  type: 'test'
+  ...
+# Subtest: guide layout is linear across a DST change (fall back has 25 hours)
+ok 77 - guide layout is linear across a DST change (fall back has 25 hours)
+  ---
+  duration_ms: 3.752988
+  type: 'test'
+  ...
+# Subtest: programme progress
+ok 78 - programme progress
+  ---
+  duration_ms: 0.397569
+  type: 'test'
+  ...
+# Subtest: parses XMLTV channels and programmes with entities, CDATA, languages, episodes
+ok 79 - parses XMLTV channels and programmes with entities, CDATA, languages, episodes
+  ---
+  duration_ms: 4.122422
+  type: 'test'
+  ...
+# Subtest: streaming parser gives identical results for any chunk size
+ok 80 - streaming parser gives identical results for any chunk size
+  ---
+  duration_ms: 7.113375
+  type: 'test'
+  ...
+# Subtest: rejects non-XMLTV input
+ok 81 - rejects non-XMLTV input
+  ---
+  duration_ms: 1.024623
+  type: 'test'
+  ...
+# Subtest: time window filtering drops expired and far-future programmes
+ok 82 - time window filtering drops expired and far-future programmes
+  ---
+  duration_ms: 0.702547
+  type: 'test'
+  ...
+# Subtest: normalizeSchedule fills missing stops, clips overlaps, removes duplicates
+ok 83 - normalizeSchedule fills missing stops, clips overlaps, removes duplicates
+  ---
+  duration_ms: 0.915627
+  type: 'test'
+  ...
+# Subtest: guide index lookups: current, next, range, prune, programme crossing midnight
+ok 84 - guide index lookups: current, next, range, prune, programme crossing midnight
+  ---
+  duration_ms: 0.709563
+  type: 'test'
+  ...
+# Subtest: episode formatting
+ok 85 - episode formatting
+  ---
+  duration_ms: 0.42054
+  type: 'test'
+  ...
+# Subtest: large XMLTV (2,000 channels x 48 programmes) parses quickly in chunks
+ok 86 - large XMLTV (2,000 channels x 48 programmes) parses quickly in chunks
+  ---
+  duration_ms: 977.394497
+  type: 'test'
+  ...
+# Subtest: server addresses are normalized from whatever the provider sent
+ok 87 - server addresses are normalized from whatever the provider sent
+  ---
+  duration_ms: 1.687218
+  type: 'test'
+  ...
+# Subtest: builds playlist, guide and account URLs with encoded credentials
+ok 88 - builds playlist, guide and account URLs with encoded credentials
+  ---
+  duration_ms: 0.237152
+  type: 'test'
+  ...
+# Subtest: extracts a login from a pasted playlist link
+ok 89 - extracts a login from a pasted playlist link
+  ---
+  duration_ms: 1.655475
+  type: 'test'
+  ...
+# Subtest: account status: success, wrong password, expired, banned
+ok 90 - account status: success, wrong password, expired, banned
+  ---
+  duration_ms: 0.595056
+  type: 'test'
+  ...
+# Subtest: output format follows what the account allows
+ok 91 - output format follows what the account allows
+  ---
+  duration_ms: 0.250395
+  type: 'test'
+  ...
+# Subtest: app-API channel list becomes a playlist with groups, logos, numbers and guide ids
+ok 92 - app-API channel list becomes a playlist with groups, logos, numbers and guide ids
+  ---
+  duration_ms: 2.477211
+  type: 'test'
+  ...
+1..92
+# tests 92
+# suites 0
+# pass 92
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6918.600017

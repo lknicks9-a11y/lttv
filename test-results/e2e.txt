@@ -1,0 +1,216 @@
+✔ Empty state shows "Welcome" with focus on Add playlist
+✔ Wizard opens with focus on the name field
+✔ D-pad reaches the playlist URL field
+✔ Playlist downloaded through helper (no CORS on source) and parsed
+✔ Channel count correct (5,004) and VOD entry skipped — Found 5,004 channels in 7 groups (skipped 1 on-demand entries).
+✔ Guide URL pre-filled from playlist url-tvg header — http://127.0.0.1:34185/guide.xml.gz
+✔ Gzipped XMLTV guide imported and matched — 2.2 s for 80,048+ programs
+✔ UI stays responsive during guide import (no frame gap > 250 ms) — worst frame gap 243 ms
+✔ Summary shows matched/pending/no-guide counts — 5,004channels | 7groups | 5,002with guide | 1to review | 1no guide | 80,071programs
+✔ Focus on "Start watching"
+20:14:15 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:15 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:15 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:15 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Live TV opens on the guide with focus on what's on channel 1 — Overlapping duplicate is clipped4:13 PM – 5:00 PM
+✔ Only one TV screen in the menu (Live TV; no separate Guide or Multiview)
+20:14:16 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:16 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:17 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:17 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:17 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:17 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Channel 1 plays in the preview (time advancing) — {"t":1.199826,"paused":false,"w":480,"rs":4}
+✔ Cross-origin stream played via local helper (CORS fallback) — proxy
+20:14:18 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:18 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:18 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:18 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Title cleanup removed redundant "TEST:" prefix and kept HD — 1 Fixture Stream HD
+✔ Current program from guide is shown — Overlapping duplicate is clipped
+✔ OK on the playing channel opens full screen
+20:14:19 upstream 404 http://127.0.0.1:34185/…
+✔ Broken channel shows a clear error / reconnect state — retrying: Stream not found (404). The channel may be offline.
+✔ Channel up returns to the working channel and it plays
+✔ OK in full screen opens the player controls (rewind, Live) with focus in them; no Multiview on a non-sports channel — Play/pause
+✔ Rewind key jumps back in the stream — 3.9 s -> 0.8 s
+✔ "Live" jumps forward to the newest part — 0.8 s -> 8.8 s
+✔ Left opens the channel list overlay with focus inside
+✔ Back closes overlay, then exits full screen
+✔ Focus is visible after exiting full screen — Overlapping duplicate is clipped4:13 PM – 5:00 PM
+✔ Left in the guide reaches the channel cell — 1FSFixture Stream HD
+✔ Menu key opens channel options
+✔ Rename + favorite applied
+✔ Guide blocks are positioned by actual start/end time — {"n":4,"lefts":[0,118.213,545.6]}
+✔ Opening the guide puts focus on the current program — Overlapping duplicate is clipped4:13 PM – 5:00 PM
+✔ Right moves to the next program in the grid — 1792095180000 -> 1792098000000
+✔ Down moves between channel rows — 0 -> 3
+20:14:38 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:38 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:38 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:38 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:39 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:39 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:39 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:39 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ OK on a future program shows its details
+20:14:40 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:40 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:41 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:41 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:41 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:41 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:42 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:42 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:42 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:42 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:43 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Program search: unapproved fuzzy channel is not searched yet — 0 hits
+✔ Program search finds programs on matched channels — 19 hits
+✔ Fuzzy match shown with confidence level — 71% confidence
+✔ Approving removes it from the review list
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:14:56 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Sports opens on the league picker — My TeamsChoose your teams
+✔ Sports screen offers to choose teams — Choose my teams
+20:14:58 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Team picker opens on the NFL list
+✔ Remote reaches "New York Giants" in the team grid — NYGNew York Giants
+20:15:05 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Remote reaches "Los Angeles Lakers" — LALLos Angeles Lakers
+✔ Giants card shows the live game from the guide — NYGNew York GiantsNFLLIVE New York Giants at Dallas Cowboys · ch 3
+✔ Lakers card shows the next game — LALLos Angeles LakersNBANext: Tomorrow 6:14 PM · ch 1
+✔ Listings: live game with Watch, upcoming game with Remind me — LIVEGameNFL Football · New York Giants at Dallas CowboysNYG4:00 PM – 5:00 PM45 min leftSC3 Sport Center FuzzyWatch || Tomorrow 6:14 PMGameNBA Basketball · Los Angeles Lakers at Boston CelticsLAL6:14 PM – 8:14 PMMF1 My FixtureRemind me
+✔ Reminder can be set for an upcoming game
+20:15:13 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ OK on the live team card plays the game full screen
+20:15:17 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Live TV shows a banner when a favorite team is playing
+20:15:18 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Settings opens on the color swatches
+✔ Choosing "Violet" recolors the app
+✔ After restart: lineup, rename, favorite, approved match, guide, recents, teams, color and reminder restored — {"channels":5004,"renamed":true,"fav":true,"approved":"approved","guide":5003,"recents":3,"teams":"nfl:nyg,nba:lal","accent":"#8b5cf6","reminders":1}
+20:15:24 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:24 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:24 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:25 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:25 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:25 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:25 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:25 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:26 fetch failed https://site.api.espn.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Diagnostics never show credentials from playlist URLs — Playlist "Fixture Provider": http://127.0.0.1:34185/playlist.m3u?… · 5004 ch · ok
+20:15:27 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:27 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:27 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:27 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:28 fetch failed https://api.tvmaze.com/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:28 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:28 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+20:15:28 fetch failed https://en.wikipedia.org/… The server name could not be found (DNS). Check the URL and your internet connection.
+✔ Channels screen lists the lineup
+✔ No uncaught page errors
+✔ Wizard defaults to the username & password sign-in
+20:15:34 upstream 884 http://127.0.0.1:34185/…
+✔ Wrong password gives a clear "login failed" message
+✔ Correct login loads the channels and shows the subscription expiry — Subscription active until 1/13/2027 · 1 connection. Found 25 channels in 11 groups.
+✔ Provider code 884 handled: LTTV retried as a standard player and remembered it
+✔ Provider TV guide address is filled in automatically — http://127.0.0.1:34185/xmltv.php?username=demo&password=…
+✔ Live-event channel "NFL 03" is shown as the game on now ("Bills vs Jets") — Bills vs JetsNFL 03
+20:15:38 upstream 404 http://127.0.0.1:34185/…
+✔ The game from the channel name counts as guide data (sports screen, search) — event
+✔ Channel missing from the guide file gets its guide from the provider — xt|127.0.0.1:34185|901
+✔ Provider channel plays (HLS chosen for the browser) — {"t":0.600647,"paused":false,"w":480,"rs":4}
+✔ A game on an event channel gets a description from the schedule (teams, records, venue, score, TV) — Boston Red Sox vs New York Yankees3:00 PM – 9:00 PM  MLB: Boston Red Sox (90-72) at New York Yankees (90-72). At Yankee Stadium. Live now: BOS 1, NYY 3 (Top 3rd). TV: YES (NYY) · NESN (BOS) · ESPN. · From the ESPN scheduleSportsLater on MLB 05: Boston Red Sox vs New York YankeesClose
+20:15:40 upstream 404 http://127.0.0.1:34185/…
+20:15:40 upstream 404 http://127.0.0.1:34185/…
+20:15:40 upstream 404 http://127.0.0.1:34185/…
+20:15:40 upstream 404 http://127.0.0.1:34185/…
+✔ A show without a description gets one from TVmaze (episode summary when the episode is known) — {"show":{"text":"A late-night talk show with guests and music.","source":"tvmaze","url":"https://www.tvmaze.com/shows/77"},"ep":{"text":"“Opening Night”: The host welcomes a surprise guest.","source":"tvmaze","url":"https://www.tvmaze.com/episodes/1"},"movie":{"text":"Fixture Movie is a 2020 America
+✔ A movie gets one from Wikipedia; unknown titles stay without (no guessing) — {"show":{"text":"A late-night talk show with guests and music.","source":"tvmaze","url":"https://www.tvmaze.com/shows/77"},"ep":{"text":"“Opening Night”: The host welcomes a surprise guest.","source":"tvmaze","url":"https://www.tvmaze.com/episodes/1"},"movie":{"text":"Fixture Movie is a 2020 America
+20:15:42 upstream 404 http://127.0.0.1:34185/…
+✔ Raw MPEG-TS channel: .m3u8 missing -> .ts played through the in-browser converter (test browser has no H.264, so it must stop at a clear decode message) — {"error":"This browser can't decode this channel's video or audio format (common with HEVC or AC-3 audio). Try another stream format, Chrome/Edge, or the Fire TV app.","via":"mpegts+proxy"}
+✔ My TV maps playlist channels to DIRECTV New York numbers (ESPN 206, YES 631, NESN 628) — [["USA ESPN FHD",206],["US: YES Network HD",631],["US: NESN HD",628]]
+✔ Sorting by My TV numbers the lineup like DIRECTV (206 ESPN first…) — 206 USA ESPN FHD | 628 US: NESN HD | 631 US: YES Network HD
+✔ Country tabs show the provider's country code (US, UK…) — 🇺🇸 USA · United States5 | 🇬🇧 UK · United Kingdom1 | Other19
+✔ Live TV tabs are one per country in the playlist (no category tabs) — 🇺🇸 USA · United States5 | 🇬🇧 UK · United Kingdom1 | Other19
+✔ The United Kingdom tab shows only UK channels — 24Sky Sports Main Event
+✔ Choosing a country opens its menu: All, My TV and each sub-provider — All channels (5) | My TV · DIRECTV New York/NJ numbers (3) | Sports (3) | MLB Extra Innings (1) | Entertainment (1)
+✔ The country menu lists every one of the playlist's own groups for that country — 3 entries for 3 groups
+✔ My TV under United States shows the DIRECTV-numbered channels in order — 20,22,21
+✔ The tab shows the chosen sub-provider — 🇺🇸 USA · United States · My TV5
+✔ High-quality transparent logos replace playlist logos when the name matches — united-states/espn-us.png, united-states/nesn-us.png, united-states/yes-network-us.png
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+✔ League picker: NBA NFL MLB NHL UCL EPL Bundesliga Serie A Ligue 1 LaLiga MLS CBB CFB — My Teams,NBA,NFL,MLB,NHL,UEFA Champions League,Premier League,Bundesliga,Serie A,Ligue 1,LaLiga,MLS,College Basketball,College Football
+✔ Each league shows how many games are on today — My TeamsChoose your teams | NBALoading… | NFLLoading… | MLB2 games today 1 LIVE | NHLLoading… | UEFA Champions LeagueLoading… | Premier LeagueLoading… | BundesligaLoading… | Serie ALoading… | Ligue 1Loading… | LaLigaLoading… | MLSLoading… | College BasketballLoading… | College FootballLoading…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+20:15:46 upstream 404 http://127.0.0.1:34185/…
+✔ MLB tab lists today's games with the live score — LIVETop 3rdBoston Red Sox1New York Yankees3YES (NYY) · NESN (BOS) · ESPN 23 MLB 05: Boston Red Sox vs New York Yankees
+✔ Team logos shown (transparent images, no badge background) — 4 logos
+✔ Best channel shown for the game; "none found" for a game no channel carries
+✔ Game with both teams' local broadcasts asks which broadcast you want — Which broadcast do you want?Both teams have their own local TV broadcast (announcers and commentary).Red Sox broadcastNESN · away teamYankees broadcastYES · home teamNational broadcastESPN
+✔ Choosing the Yankees broadcast puts YES Network first — 21YES Network HDBest match · YES · Yankees broadcast Watch || 23M0Boston Red Sox vs New York YankeesMLB 05Event channel for this game Watch || 20USA ESPN FHDESPN · national Watch
+✔ Event channel and ESPN are offered too — 21YES Network HDBest match · YES · Yankees broadcast Watch || 23M0Boston Red Sox vs New York YankeesMLB 05Event channel for this game Watch || 20USA ESPN FHDESPN · national Watch || 22NESN HDNESN · Red Sox broadcast Watch
+✔ Streams list has no Multiview buttons (Multiview is in the player only)
+✔ Choosing the Red Sox broadcast puts NESN first — 22NESN HDBest match · NESN · Red Sox broadcast Watch || 23M0Boston Red Sox vs New York YankeesMLB 05Event channel for this game Watch
+✔ Watch tunes that broadcast full screen — US: NESN HD
+✔ Multiview is removed (no Multiview buttons on the Sports screen or in the player)
+✔ TV host: UI scales to a 960x540 CSS viewport (1080p @2x)
+✔ TV host: play() receives the bundled demo stream as an asset:/// URL — asset:///www/demo/pattern/index.m3u8
+✔ TV host: native video rectangle matches the preview slot — {"rect":["rect",81,18,304,171,true],"slot":[81,18,304,171]}
+✔ TV host: page backdrop has a transparent hole for the video
+✔ TV host: a channel that fails as .m3u8 is retried as .ts — ["http://line.example:8080/live/u/p/77.m3u8","http://line.example:8080/u/p/77.ts"]
+✔ TV host: native fatal errors are shown without retry loops
+✔ TV host: full screen moves the native video to the whole screen — ["rect",0,0,960,540,true]
+✔ TV host: remote rewind / fast forward ask the native player to skip 10 s — [-10000,-10000,10000]
+✔ TV host: the live bar shows how far behind live and how much is kept — -1:3530 min kept
+✔ TV host: live-position updates don't change the player state
+✔ TV host: "Live" asks the native player to go back to live
+✔ TV host: Menu key (forwarded natively) opens player options
+✔ TV host: Back closes the menu, then leaves full screen
+✔ TV host: Back on the home screen exits the app
+
+103/103 checks passed. Screenshots: /home/claude/lttv/test-results/screenshots
