@@ -1,7 +1,7 @@
 {
   "name": "lttv",
   "version": "1.0.0",
-  "description": "LTTV \u2014 IPTV playlist organizer, program guide and player for desktop and Amazon Fire TV",
+  "description": "LTTV — IPTV playlist organizer, program guide and player for desktop and Amazon Fire TV",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -16,11 +16,11 @@
     "start:open": "node server/server.mjs --open"
   },
   "devDependencies": {
-    "esbuild": "^0.28.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
-    "playwright-core": "^1.48.0",
-    "@types/node": "^22.0.0"
+    "esbuild": "0.28.2",
+    "tsx": "4.23.12",
+    "typescript": "6.0.3",
+    "playwright-core": "1.56.0",
+    "@types/node": "26.2.0"
   },
   "engines": {
     "node": ">=20"
