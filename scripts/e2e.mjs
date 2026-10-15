@@ -873,8 +873,20 @@ try {
   await shot('21-tv-host-menu');
   for (let i = 0; i < 2; i++) { await page.evaluate(() => window.lttvHost.onKey('back')); await page.waitForTimeout(300); }
   check('TV host: Back closes the menu, then leaves full screen', await page.evaluate(() => !document.querySelector('.player')));
-  await page.evaluate(() => window.lttvHost.onKey('back'));
-  await page.waitForTimeout(200);
+  const tvErr0 = errors.length;
+  await page.evaluate(() => [...document.querySelectorAll('.nav-item')].find((n) => /Sports/.test(n.textContent)).click());
+  await waitFor(() => page.evaluate(() => document.querySelectorAll('.league-card').length === 14), 8000);
+  check('TV host: the Sports screen opens with its league cards', await page.evaluate(() => document.querySelectorAll('.league-card').length === 14) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
+  await page.evaluate(() => document.querySelector('.league-card')?.click());
+  await page.waitForTimeout(500);
+  check('TV host: My Teams opens from Sports', await page.evaluate(() => /My Teams/.test(document.querySelector('.sports h1')?.textContent ?? '')) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
+  await shot('22b-tv-host-sports');
+  await page.evaluate(() => [...document.querySelectorAll('.nav-item')].find((n) => /Live TV/.test(n.textContent)).click());
+  await page.waitForTimeout(400);
+  for (let i = 0; i < 8 && !(await page.evaluate(() => window.__calls.some((c) => c[0] === 'exit'))); i++) {
+    await page.evaluate(() => window.lttvHost.onKey('back'));
+    await page.waitForTimeout(250);
+  }
   check('TV host: Back on the home screen exits the app', await page.evaluate(() => window.__calls.some((c) => c[0] === 'exit')));
   try { rmSync(tvProfile, { recursive: true, force: true }); } catch { /* browser still closing */ }
 } catch (e) {

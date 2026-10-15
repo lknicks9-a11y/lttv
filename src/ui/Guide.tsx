@@ -277,7 +277,8 @@ export function GuideScreen() {
         const p = usable(ch) ? guide.current(ch.epgChannelId, Date.now()) : undefined;
         return p ? [{ p, ch }] : [];
       });
-      prefetchDescriptions(items);
+      // TVs: just the first few rows, to keep the network and the stick's CPU free.
+      prefetchDescriptions(document.documentElement.classList.contains('tv') ? items.slice(0, 4) : items);
     }, 1200);
     return () => clearTimeout(t);
   }, [first, last, rows, guideVersion]);

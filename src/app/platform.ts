@@ -43,6 +43,8 @@ declare global {
   }
 }
 
+import { undefer } from './undefer';
+
 export const native: NativeBridge | undefined = typeof window !== 'undefined' ? window.LTTVNative : undefined;
 export const isNative = !!native;
 export const isTV = isNative || /\b(AFT[A-Z0-9]*|AmazonWebAppPlatform|Android TV|GoogleTV|SMART-TV|SmartTV|Tizen|Web0S)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).has('tv');
@@ -111,6 +113,7 @@ export async function openRemote(url: string, signal?: AbortSignal, headers?: Re
     }
     throw new FetchError('Could not reach the local helper. Is the LTTV desktop server still running?');
   }
+  if (res.ok && res.headers.get('x-deferred') === '1' && res.body) res = await undefer(res.body);
   if (!res.ok) {
     let detail = '';
     try {

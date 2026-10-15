@@ -731,3 +731,15 @@ small, .small { font-size: 1.15rem; }
 .mv-slot-wrap { flex: 1; display: flex; min-height: 0; width: 100%; height: 100%; }
 .mv-slot-wrap > .mv-standby { flex: 1; aspect-ratio: auto; max-height: none; border-radius: 0; width: 100%; height: 100%; }
 .chip-logo { width: 1.5em; height: 1.5em; object-fit: contain; margin-right: 0.15rem; }
+
+/* Fire TV / Android TV: the Aero look without the expensive parts (text shadows, layered
+   shadows and gradients on every guide cell, the bubble layers) so scrolling stays smooth. */
+:root.tv[data-theme='aero'] body, :root.tv[data-theme='aero'] h1, :root.tv[data-theme='aero'] h2 { text-shadow: none; }
+:root.tv[data-theme='aero'] .backdrop::before, :root.tv[data-theme='aero'] .backdrop::after { display: none; }
+:root.tv[data-theme='aero'] .backdrop { background: radial-gradient(70rem 26rem at 12% 108%, rgba(140, 235, 90, 0.45), transparent 70%), linear-gradient(180deg, #08346c 0%, #0c56a3 45%, #1576c4 75%, #1f8fa8 100%); }
+:root.tv[data-theme='aero'] .prog, :root.tv[data-theme='aero'] .guide-ch, :root.tv[data-theme='aero'] .channel-row, :root.tv[data-theme='aero'] .team-option,
+:root.tv[data-theme='aero'] .game-row, :root.tv[data-theme='aero'] .chip, :root.tv[data-theme='aero'] .stream-pick-main { background-image: none; box-shadow: none; }
+:root.tv[data-theme='aero'] .card, :root.tv[data-theme='aero'] .league-card, :root.tv[data-theme='aero'] .guide-grid, :root.tv[data-theme='aero'] .sidebar,
+:root.tv[data-theme='aero'] .btn, :root.tv[data-theme='aero'] .modal, :root.tv[data-theme='aero'] .toast { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+:root.tv[data-theme='aero'] .f:focus { box-shadow: var(--focus); }
+:root.tv .logo-hq img { filter: none; }

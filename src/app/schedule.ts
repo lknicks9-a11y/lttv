@@ -132,11 +132,23 @@ export function useLeagueSummaries(day: string): Record<string, LeagueSummary> {
   const [sum, setSum] = useState<Record<string, LeagueSummary>>(() => Object.fromEntries(SCHEDULE_LEAGUES.map((l) => [l.id, { games: 0, live: 0, loading: true }])));
   useEffect(() => {
     let alive = true;
-    for (const l of SCHEDULE_LEAGUES) {
-      loadGames(l.id, day, day)
-        .then((g) => alive && setSum((s) => ({ ...s, [l.id]: { games: g.length, live: g.filter((x) => x.state === 'in').length, loading: false } })))
-        .catch(() => alive && setSum((s) => ({ ...s, [l.id]: { games: 0, live: 0, loading: false, error: true } })));
-    }
+    // Two leagues at a time, with a breather in between, so a TV stays responsive while
+    // the schedules (college ones are big) download and are read.
+    const queue = [...SCHEDULE_LEAGUES];
+    const worker = async () => {
+      while (alive && queue.length) {
+        const l = queue.shift()!;
+        try {
+          const g = await loadGames(l.id, day, day);
+          if (alive) setSum((s) => ({ ...s, [l.id]: { games: g.length, live: g.filter((x) => x.state === 'in').length, loading: false } }));
+        } catch {
+          if (alive) setSum((s) => ({ ...s, [l.id]: { games: 0, live: 0, loading: false, error: true } }));
+        }
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    };
+    void worker();
+    void worker();
     return () => {
       alive = false;
     };

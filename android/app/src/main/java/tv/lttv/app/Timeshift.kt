@@ -100,11 +100,14 @@ class TimeshiftDataSource(private val buffer: TimeshiftBuffer, private val base:
     private var uri: Uri? = null
     private var pos = 0L
     private var opened = false
+    private var reader: TimeshiftBuffer.Reader? = null
 
     override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
         transferInitializing(dataSpec)
         pos = base + dataSpec.position
+        reader?.close()
+        reader = buffer.Reader()
         opened = true
         transferStarted(dataSpec)
         return C.LENGTH_UNSET.toLong()
@@ -112,7 +115,7 @@ class TimeshiftDataSource(private val buffer: TimeshiftBuffer, private val base:
 
     override fun read(target: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
-        val n = buffer.read(pos, target, offset, length)
+        val n = (reader ?: buffer.Reader().also { reader = it }).read(pos, target, offset, length)
         if (n < 0) return C.RESULT_END_OF_INPUT
         pos += n
         bytesTransferred(n)
@@ -122,6 +125,8 @@ class TimeshiftDataSource(private val buffer: TimeshiftBuffer, private val base:
     override fun getUri(): Uri? = uri
 
     override fun close() {
+        reader?.close()
+        reader = null
         if (opened) {
             opened = false
             transferEnded()

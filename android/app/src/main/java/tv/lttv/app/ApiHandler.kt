@@ -10,6 +10,11 @@ import java.io.FileInputStream
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.io.InputStream
+import java.io.SequenceInputStream
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 
 /**
@@ -29,7 +34,7 @@ class ApiHandler(private val activity: MainActivity) {
                 .put("ffmpeg", false)
                 .put("version", BuildConfig.VERSION_NAME)
                 .put("platform", NativeBridge(activity).platform()))
-            url.path == "/api/fetch" -> fetch(url)
+            url.path == "/api/fetch" -> deferred(url)
             url.path == "/api/probe" -> json(200, JSONObject().put("kind", "unknown"))
             url.path?.startsWith("/api/upload/") == true -> upload(url.lastPathSegment ?: "")
             else -> json(404, JSONObject().put("error", "Unknown endpoint"))
@@ -46,6 +51,43 @@ class ApiHandler(private val activity: MainActivity) {
         } catch (e: Exception) {
             emptyMap()
         }
+    }
+
+    /**
+     * WebView waits for shouldInterceptRequest to return before it loads anything else, so a
+     * slow server would freeze the whole app (screens, images, other requests). Instead the
+     * response is returned at once and the connection is made on a worker thread; the body
+     * starts with one line "LTTV-STATUS <code> <length>" that the page reads first.
+     */
+    private fun deferred(url: Uri): WebResourceResponse {
+        val result = ArrayBlockingQueue<WebResourceResponse>(1)
+        pool.execute {
+            val r = try {
+                fetch(url)
+            } catch (e: Exception) {
+                json(500, JSONObject().put("error", e.message ?: "Internal error"))
+            }
+            result.offer(r)
+        }
+        val body = object : InputStream() {
+            private var inner: InputStream? = null
+            private fun open(): InputStream {
+                inner?.let { return it }
+                val r = result.poll(90, TimeUnit.SECONDS)
+                    ?: json(504, JSONObject().put("error", "The source server did not respond in time."))
+                val len = r.responseHeaders?.get("X-Upstream-Length") ?: ""
+                val head = "LTTV-STATUS ${r.statusCode} $len\n".toByteArray()
+                val s = SequenceInputStream(head.inputStream(), r.data ?: ByteArray(0).inputStream())
+                inner = s
+                return s
+            }
+            override fun read(): Int = open().read()
+            override fun read(b: ByteArray, off: Int, len: Int): Int = open().read(b, off, len)
+            override fun close() {
+                inner?.close()
+            }
+        }
+        return WebResourceResponse("application/octet-stream", null, 200, "OK", cors + mapOf("X-Deferred" to "1"), body)
     }
 
     private fun fetch(url: Uri): WebResourceResponse {
@@ -105,5 +147,7 @@ class ApiHandler(private val activity: MainActivity) {
 
     companion object {
         private const val TAG = "LTTV"
+        /** Network work for /api/fetch (several requests at once, never on WebView's request thread). */
+        private val pool = Executors.newFixedThreadPool(6)
     }
 }

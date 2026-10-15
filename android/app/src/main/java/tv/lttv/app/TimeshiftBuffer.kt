@@ -109,20 +109,15 @@ class TimeshiftBuffer(
         lock.notifyAll()
     }
 
-    /**
-     * Read bytes at [position], waiting for them to arrive when [position] is the
-     * live edge. Returns -1 once the buffer is closed and everything was read.
-     */
+    private class Spot(val file: File, val start: Long, val avail: Long)
+
+    /** Where [position] is stored, waiting for it at the live edge; null once closed and fully read. */
     @Throws(IOException::class)
-    fun read(position: Long, buf: ByteArray, off: Int, len: Int): Int {
-        if (len == 0) return 0
-        val file: File
-        val start: Long
-        val avail: Long
+    private fun locate(position: Long): Spot? {
         synchronized(lock) {
             while (position >= writeOffset) {
                 failure?.let { throw it }
-                if (closed) return -1
+                if (closed) return null
                 try {
                     lock.wait(1000)
                 } catch (e: InterruptedException) {
@@ -132,21 +127,52 @@ class TimeshiftBuffer(
             }
             val c = chunks.lastOrNull { it.start <= position }
                 ?: throw IOException("This part of the recording is no longer kept")
-            if (position < c.start || chunks.first().start > position) throw IOException("This part of the recording is no longer kept")
-            file = c.file
-            start = c.start
-            avail = c.start + c.length - position
-        }
-        val n = minOf(len.toLong(), avail).toInt()
-        try {
-            RandomAccessFile(file, "r").use { f ->
-                f.seek(position - start)
-                return f.read(buf, off, n)
-            }
-        } catch (e: IOException) {
-            throw IOException("This part of the recording is no longer kept", e)
+            if (chunks.first().start > position) throw IOException("This part of the recording is no longer kept")
+            return Spot(c.file, c.start, c.start + c.length - position)
         }
     }
+
+    /**
+     * A reader that keeps its chunk file open between reads (opening a file for every
+     * small read is far too slow on TV sticks). One per playback source; close it after.
+     */
+    inner class Reader : java.io.Closeable {
+        private var file: File? = null
+        private var raf: RandomAccessFile? = null
+
+        /** Bytes at [position] (waiting at the live edge); -1 once the buffer is closed and read. */
+        @Throws(IOException::class)
+        fun read(position: Long, buf: ByteArray, off: Int, len: Int): Int {
+            if (len == 0) return 0
+            val spot = locate(position) ?: return -1
+            try {
+                if (file != spot.file || raf == null) {
+                    raf?.close()
+                    raf = RandomAccessFile(spot.file, "r")
+                    file = spot.file
+                }
+                val f = raf!!
+                f.seek(position - spot.start)
+                return f.read(buf, off, minOf(len.toLong(), spot.avail).toInt())
+            } catch (e: IOException) {
+                close()
+                throw IOException("This part of the recording is no longer kept", e)
+            }
+        }
+
+        override fun close() {
+            try {
+                raf?.close()
+            } catch (_: IOException) {
+            }
+            raf = null
+            file = null
+        }
+    }
+
+    /** One-off read (tests); playback uses [Reader]. */
+    @Throws(IOException::class)
+    fun read(position: Long, buf: ByteArray, off: Int, len: Int): Int = Reader().use { it.read(position, buf, off, len) }
 
     /** Byte offset of the moment [timeMs] (clamped to what is kept). */
     fun offsetForTime(timeMs: Long): Long = synchronized(lock) {
