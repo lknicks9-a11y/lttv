@@ -19,11 +19,20 @@ android {
         applicationId = "tv.lttv.app"
         minSdk = 22          // Fire OS 5 (Fire TV Stick 2nd gen) and newer
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // Every GitHub build gets a higher number, so a new APK installs over the old one.
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
     }
 
     signingConfigs {
+        // One fixed debug key (in the repo) so every build — on any machine or GitHub runner —
+        // can update the app already on the TV without uninstalling it (and losing its data).
+        getByName("debug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (keystoreProps.containsKey("storeFile")) {
             create("release") {
                 storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
@@ -36,6 +45,7 @@ android {
 
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("debug")
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }

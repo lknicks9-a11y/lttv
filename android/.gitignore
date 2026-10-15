@@ -8,3 +8,4 @@ keystore.properties
 app/src/main/assets/www/
 .idea/
 *.iml
+!debug.keystore
