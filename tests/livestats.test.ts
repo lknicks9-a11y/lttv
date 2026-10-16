@@ -87,3 +87,27 @@ test('NBA summary: points, rebounds, assists and PRA; roster parsing (grouped an
   assert.equal(parseRoster({ athletes: [{ position: 'offense', items: [{ id: '1', displayName: 'A B', position: { abbreviation: 'WR' } }] }] })[0].position, 'WR');
   assert.equal(parseRoster({ athletes: [{ id: '2', displayName: 'C D', position: { abbreviation: 'G' } }] })[0].name, 'C D');
 });
+
+import { parlayStatus, diffNotices as diffNotices2 } from '../src/core/livestats';
+
+test('parlay status: all legs must hit, one loss loses, pushes drop out', () => {
+  assert.equal(parlayStatus(['hit', 'hit']).status, 'hit');
+  assert.equal(parlayStatus(['hit', 'live']).status, 'live');
+  assert.equal(parlayStatus(['hit', 'lost', 'live']).status, 'lost');
+  assert.equal(parlayStatus(['hit', 'push']).status, 'hit');
+  assert.equal(parlayStatus(['push', 'push']).status, 'push');
+  assert.equal(parlayStatus(['pending', 'pending']).status, 'pending');
+  assert.equal(parlayStatus(['hit', 'pending', 'live']).hit, 1);
+});
+
+test('team bets: every score change becomes a pop-up with the score line', () => {
+  const team = (id: string, abbr: string, score: number, homeAway: 'home' | 'away') => ({ id, abbr, name: abbr, score, stats: {}, homeAway, logo: `${abbr}.png` });
+  const g = (sea: number) => ({ id: 'g', state: 'in' as const, detail: '3rd 9:40', teams: [team('26', 'SEA', sea, 'home'), team('25', 'SF', 10, 'away')], players: new Map(), plays: [{ id: '1', text: 'TD pass', teamId: '26', athleteIds: [], scoring: true }] });
+  const bet = { id: 'b', kind: 'team' as const, league: 'nfl' as const, prop: 'points', line: 24.5, side: 'over' as const, teamId: '26', teamName: 'Seahawks', createdAt: 0 };
+  const n = diffNotices2(g(14), g(21), 'football', { roster: [], bets: [bet] });
+  const score = n.find((x) => x.kind === 'score');
+  assert.equal(score?.title, 'SF 10 – 21 SEA');
+  assert.match(score?.detail ?? '', /SEA \+7/);
+  assert.equal(score?.logo, 'SEA.png');
+  assert.equal(diffNotices2(g(14), g(21), 'football', { roster: [], bets: [{ ...bet, kind: 'player', athleteId: '1' }] }).some((x) => x.kind === 'score'), false);
+});

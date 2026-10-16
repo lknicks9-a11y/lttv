@@ -212,15 +212,20 @@ function fixtureServer() {
         resp.writeHead(200, { 'content-type': 'application/json' });
         return resp.end(JSON.stringify({ events: [{ id: 'n1', name: 'San Francisco 49ers at Seattle Seahawks', date: new Date(Date.now() - 3600_000).toISOString(), competitions: [{ competitors: [team('26', 'Seattle Seahawks', 'SEA', 'home', 14), team('25', 'San Francisco 49ers', 'SF', 'away', 10)], status: { type: { state: 'in', shortDetail: '2nd 4:12' } } }], status: { type: { state: 'in' } } }] }));
       }
+      if (u.pathname === '/espn/stage3') {
+        nflStage3 = true;
+        resp.writeHead(200);
+        return resp.end('ok');
+      }
       if (u.pathname === '/espn/football/nfl/summary') {
         const later = ++nflSummaryReads > 1;
         const tm = (id, abbr, score) => ({ homeAway: id === '26' ? 'home' : 'away', score: String(score), team: { id, abbreviation: abbr, displayName: abbr, logos: [{ href: `${b0()}/logo/${abbr}.png` }] } });
         resp.writeHead(200, { 'content-type': 'application/json' });
         return resp.end(JSON.stringify({
-          header: { competitions: [{ status: { type: { state: 'in', shortDetail: later ? '3rd 9:40' : '2nd 4:12' } }, competitors: [tm('26', 'SEA', later ? 21 : 14), tm('25', 'SF', 10)] }] },
+          header: { competitions: [{ status: { type: { state: 'in', shortDetail: later ? '3rd 9:40' : '2nd 4:12' } }, competitors: [tm('26', 'SEA', nflStage3 ? 28 : later ? 21 : 14), tm('25', 'SF', 10)] }] },
           boxscore: { players: [{ team: { id: '26' }, statistics: [{ name: 'receiving', keys: ['receptions', 'receivingYards', 'yardsPerReception', 'receivingTouchdowns', 'longReception', 'receivingTargets'],
-            athletes: [{ athlete: { id: '300', displayName: 'Jaxon Smith-Njigba' }, stats: later ? ['6', '83', '13.8', '2', '30', '9'] : ['5', '61', '12.2', '1', '30', '8'] }] }] }] },
-          drives: { previous: [{ plays: [{ id: '1', text: 'S.Darnold pass short right to J.Smith-Njigba for 12 yards' }, ...(later ? [{ id: '2', text: 'S.Darnold pass deep left to J.Smith-Njigba for 22 yards, TOUCHDOWN.', scoringPlay: true }] : [])] }] },
+            athletes: [{ athlete: { id: '300', displayName: 'Jaxon Smith-Njigba' }, stats: nflStage3 ? ['7', '95', '13.6', '3', '30', '10'] : later ? ['6', '83', '13.8', '2', '30', '9'] : ['5', '61', '12.2', '1', '30', '8'] }] }] }] },
+          drives: { previous: [{ plays: [{ id: '1', text: 'S.Darnold pass short right to J.Smith-Njigba for 12 yards' }, ...(later ? [{ id: '2', text: 'S.Darnold pass deep left to J.Smith-Njigba for 22 yards, TOUCHDOWN.', scoringPlay: true }] : []), ...(nflStage3 ? [{ id: '3', text: 'S.Darnold pass short middle to J.Smith-Njigba for 12 yards, TOUCHDOWN.', scoringPlay: true }] : [])] }] },
         }));
       }
       // Mock of the tv-logos collection (a few real files from it).
@@ -348,6 +353,7 @@ const gotoNav = async (label) => {
 };
 /** Walk a grid in a snake pattern until the focused element matches `re`. */
 let nflSummaryReads = 0;
+let nflStage3 = false;
 const findInGrid = async (re, rows = 14, cols = 5) => {
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -903,6 +909,9 @@ try {
   await clickText('.fx-props button', /^Over$/);
   await page.waitForTimeout(400);
   check('Bets: "over 74.5 receiving yards" is tracked', await page.evaluate(() => /over 74\.5 receiving yards/.test(document.querySelector('.fx-list')?.textContent ?? '')));
+  // Pop-ups only while a sports channel plays: tune NESN (a sports channel) first.
+  await page.evaluate(() => { const ch = window.__lttv.getState().lineup.find((c) => /NESN/.test(c.name)); if (ch) return window.__lttv.tune(ch.key); });
+  await page.waitForTimeout(300);
   await page.evaluate(() => window.__lttv.pollLive());
   await page.waitForTimeout(300);
   await page.evaluate(() => window.__lttv.pollLive());
@@ -911,6 +920,25 @@ try {
   check('Pop-ups carry the player picture and team logo', await page.evaluate(() => !!document.querySelector('.live-notice .headshot') && !!document.querySelector('.live-notice .live-notice-logo')));
   await shot('33-prop-hit-notice');
   check('The bet row shows HIT with 83 / 74.5', await page.evaluate(() => /83 \/ 74\.5/.test(document.querySelector('.fx-list')?.textContent ?? '') && !!document.querySelector('.bet-badge-hit')));
+  // Parlay (receptions over 5.5 + Seahawks over 24.5 points) and a team bet: every score pops up.
+  await page.evaluate(() => {
+    const base = { league: 'nfl', teamId: '26', teamName: 'Seattle Seahawks', createdAt: Date.now() };
+    window.__lttv.addParlay([
+      { ...base, id: 'leg1', kind: 'player', prop: 'rec', line: 5.5, side: 'over', athleteId: '300', athleteName: 'Jaxon Smith-Njigba' },
+      { ...base, id: 'leg2', kind: 'team', prop: 'points', line: 24.5, side: 'over' },
+    ]);
+  });
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => window.__lttv.pollLive());
+  await page.waitForTimeout(300);
+  check('Bets: a parlay shows its legs and how many have hit', await page.evaluate(() => /2-leg parlay · 1 of 2 hit/.test(document.querySelector('.parlay-row')?.textContent ?? '')), await page.evaluate(() => document.querySelector('.parlay-row')?.textContent ?? ''));
+  await fetch(`${fxBase}/espn/stage3`);
+  await page.evaluate(() => window.__lttv.pollLive());
+  const seenNotes = new Set();
+  const scoreNotes = await waitFor(async () => { for (const t of await page.evaluate(() => [...document.querySelectorAll('.live-notice')].map((x) => x.textContent))) seenNotes.add(t); return [...seenNotes].some((t) => /PARLAY HIT/.test(t)) ? [...seenNotes] : null; }, 30000);
+  check('Team bet: the new score pops up (SF 10 – 28 SEA) and the parlay hit is announced', !!scoreNotes && scoreNotes.some((t) => /SF 10 – 28 SEA/.test(t)) && scoreNotes.some((t) => /PARLAY HIT/.test(t)), JSON.stringify(scoreNotes));
+  await shot('34-parlay-score');
+  check('Pop-ups only while sports plays (on with NESN, off once playback stops)', await page.evaluate(() => { window.__lttv.player.stop(); return window.__lttv.watchingSports() === false; }));
 
   // ---- Movies and Shows from the provider ----
   const vodNav = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.sidebar .nav-label')].map((x) => x.textContent); return t.includes('Movies') && t.includes('Shows') ? t : null; }), 15000);

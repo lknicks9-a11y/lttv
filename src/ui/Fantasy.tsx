@@ -5,7 +5,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { TEAM_PROPS, betLabel, fantasyPoints, groupRoster, liveLeague, parseLine, propsForPosition, type Bet, type LiveLeague, type LiveNotice } from '../core/livestats';
 import { isTV } from '../app/platform';
 import {
-  addBet, addFantasyPlayer, betStatus, clearSettledBets, fantasyTotal, gameForTeam, headshotUrl, loadRoster, onLiveNotice, removeBet, removeFantasyPlayer,
+  addBet, addFantasyPlayer, addParlay, betStatus, clearSettledBets, parlayLegs, parlayOf, removeParlay, fantasyTotal, gameForTeam, headshotUrl, loadRoster, onLiveNotice, removeBet, removeFantasyPlayer,
   setNotify, setScoring, useLiveSports, type FantasyPlayer,
 } from '../app/livesports';
 import { useLeagueTeams } from '../app/schedule';
@@ -106,7 +106,7 @@ function LinePad({ value, onChange, allowMinus }: { value: string; onChange: (v:
 }
 
 /** Choose a prop, type your line and pick over / under. */
-function PropForm({ league, team, player, onDone, onClose }: { league: LiveLeague; team: PickedTeam; player?: PickedPlayer; onDone: () => void; onClose: () => void }) {
+function PropForm({ league, team, player, onDone, onClose, onBet }: { league: LiveLeague; team: PickedTeam; player?: PickedPlayer; onDone: () => void; onClose: () => void; onBet?: (b: Bet) => void }) {
   const sport = liveLeague(league)!.sport;
   const props = player ? propsForPosition(sport, player.position) : TEAM_PROPS[sport];
   const [prop, setProp] = useState<string | null>(null);
@@ -123,8 +123,13 @@ function PropForm({ league, team, player, onDone, onClose }: { league: LiveLeagu
       id: Math.random().toString(36).slice(2, 10), kind: player ? 'player' : 'team', league, prop: prop!, line: n, side,
       teamId: team.id, teamName: team.name, teamLogo: team.logo, athleteId: player?.id, athleteName: player?.name, headshot: player ? headshotUrl(league, player.id, player.headshot) : undefined, createdAt: Date.now(),
     };
-    void addBet(b);
-    toast(`Tracking: ${betLabel(b, sport)}`, 'success');
+    if (onBet) {
+      onBet(b);
+      toast(`Parlay leg added: ${betLabel(b, sport)}`, 'success');
+    } else {
+      void addBet(b);
+      toast(`Tracking: ${betLabel(b, sport)}`, 'success');
+    }
     onDone();
   };
   return (
@@ -233,32 +238,87 @@ function statLine(s: Record<string, number>, sport: 'football' | 'basketball'): 
 
 export function BetsScreen({ league }: { league: LiveLeague }) {
   const live = useLiveSports();
-  const bets = live.bets.filter((b) => b.league === league);
+  const singles = live.bets.filter((b) => b.league === league && !b.parlayId);
+  // A parlay shows in every league it has a leg in.
+  const parlays = (live.parlays ?? []).filter((p) => live.bets.some((b) => b.parlayId === p.id && b.league === league));
   const [mode, setMode] = useState<null | 'player' | 'team'>(null);
   const [picked, setPicked] = useState<{ league: LiveLeague; team: PickedTeam; player?: PickedPlayer } | null>(null);
+  const [draft, setDraft] = useState<Bet[] | null>(null);
+  const sport = liveLeague(league)!.sport;
+  const count = singles.length + parlays.length;
   return (
     <div class="fx-screen">
       <div class="fx-head card" data-group="fx-head">
-        <div class="fx-total"><span class="muted">Tracking</span><b>{bets.length}</b><span class="muted">props</span></div>
-        <Button variant="primary" icon="add" data-autofocus onClick={() => setMode('player')}>Add player prop</Button>
-        <Button icon="add" onClick={() => setMode('team')}>Add team prop</Button>
-        {bets.length > 0 && <Button icon="close" onClick={() => void clearSettledBets()}>Clear finished</Button>}
+        <div class="fx-total"><span class="muted">Tracking</span><b>{count}</b><span class="muted">{count === 1 ? 'bet' : 'bets'}</span></div>
+        {!draft && <Button variant="primary" icon="add" data-autofocus onClick={() => setMode('player')}>Add player prop</Button>}
+        {!draft && <Button icon="add" onClick={() => setMode('team')}>Add team prop</Button>}
+        {!draft && <Button icon="add" onClick={() => setDraft([])}>Build a parlay</Button>}
+        {!draft && count > 0 && <Button icon="close" onClick={() => void clearSettledBets()}>Clear finished</Button>}
       </div>
-      <Toggle label="Pop-ups while watching (progress and when a prop hits)" checked={live.notify} onChange={(v) => void setNotify(v)} />
-      {!bets.length ? (
-        <Empty icon="sports" title="No props yet">
-          <p>Pick a player or team, choose any prop (yards, receptions, points, rebounds, game total, spread…), type your line — e.g. over 74.5 receiving yards — and LTTV follows it live and pops up in the corner as it moves and when it hits.</p>
+      {draft && (
+        <div class="card parlay-draft" data-group="parlay-draft">
+          <div class="row gap"><b>New parlay</b><span class="muted">{draft.length} leg{draft.length === 1 ? '' : 's'} · wins only if every leg hits</span></div>
+          {draft.map((b, i) => (
+            <div class="parlay-leg" key={b.id}>
+              <span>{i + 1}. {betLabel(b, sport)}</span>
+              <Button small icon="close" aria-label="Remove leg" onClick={() => setDraft(draft.filter((x) => x.id !== b.id))} />
+            </div>
+          ))}
+          <div class="row gap modal-actions">
+            <Button variant="primary" icon="add" data-autofocus onClick={() => setMode('player')}>Add player leg</Button>
+            <Button icon="add" onClick={() => setMode('team')}>Add team leg</Button>
+            <Button icon="check" disabled={draft.length < 2} onClick={() => { void addParlay(draft); toast(`Tracking a ${draft.length}-leg parlay`, 'success'); setDraft(null); }}>Track parlay</Button>
+            <Button variant="ghost" onClick={() => setDraft(null)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      <Toggle label="Pop-ups while watching sports (scores, progress, when a prop or parlay hits)" checked={live.notify} onChange={(v) => void setNotify(v)} />
+      {!count && !draft ? (
+        <Empty icon="sports" title="No bets yet">
+          <p>Pick a player or team, choose any prop (yards, receptions, points, rebounds, game total, spread…), type your line — e.g. over 74.5 receiving yards — and LTTV follows it live. Combine several into a parlay. While you watch a game, pop-ups in the corner show scores, progress and hits.</p>
         </Empty>
       ) : (
         <div class="fx-list" data-group="fx-bets">
-          {bets.map((b) => <BetRow b={b} />)}
+          {parlays.map((p) => <ParlayRow id={p.id} />)}
+          {singles.map((b) => <BetRow b={b} />)}
         </div>
       )}
       <p class="hint">LTTV only tracks the lines you type in; it doesn’t place bets or show odds. Stats from ESPN’s live game feeds, checked every 30 seconds during games.</p>
       {mode && !picked && (
-        <TeamAndPlayerPicker league={league} purpose="bets" title={mode === 'player' ? 'Player prop' : 'Team prop'} needPlayer={mode === 'player'} onClose={() => setMode(null)} onPick={(league, team, player) => setPicked({ league, team, player })} />
+        <TeamAndPlayerPicker league={league} purpose="bets" title={mode === 'player' ? (draft ? 'Parlay leg: player prop' : 'Player prop') : (draft ? 'Parlay leg: team prop' : 'Team prop')} needPlayer={mode === 'player'} onClose={() => setMode(null)} onPick={(league, team, player) => setPicked({ league, team, player })} />
       )}
-      {picked && <PropForm league={picked.league} team={picked.team} player={picked.player} onDone={() => { setPicked(null); setMode(null); }} onClose={() => setPicked(null)} />}
+      {picked && (
+        <PropForm
+          league={picked.league}
+          team={picked.team}
+          player={picked.player}
+          onBet={draft ? (b) => setDraft((d) => [...(d ?? []), b]) : undefined}
+          onDone={() => { setPicked(null); setMode(null); }}
+          onClose={() => setPicked(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ParlayRow({ id }: { id: string }) {
+  const legs = parlayLegs(id);
+  const st = parlayOf(id);
+  return (
+    <div class={`fx-row parlay-row bet-${st.status}`}>
+      <Icon name="check" size="2.2rem" />
+      <div class="fx-row-main">
+        <div class="fx-row-name">{legs.length}-leg parlay · {st.hit} of {st.total} hit</div>
+        <div class="parlay-legs">
+          {legs.map((b) => {
+            const bs = betStatus(b);
+            const sport = liveLeague(b.league)!.sport;
+            return <small class={`parlay-leg-line leg-${bs.status}`}>{bs.status === 'hit' ? '✓' : bs.status === 'lost' ? '✗' : '•'} {betLabel(b, sport)} <span class="muted">({fmt(bs.value)})</span></small>;
+          })}
+        </div>
+      </div>
+      <span class={`bet-badge bet-badge-${st.status}`}>{st.status === 'hit' ? 'HIT' : st.status === 'lost' ? 'LOST' : st.status === 'push' ? 'PUSH' : st.status === 'live' ? 'LIVE' : 'PRE'}</span>
+      <Button small icon="close" aria-label="Stop tracking this parlay" onClick={() => void removeParlay(id)} />
     </div>
   );
 }
@@ -288,13 +348,20 @@ function BetRow({ b }: { b: Bet }) {
 
 /** Bottom-corner notices for fantasy scoring and prop progress (shown anywhere, also full screen). */
 export function LiveNotices() {
-  const [items, setItems] = useState<(LiveNotice & { at: number })[]>([]);
-  useEffect(() => onLiveNotice((n) => setItems((list) => [...list.slice(-2), { ...n, at: Date.now() }])), []);
+  // A queue: up to three on screen, each for 8 seconds, the rest wait their turn (none get skipped).
+  const [queue, setQueue] = useState<(LiveNotice & { shownAt?: number })[]>([]);
+  useEffect(() => onLiveNotice((n) => setQueue((q) => [...q, n].slice(-12))), []);
   useEffect(() => {
-    if (!items.length) return;
-    const t = setTimeout(() => setItems((list) => list.filter((x) => Date.now() - x.at < 9000)), 1000);
+    if (!queue.length) return;
+    if (queue.slice(0, 3).some((x) => !x.shownAt)) {
+      const now = Date.now();
+      setQueue((q) => q.map((x, i) => (i < 3 && !x.shownAt ? { ...x, shownAt: now } : x)));
+      return;
+    }
+    const t = setTimeout(() => setQueue((q) => q.filter((x, i) => !(i < 3 && x.shownAt && Date.now() - x.shownAt >= 8000))), 1000);
     return () => clearTimeout(t);
-  }, [items]);
+  }, [queue]);
+  const items = queue.slice(0, 3);
   if (!items.length) return null;
   return (
     <div class="live-notices" aria-live="polite">
@@ -309,7 +376,7 @@ export function LiveNotices() {
             <small>{n.detail}</small>
             {n.play && <span class="live-notice-play">{n.play}</span>}
           </div>
-          <Icon name={n.kind === 'bet' ? 'check' : 'star'} class="live-notice-icon" />
+          <Icon name={n.kind === 'bet' || n.kind === 'parlay' ? 'check' : n.kind === 'score' ? 'sports' : 'star'} class="live-notice-icon" />
         </div>
       ))}
     </div>

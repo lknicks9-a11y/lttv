@@ -1,11 +1,13 @@
 // Fantasy lineup and tracked props (Bets): stored on the device, followed live from ESPN's
 // game summaries while their games are on, and announced with pop-ups in the bottom corner.
 import { useEffect, useState } from 'preact/hooks';
-import { betProgress, diffNotices, fantasyPoints, liveLeague, parseRoster, parseSummary, type Bet, type FantasyScoring, type LiveGame, type LiveLeague, type LiveNotice } from '../core/livestats';
+import { betProgress, diffNotices, fantasyPoints, liveLeague, parlayStatus, parseRoster, parseSummary, type Bet, type BetStatus, type FantasyScoring, type LiveGame, type LiveLeague, type LiveNotice, type Parlay } from '../core/livestats';
+import { isEventChannel } from '../core/events';
+import { isUsableMatch } from '../core/match';
 import { scheduleDay } from '../core/schedule';
 import { openRemote } from './platform';
 import { loadGames, scheduleBase } from './schedule';
-import { repo, getState } from './state';
+import { repo, getState, player } from './state';
 
 export interface FantasyPlayer {
   athleteId: string;
@@ -21,12 +23,13 @@ export interface FantasyPlayer {
 interface Saved {
   roster: FantasyPlayer[];
   bets: Bet[];
+  parlays: Parlay[];
   scoring: FantasyScoring;
   notify: boolean;
 }
 
 const KV = 'liveSports';
-let saved: Saved = { roster: [], bets: [], scoring: 'ppr', notify: true };
+let saved: Saved = { roster: [], bets: [], parlays: [], scoring: 'ppr', notify: true };
 let loaded = false;
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((l) => l());
@@ -36,7 +39,7 @@ async function ensureLoaded() {
   loaded = true;
   try {
     const s = await repo.getKv<Saved>(KV);
-    if (s) saved = { ...saved, ...s };
+    if (s) saved = { ...saved, ...s, parlays: s.parlays ?? [] };
   } catch {
     /* start empty */
   }
@@ -69,7 +72,27 @@ export const setScoring = (scoring: FantasyScoring) => save({ scoring });
 export const setNotify = (notify: boolean) => save({ notify });
 export const addBet = (b: Bet) => save({ bets: [...saved.bets, b] });
 export const removeBet = (id: string) => save({ bets: saved.bets.filter((x) => x.id !== id) });
-export const clearSettledBets = () => save({ bets: saved.bets.filter((b) => { const g = gameForTeam(b.league, b.teamId); return !g || g.state !== 'post'; }) });
+export const clearSettledBets = () => {
+  const open = (b: Bet) => { const g = gameForTeam(b.league, b.teamId); return !g || g.state !== 'post'; };
+  // A parlay goes when it's decided (all legs final, or one lost).
+  const settledParlays = new Set(saved.parlays.filter((p) => { const st = parlayOf(p.id); return st.status === 'hit' || st.status === 'lost' || st.status === 'push'; }).map((p) => p.id));
+  return save({ bets: saved.bets.filter((b) => (b.parlayId ? !settledParlays.has(b.parlayId) : open(b))), parlays: saved.parlays.filter((p) => !settledParlays.has(p.id)) });
+};
+
+/** Track several props together: wins only if every leg wins. */
+export const addParlay = (legs: Bet[]) => {
+  const id = 'p' + Math.random().toString(36).slice(2, 10);
+  return save({ bets: [...saved.bets, ...legs.map((b) => ({ ...b, parlayId: id }))], parlays: [...(saved.parlays ?? []), { id, createdAt: Date.now() }] });
+};
+export const removeParlay = (id: string) => save({ bets: saved.bets.filter((b) => b.parlayId !== id), parlays: saved.parlays.filter((p) => p.id !== id) });
+
+export function parlayLegs(id: string): Bet[] {
+  return saved.bets.filter((b) => b.parlayId === id);
+}
+
+export function parlayOf(id: string): ReturnType<typeof parlayStatus> {
+  return parlayStatus(parlayLegs(id).map((b) => betStatus(b).status as BetStatus));
+}
 
 // ---- Rosters (player picker) ----
 
@@ -128,11 +151,46 @@ export function onLiveNotice(l: (n: LiveNotice) => void): () => void {
   noticeListeners.add(l);
   return () => noticeListeners.delete(l);
 }
+/** Pop-ups only while a sports channel / game is playing (not while browsing or watching other things). */
+export function watchingSports(): boolean {
+  const s = getState();
+  if (s.vodPlaying || !s.currentKey || player.currentKey !== s.currentKey) return false;
+  const ch = s.lineup.find((c) => c.key === s.currentKey);
+  if (!ch) return false;
+  if (ch.category === 'sports' || isEventChannel(ch)) return true;
+  if (!isUsableMatch(s.matches.get(ch.key))) return false;
+  const p = s.guide.current(ch.epgChannelId, Date.now());
+  return !!p && (p.categories?.some((c) => /sport|football|basketball|baseball|hockey|soccer/i.test(c)) || /\s(vs\.?|at|@)\s/i.test(` ${p.title} ${p.subTitle ?? ''} `));
+}
+
 function announce(n: LiveNotice) {
   if (seen.has(n.key)) return;
   seen.add(n.key);
   if (seen.size > 2000) seen.clear();
-  if (saved.notify) noticeListeners.forEach((l) => l(n));
+  if (saved.notify && watchingSports()) noticeListeners.forEach((l) => l(n));
+}
+
+// Parlays: announce when another leg hits, and when the parlay is decided.
+const parlayState = new Map<string, string>();
+function parlayNotices() {
+  for (const p of saved.parlays ?? []) {
+    const legs = parlayLegs(p.id);
+    if (!legs.length) continue;
+    const st = parlayStatus(legs.map((b) => betStatus(b).status as BetStatus));
+    const sig = `${st.hit}|${st.status}`;
+    const before = parlayState.get(p.id);
+    parlayState.set(p.id, sig);
+    if (before === undefined || before === sig) continue;
+    const decided = st.status === 'hit' || st.status === 'lost' || st.status === 'push';
+    announce({
+      key: `p|${p.id}|${sig}`,
+      kind: 'parlay',
+      title: decided ? (st.status === 'hit' ? `PARLAY HIT · ${st.total} legs` : st.status === 'push' ? 'Parlay pushed' : 'Parlay lost') : `Parlay: ${st.hit} of ${st.total} legs hit`,
+      detail: legs.map((b) => `${betStatus(b).status === 'hit' ? '✓' : betStatus(b).status === 'lost' ? '✗' : '·'} ${b.athleteName ?? b.teamName}`).join('  '),
+      logo: legs[0].teamLogo,
+      tone: st.status === 'lost' ? 'bad' : st.status === 'hit' || !decided ? 'good' : 'info',
+    });
+  }
 }
 
 let timer: number | undefined;
@@ -183,6 +241,7 @@ export async function pollLive(): Promise<void> {
         }
       }
     }
+    parlayNotices();
     schedule(anyLive ? 30_000 : 5 * 60_000);
   } finally {
     running = false;

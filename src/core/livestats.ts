@@ -319,6 +319,13 @@ export interface Bet {
   athleteName?: string;
   headshot?: string;
   createdAt: number;
+  /** A leg of this parlay (see Parlay). */
+  parlayId?: string;
+}
+
+export interface Parlay {
+  id: string;
+  createdAt: number;
 }
 
 export type BetStatus = 'pending' | 'live' | 'hit' | 'lost' | 'push';
@@ -362,7 +369,7 @@ export function betLabel(b: Bet, sport: LiveSport): string {
 
 export interface LiveNotice {
   key: string;
-  kind: 'fantasy' | 'bet';
+  kind: 'fantasy' | 'bet' | 'score' | 'parlay';
   title: string;
   detail: string;
   play?: string;
@@ -392,6 +399,25 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
   if (!prev) return [];
   const out: LiveNotice[] = [];
   const logoOf = (teamId: string) => next.teams.find((t) => t.id === teamId)?.logo;
+  // Games with a team bet: every score change pops up (score line, the scoring team's logo, the play).
+  if (opts.bets.some((b) => b.kind === 'team')) {
+    const scorer = next.teams.find((t) => t.score > (prev.teams.find((x) => x.id === t.id)?.score ?? 0));
+    if (scorer) {
+      const away = next.teams.find((t) => t.homeAway === 'away') ?? next.teams[1] ?? next.teams[0];
+      const home = next.teams.find((t) => t.homeAway === 'home') ?? next.teams[0];
+      const pts = scorer.score - (prev.teams.find((x) => x.id === scorer.id)?.score ?? 0);
+      const play = [...next.plays].reverse().find((pl) => pl.scoring && (!pl.teamId || pl.teamId === scorer.id)) ?? next.plays[next.plays.length - 1];
+      out.push({
+        key: `s|${next.id}|${next.teams.map((t) => `${t.id}:${t.score}`).join(',')}`,
+        kind: 'score',
+        title: `${away.abbr} ${away.score} – ${home.score} ${home.abbr}`,
+        detail: `${scorer.abbr} +${pts} · ${next.detail}`,
+        play: play?.text,
+        logo: scorer.logo,
+        tone: opts.bets.some((b) => b.kind === 'team' && b.teamId === scorer.id) ? 'good' : 'info',
+      });
+    }
+  }
   const shot = (id: string, given?: string) => given || next.players.get(id)?.headshot || (opts.leagueHeadshot ? `https://a.espncdn.com/i/headshots/${opts.leagueHeadshot}/players/full/${id}.png` : undefined);
   for (const r of opts.roster) {
     const a = prev.players.get(r.athleteId);
@@ -423,7 +449,7 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
       key: `b|${bet.id}|${p1.value}|${p1.status}`,
       kind: 'bet',
       title: decided ? `${p1.status === 'hit' ? 'HIT' : p1.status === 'push' ? 'PUSH' : 'LOST'}: ${betLabel(bet, sport)}` : `${bet.athleteName ?? bet.teamName}: ${fmt(p1.value)} ${def?.unit ?? ''} (${lineText})`,
-      detail: decided ? `Finished at ${fmt(p1.value)} ${def?.unit ?? ''}` : `${p1.value > p0.value ? '+' : ''}${fmt(p1.value - p0.value)} ${def?.unit ?? ''} · needs ${bet.side === 'over' ? 'over' : 'under'} ${bet.line}`,
+      detail: decided ? `${next.state === 'post' ? 'Finished at' : 'Now at'} ${fmt(p1.value)} ${def?.unit ?? ''}` : `${p1.value > p0.value ? '+' : ''}${fmt(p1.value - p0.value)} ${def?.unit ?? ''} · needs ${bet.side === 'over' ? 'over' : 'under'} ${bet.line}`,
       play: bet.athleteId ? latestPlayFor(next, bet.athleteId, bet.athleteName ?? '') : undefined,
       headshot: bet.athleteId ? shot(bet.athleteId, bet.headshot) : undefined,
       logo: bet.teamLogo || logoOf(bet.teamId),
@@ -504,4 +530,18 @@ export function parseLine(text: string): number | undefined {
   if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t)) return undefined;
   const n = Number(t);
   return Number.isFinite(n) ? n : undefined;
+}
+
+
+// ---------------- Parlays ----------------
+
+/** A parlay wins when every leg wins (pushed legs drop out), loses as soon as one leg loses. */
+export function parlayStatus(legs: BetStatus[]): { status: BetStatus; hit: number; total: number } {
+  const total = legs.length;
+  const hit = legs.filter((s) => s === 'hit').length;
+  const counted = legs.filter((s) => s !== 'push');
+  if (legs.includes('lost')) return { status: 'lost', hit, total };
+  if (counted.length === 0 && total > 0) return { status: 'push', hit, total };
+  if (counted.length > 0 && counted.every((s) => s === 'hit')) return { status: 'hit', hit, total };
+  return { status: legs.some((s) => s === 'live' || s === 'hit') ? 'live' : 'pending', hit, total };
 }

@@ -1,7 +1,7 @@
 import { h, Fragment } from 'preact';
 import { startUpdateChecks } from './app/updates';
 import { startVodDetection, saveProgress } from './app/vod';
-import { pollLive, startLiveSports } from './app/livesports';
+import { pollLive, startLiveSports, addBet, addParlay, watchingSports } from './app/livesports';
 import { render } from 'preact';
 import { App } from './ui/App';
 import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/nav';
@@ -26,7 +26,7 @@ async function boot() {
   };
 
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
-  (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress };
+  (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports };
   render(<App />, document.getElementById('app')!);
 
   try {

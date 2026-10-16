@@ -945,3 +945,9 @@ small, .small { font-size: 1.15rem; }
 .vod-osd-badges { display: flex; gap: 0.8rem; align-items: center; margin-top: 0.3rem; font-size: 1rem; }
 .cc-btn.cc-on { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 640px) { .vod-ep-img { width: 7rem; } }
+/* Parlays */
+.parlay-draft { display: flex; flex-direction: column; gap: 0.6rem; }
+.parlay-leg { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.4rem 0.6rem; border-radius: var(--radius); background: var(--panel-2); }
+.parlay-legs { display: flex; flex-direction: column; gap: 0.15rem; }
+.parlay-leg-line.leg-hit { color: var(--good, #4cd964); }
+.parlay-leg-line.leg-lost { color: var(--bad, #ff5f57); text-decoration: line-through; }
