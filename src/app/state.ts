@@ -166,6 +166,8 @@ export function toast(text: string, kind: Toast['kind'] = 'info', ms = 4500) {
   setTimeout(() => setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), ms);
 }
 
+const setTaskRaw = (t: Task) => setTask(t);
+const endTaskRaw = (id: string, delay?: number) => endTask(id, delay);
 function setTask(t: Task) {
   setState((s) => {
     const others = s.tasks.filter((x) => x.id !== t.id);
@@ -708,8 +710,11 @@ export async function withClientFallback<T>(preferred: string | undefined, run: 
   throw new FetchError(`${msg} LTTV also tried identifying as VLC and other standard players. Check with your provider that the subscription is active, that your connection limit isn't reached, and that they don't block VPNs.`, (lastErr as FetchError)?.status);
 }
 
-export async function refreshPlaylist(p: PlaylistSource, file?: File) {
+export async function refreshPlaylist(p: PlaylistSource, file?: File, opts: { quiet?: boolean } = {}) {
   const id = 'pl-' + p.id;
+  // Background refreshes run silently (no "Refreshing…" notices popping up while you browse).
+  const setTask = opts.quiet ? (_t: Parameters<typeof setTaskRaw>[0]) => undefined : setTaskRaw;
+  const endTask = opts.quiet ? (_id: string, _ms?: number) => undefined : endTaskRaw;
   if (p.kind === 'file' && !file) {
     toast(`"${p.name}" was imported from a file. Choose the file again to refresh it.`, 'info');
     return false;
@@ -734,8 +739,10 @@ export async function refreshPlaylist(p: PlaylistSource, file?: File) {
   }
 }
 
-export async function refreshEpg(s: EpgSource, file?: File) {
+export async function refreshEpg(s: EpgSource, file?: File, opts: { quiet?: boolean } = {}) {
   const id = 'ep-' + s.id;
+  const setTask = opts.quiet ? (_t: Parameters<typeof setTaskRaw>[0]) => undefined : setTaskRaw;
+  const endTask = opts.quiet ? (_id: string, _ms?: number) => undefined : endTaskRaw;
   if (s.kind === 'file' && !file) {
     toast(`"${s.name}" was imported from a file. Choose the file again to refresh it.`, 'info');
     return false;
@@ -757,6 +764,7 @@ export async function refreshEpg(s: EpgSource, file?: File) {
 }
 
 let refreshing = false;
+const lastTry = new Map<string, number>();
 /** Refresh all URL sources (playlists + guides), then rematch and reload. */
 /** True while a refresh is running (for the guide's Refresh button). */
 export function isRefreshing() {
@@ -775,10 +783,21 @@ export async function refreshAll(opts: { onlyStale?: boolean } = {}) {
     // so playlists that have them are refreshed at least every 4 hours.
     const hasEvents = (id: string) => state.lineup.some((c) => c.playlistId === id && isEventChannel(c));
     const plStale = (p: PlaylistSource) => stale(p.lastImportAt) || (!!opts.onlyStale && hours > 0 && hasEvents(p.id) && (!p.lastImportAt || now - p.lastImportAt > 4 * 3600_000));
-    for (const p of await repo.listPlaylists()) if (p.enabled && p.kind === 'url' && plStale(p)) changed = (await refreshPlaylist(p)) || changed;
+    // Background refreshes: quiet, and a source that just failed waits an hour before the next try.
+    const quiet = !!opts.onlyStale;
+    const tooSoon = (id: string) => quiet && now - (lastTry.get(id) ?? 0) < 3600_000;
+    for (const p of await repo.listPlaylists()) {
+      if (!(p.enabled && p.kind === 'url' && plStale(p)) || tooSoon(p.id)) continue;
+      lastTry.set(p.id, now);
+      changed = (await refreshPlaylist(p, undefined, { quiet })) || changed;
+    }
     // A guide whose listings run out within 12 hours is refreshed early (at most once an hour), so the lineup stays current.
     const runningOut = (e: EpgSource) => !!opts.onlyStale && hours > 0 && !!e.coverageEnd && e.coverageEnd < now + 12 * 3600_000 && now - (e.lastAttemptAt ?? 0) > 3600_000;
-    for (const s of await repo.listEpgSources()) if (s.enabled && s.kind === 'url' && (stale(s.lastAttemptAt ?? s.lastRefreshAt) || runningOut(s))) changed = (await refreshEpg(s)) || changed;
+    for (const s of await repo.listEpgSources()) {
+      if (!(s.enabled && s.kind === 'url' && (stale(s.lastAttemptAt ?? s.lastRefreshAt) || runningOut(s))) || tooSoon(s.id)) continue;
+      lastTry.set(s.id, now);
+      changed = (await refreshEpg(s, undefined, { quiet })) || changed;
+    }
     if (changed) {
       await rematch(state.settings);
       await reloadAll();

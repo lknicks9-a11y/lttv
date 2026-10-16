@@ -73,8 +73,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   }, [open]);
   useEffect(() => {
     let alive = true;
-    setBest(new Map());
-    setIndex(null);
+    // Keep what's already shown while channels are re-checked (no "Finding channels…" flashing on refresh).
     if (!games.length) return;
     void (async () => {
       const from = Math.min(...games.map((g) => g.start)) - 3600_000;
@@ -82,7 +81,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
       const idx = await buildGameIndexAsync(lineup, guide, from, to, guideVersion);
       if (!alive) return;
       setIndex(idx);
-      const m = new Map<string, StreamPick | undefined>();
+      const m = new Map<string, StreamPick | undefined>(latest.current);
       for (let i = 0; i < games.length; i++) {
         const g = games[i];
         m.set(g.id, findStreams(g, lineup, { sport: league.sport, index: idx, feed: feedMemory.get(g.id) })[0]);
