@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from 'preact/hooks';
 import { onBack, focusFirst } from '../app/nav';
 import { useApp, tune, updateSettings, toggleReminder, setState, navigate } from '../app/state';
 import { allTeams, LEAGUES, leagueOf, teamColor, type LeagueId, type Team } from '../core/teams';
-import { buildMatchers, findTeamListings, teamChannels, type TeamListing } from '../core/sports';
+import { buildMatchers, findTeamListings, gameHasTeam, isReplayProgramme, teamChannels, type TeamListing } from '../core/sports';
 import { isUsableMatch } from '../core/match';
 import type { LineupChannel } from '../core/types';
 import { Button, Chip, ChannelLogo, Empty, Icon, Modal, Progress, Toggle } from './common';
@@ -12,13 +12,18 @@ import { clock, when, range, progress, remaining } from './fmt';
 import { LeagueGames, TeamLogo } from './Games';
 import { BetsScreen, FantasyScreen } from './Fantasy';
 import { liveLeague } from '../core/livestats';
-import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams } from '../app/schedule';
+import { fallbackTeamLogo } from '../core/schedule';
+import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams, useLiveGames } from '../app/schedule';
 import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
 
 export function TeamBadge({ team, size = 'md' }: { team: Team; size?: 'sm' | 'md' | 'lg' }) {
-  const [failed, setFailed] = useState(false);
-  const logo = logoFor(team.name) ?? team.logo ?? proTeamLogo(team.league, team.abbr);
-  if (logo && !failed) return <img class={`team-logo team-logo-${size}`} src={logo} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
+  // Try every known address for the logo before falling back to the coloured badge.
+  const espnId = /^espn:[^:]+:(.+)$/.exec(team.id)?.[1];
+  const candidates = [...new Set([team.logo, logoFor(team.name), proTeamLogo(team.league, team.abbr), espnId ? fallbackTeamLogo(team.league, espnId, team.abbr) : undefined].filter((x): x is string => !!x))];
+  const [failed, setFailed] = useState(0);
+  useEffect(() => setFailed(0), [team.id]);
+  const logo = candidates[failed];
+  if (logo) return <img class={`team-logo team-logo-${size}`} src={logo} alt="" loading="lazy" decoding="async" onError={() => setFailed((n) => n + 1)} />;
   return (
     <span class={`team-badge team-badge-${size}`} style={{ background: teamColor(team.id) }} aria-hidden="true">
       {team.abbr}
@@ -43,11 +48,24 @@ export function useTeamListings(teams: Team[], opts: { includeShows?: boolean; h
   const guideVersion = useApp((s) => s.guideVersion);
   const minute = useApp((s) => Math.floor(s.now / 60000));
   const custom = useApp((s) => s.settings.customTeams);
+  // "Live" needs a real game: not a replay / classic airing, and (for leagues with a scoreboard) the team's game in progress.
+  const tz = useApp((s) => s.settings.timeZone);
+  const leagues = teams.map((t) => t.league).filter((l): l is ScheduleLeagueId => !!scheduleLeague(l));
+  const liveGames = useLiveGames(leagues, tz);
   return useMemo(() => {
     if (!teams.length) return [];
     const matchers = buildMatchers(teams, allTeams(custom));
-    return findTeamListings(matchers, lineup, guide, { now: Date.now(), horizon: (opts.horizonDays ?? 7) * 86400_000, includeShows: opts.includeShows });
-  }, [teams, lineup, guide, guideVersion, minute, custom, opts.includeShows, opts.horizonDays]);
+    const found = findTeamListings(matchers, lineup, guide, { now: Date.now(), horizon: (opts.horizonDays ?? 7) * 86400_000, includeShows: opts.includeShows });
+    const reallyLive = (l: TeamListing) => {
+      if (isReplayProgramme(l.programme)) return false;
+      if (l.kind !== 'game') return true;
+      const scored = l.teams.filter((t) => scheduleLeague(t.league) && !liveGames?.failed?.has(t.league));
+      if (!scored.length) return true; // no scoreboard for this league: trust the guide
+      if (!liveGames) return false; // still checking
+      return scored.some((t) => liveGames.some((g) => g.league === t.league && gameHasTeam(g, t)));
+    };
+    return found.map((l) => (l.live && !reallyLive(l) ? { ...l, live: false } : l));
+  }, [teams, lineup, guide, guideVersion, minute, custom, opts.includeShows, opts.horizonDays, liveGames]);
 }
 
 function channelLabel(chs: LineupChannel[]) {

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { TEAM_PROPS, betLabel, fantasyPoints, groupRoster, liveLeague, parseLine, propsForPosition, type Bet, type LiveLeague, type LiveNotice } from '../core/livestats';
 import { isTV } from '../app/platform';
 import {
-  addBet, addFantasyPlayer, addParlay, betStatus, clearSettledBets, parlayLegs, parlayOf, removeParlay, fantasyTotal, gameForTeam, headshotUrl, loadRoster, onLiveNotice, removeBet, removeFantasyPlayer,
+  addBet, addFantasyPlayer, addParlay, watchingSports, betStatus, clearSettledBets, parlayLegs, parlayOf, removeParlay, fantasyTotal, gameForTeam, headshotUrl, loadRoster, onLiveNotice, removeBet, removeFantasyPlayer,
   setNotify, setScoring, useLiveSports, type FantasyPlayer,
 } from '../app/livesports';
 import { useLeagueTeams } from '../app/schedule';
@@ -353,6 +353,11 @@ export function LiveNotices() {
   useEffect(() => onLiveNotice((n) => setQueue((q) => [...q, n].slice(-12))), []);
   useEffect(() => {
     if (!queue.length) return;
+    // Stopped watching sports (menus, a movie, another channel): drop what's waiting.
+    if (!watchingSports()) {
+      const t = setTimeout(() => !watchingSports() && setQueue([]), 1000);
+      return () => clearTimeout(t);
+    }
     if (queue.slice(0, 3).some((x) => !x.shownAt)) {
       const now = Date.now();
       setQueue((q) => q.map((x, i) => (i < 3 && !x.shownAt ? { ...x, shownAt: now } : x)));

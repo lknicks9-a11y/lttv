@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { loginFor, xtreamApiUrl, type XtreamLogin } from '../core/xtream';
 import {
-  GENRE_ROWS, cleanTitle, genreOf, isEnglishCategory, qualityOf, type Quality, isTrendingCategory, normTitle, parseItunesChart,
+  GENRE_ROWS, cleanTitle, genreOf, parseTvmazeSchedule, isEnglishCategory, qualityOf, type Quality, isTrendingCategory, normTitle, parseItunesChart,
   episodeUrl, m3uVod, movieUrl, parseCategories, parseMovieInfo, parseMovies, parseSeriesInfo, parseSeriesList,
   type VodCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries,
 } from '../core/vod';
@@ -340,6 +340,32 @@ async function chartTitles(kind: VodKind): Promise<string[]> {
   }
 }
 
+/** Shows that aired a new episode in the last 5 days in the US (network TV and streaming), newest first. */
+async function newEpisodeTitles(): Promise<string[]> {
+  if (mem.has('fresh')) return mem.get('fresh') as string[];
+  const base = (() => {
+    try {
+      return localStorage.getItem('lttvTvmazeBase') || 'https://api.tvmaze.com';
+    } catch {
+      return 'https://api.tvmaze.com';
+    }
+  })();
+  const out: string[] = [];
+  for (let d = 0; d < 5; d++) {
+    const day = new Date(Date.now() - d * 86400_000).toISOString().slice(0, 10);
+    for (const path of [`/schedule/web?date=${day}&country=US`, `/schedule?country=US&date=${day}`]) {
+      try {
+        const { stream } = await openRemote(base + path, AbortSignal.timeout?.(15_000));
+        for (const n of parseTvmazeSchedule(JSON.parse(await new Response(stream).text()))) if (!out.includes(n)) out.push(n);
+      } catch {
+        /* skip that day */
+      }
+    }
+  }
+  mem.set('fresh', out);
+  return out;
+}
+
 async function catItems(kind: VodKind, cat: VodCat): Promise<VodItem[]> {
   return kind === 'movies'
     ? (await loadMovies(cat)).map((m): VodItem => ({ kind: 'movie', playlistId: cat.playlistId, m }))
@@ -409,11 +435,17 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
       }
     }
     const tr = dedupe(trending).slice(0, ROW_MAX);
-    if (tr.length) rows.push({ id: 'trending', title: 'Trending now', items: tr, note: trendingCats.length ? undefined : 'Apple TV charts' });
-    const recent = [...all].filter((it) => itemAdded(it) > 0).sort((a, b) => itemAdded(b) - itemAdded(a)).slice(0, ROW_MAX);
-    if (recent.length) rows.push({ id: 'recent', title: kind === 'movies' ? 'Recently added' : 'New and recent', items: recent });
-    const top = all.filter((it) => itemRating(it) >= 7).sort((a, b) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a)).slice(0, ROW_MAX);
-    if (top.length) rows.push({ id: 'top', title: 'Top rated', items: top, note: 'by rating' });
+    if (tr.length) rows.push({ id: 'trending', title: kind === 'movies' ? 'Popular Movies' : 'Popular Shows', items: tr });
+    // Shows with a new episode on TV or streaming this week (TVmaze schedule) that your provider has.
+    if (kind === 'shows' && fresh.length) {
+      const byTitle = new Map(all.map((it) => [normTitle(cleanTitle(itemName(it))), it]));
+      const items = dedupe(fresh.map((t) => byTitle.get(normTitle(t))).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
+      if (items.length) rows.push({ id: 'new-episodes', title: 'New Episodes', items });
+    }
+    const recent = dedupe([...all].filter((it) => itemAdded(it) > 0).sort((a, b) => itemAdded(b) - itemAdded(a))).slice(0, ROW_MAX);
+    if (recent.length) rows.push({ id: 'recent', title: 'Recently Added', items: recent });
+    const top = dedupe(all.filter((it) => itemRating(it) >= 7).sort((a, b) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a))).slice(0, ROW_MAX);
+    if (top.length) rows.push({ id: 'top', title: 'Critically Acclaimed', items: top });
     for (const g of GENRE_ROWS) {
       const items = dedupe(genreCats.filter((c) => genreOf(c.name) === g.id).flatMap((c) => loaded.get(c.key) ?? [])).slice(0, ROW_MAX);
       if (items.length) rows.push({ id: `genre:${g.id}`, title: g.label, items });
@@ -423,6 +455,11 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
 
   void chartTitles(kind).then((t) => {
     chart = t;
+    if (loaded.size) onUpdate(build(loaded.size < order.length));
+  });
+  let fresh: string[] = [];
+  if (kind === 'shows') void newEpisodeTitles().then((t) => {
+    fresh = t;
     if (loaded.size) onUpdate(build(loaded.size < order.length));
   });
   let next = 0;

@@ -9,7 +9,7 @@ import {
   moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching,
   type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
-import { formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
+import { cleanTitle, formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
 import { Button, Chip, Empty, Icon, Modal } from './common';
 import { VideoSlot } from './VideoSlot';
 import { useArt } from '../app/vodmeta';
@@ -121,6 +121,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
           <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
         ) : (
           <>
+            {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 5)} onOpen={setOpen} />}
             {cont.length > 0 && (
               <section class="vod-row">
                 <h2 class="vod-row-title">Continue watching</h2>
@@ -169,6 +170,57 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       </div>
       {open?.kind === 'movie' && <MovieDetail playlistId={open.playlistId} m={open.m} onClose={() => setOpen(null)} />}
       {open?.kind === 'series' && <SeriesDetail playlistId={open.playlistId} s={open.s} onClose={() => setOpen(null)} />}
+    </section>
+  );
+}
+
+/** Featured titles at the top (Hulu-style): big artwork, description, Play and Details. Rotates while you're not on it. */
+function Hero({ items, onOpen }: { items: VodItem[]; onOpen: (it: VodItem) => void }) {
+  const [i, setI] = useState(0);
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (items.length < 2) return;
+    const t = setInterval(() => {
+      if (!ref.current?.contains(document.activeElement)) setI((n) => (n + 1) % items.length);
+    }, 12000);
+    return () => clearInterval(t);
+  }, [items.length]);
+  const it = items[i % items.length];
+  const name = itemName(it);
+  const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  const rating = it.kind === 'movie' ? it.m.rating : it.s.rating;
+  const art = useArt(it.kind, name, year, true);
+  const [d, setD] = useState<VodDetails | null>(null);
+  const id = it.kind === 'movie' ? it.m.id : it.s.id;
+  useEffect(() => {
+    setD(null);
+    if (it.kind === 'movie') void loadMovieDetails(it.playlistId, it.m).then(setD);
+  }, [id]);
+  const backdrop = it.kind === 'series' ? it.s.backdrop : d?.backdrop;
+  const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
+  const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
+  const play = async () => {
+    if (it.kind === 'series') return onOpen(it);
+    const r = await resumePosition(`m:${it.playlistId}:${it.m.id}`);
+    const v = moviePlay(it.playlistId, it.m, r ? Math.max(0, r.pos - 5) : 0);
+    if (v) playVod({ ...v, poster: poster ?? v.poster });
+  };
+  return (
+    <section class="vod-hero" ref={ref} data-group="vod-hero">
+      {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${backdrop ?? poster}")` }} />}
+      <div class="vod-hero-shade" />
+      <div class="vod-hero-text">
+        <div class="vod-hero-kicker">{it.kind === 'movie' ? 'Featured movie' : 'Featured series'}</div>
+        <h2 class="vod-hero-title">{cleanTitle(name) || name}</h2>
+        <div class="vod-facts muted">{[year ?? art?.year, rating ? `★ ${rating.toFixed(1)}` : '', art?.genre].filter(Boolean).join(' · ')}</div>
+        {plot && <p class="vod-hero-plot">{plot}</p>}
+        <div class="row gap">
+          <Button variant="primary" icon="play" data-autofocus onClick={() => void play()}>{it.kind === 'movie' ? 'Play' : 'Watch'}</Button>
+          <Button icon="info" onClick={() => onOpen(it)}>Details</Button>
+        </div>
+        {items.length > 1 && <div class="vod-hero-dots" aria-hidden="true">{items.map((_, n) => <span class={n === i % items.length ? 'on' : ''} />)}</div>}
+      </div>
+      {!backdrop && poster && <img class="vod-hero-poster" src={poster} alt="" />}
     </section>
   );
 }

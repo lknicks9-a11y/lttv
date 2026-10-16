@@ -1,7 +1,7 @@
 // Loads today's games per league (cached), and remembers team logos so the
 // My Teams cards can show them too.
 import { useEffect, useState } from 'preact/hooks';
-import { ESPN_BASE, LEAGUE_LOGO_FALLBACK, SCHEDULE_LEAGUES, TEAM_DIRECTORY, parseLeagueLogo, parseScoreboard, parseTeams, scheduleLeague, scoreboardUrl, teamsUrl, type DirTeam, type Game, type ScheduleLeagueId } from '../core/schedule';
+import { ESPN_BASE, LEAGUE_LOGO_FALLBACK, SCHEDULE_LEAGUES, TEAM_DIRECTORY, parseLeagueLogo, parseScoreboard, parseStandingsTeams, parseTeams, scheduleDay, standingsUrl, scheduleLeague, scoreboardUrl, teamsUrl, type DirTeam, type Game, type ScheduleLeagueId } from '../core/schedule';
 import { openRemote } from './platform';
 
 interface Entry {
@@ -158,7 +158,7 @@ export function useLeagueSummaries(day: string): Record<string, LeagueSummary> {
 
 // ---- Team lists for the team picker (all teams of a league, with logos) ----
 
-const DIR_KEY = 'lttvTeamDir:';
+const DIR_KEY = 'lttvTeamDir2:';
 const dirMem = new Map<string, DirTeam[]>();
 
 /** All teams of a league with logos, from ESPN (kept for a week). */
@@ -176,8 +176,23 @@ export async function loadLeagueTeams(id: string): Promise<DirTeam[]> {
   }
   const dir = TEAM_DIRECTORY.find((d) => d.id === id);
   if (!dir) return [];
-  const { stream } = await openRemote(teamsUrl(dir.path, scheduleBase()), AbortSignal.timeout?.(20_000));
-  const teams = parseTeams(JSON.parse(await new Response(stream).text()));
+  let teams: DirTeam[] = [];
+  if (dir.groups) {
+    // College: only the divisions that matter (FBS + FCS / Division I), from ESPN's standings.
+    for (const g of dir.groups) {
+      try {
+        const { stream } = await openRemote(standingsUrl(dir.path, g, scheduleBase()), AbortSignal.timeout?.(20_000));
+        for (const t of parseStandingsTeams(JSON.parse(await new Response(stream).text()), id)) if (!teams.some((x) => x.espnId === t.espnId)) teams.push(t);
+      } catch {
+        /* fall back to the full list below */
+      }
+    }
+    teams.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  if (!teams.length) {
+    const { stream } = await openRemote(teamsUrl(dir.path, scheduleBase()), AbortSignal.timeout?.(20_000));
+    teams = parseTeams(JSON.parse(await new Response(stream).text()), id);
+  }
   if (!teams.length) throw new Error('No teams listed');
   dirMem.set(id, teams);
   const store = logoStore();
@@ -204,4 +219,37 @@ export function useLeagueTeams(id: string): { teams: DirTeam[] | null; loading: 
     };
   }, [id]);
   return st.id === id ? { teams: st.teams, loading: st.loading } : { teams: dirMem.get(id) ?? null, loading: true };
+}
+
+/** Games in progress right now in these leagues (refreshed every 2 minutes); undefined until loaded. Leagues whose scoreboard couldn't load are listed in `failed`. */
+export function useLiveGames(leagues: ScheduleLeagueId[], tz?: string): (Game[] & { failed?: Set<string> }) | undefined {
+  const [games, setGames] = useState<(Game[] & { failed?: Set<string> }) | undefined>(undefined);
+  const key = [...new Set(leagues)].sort().join(',');
+  useEffect(() => {
+    if (!key) {
+      setGames([]);
+      return;
+    }
+    let alive = true;
+    const load = async () => {
+      const day = scheduleDay(Date.now(), tz);
+      const out: Game[] & { failed?: Set<string> } = [];
+      out.failed = new Set();
+      for (const id of key.split(',') as ScheduleLeagueId[]) {
+        try {
+          out.push(...(await loadGames(id, day, day, true)).filter((g) => g.state === 'in'));
+        } catch {
+          out.failed.add(id); // scoreboard unavailable: the guide decides
+        }
+      }
+      if (alive) setGames(out);
+    };
+    void load();
+    const t = setInterval(() => void load(), 120_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [key]);
+  return games;
 }

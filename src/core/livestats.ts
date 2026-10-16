@@ -400,7 +400,9 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
   const out: LiveNotice[] = [];
   const logoOf = (teamId: string) => next.teams.find((t) => t.id === teamId)?.logo;
   // Games with a team bet: every score change pops up (score line, the scoring team's logo, the play).
-  if (opts.bets.some((b) => b.kind === 'team')) {
+  // …until every team bet on the game is decided (e.g. an over that already hit): then the game goes quiet.
+  const openTeamBet = opts.bets.some((b) => b.kind === 'team' && !['hit', 'lost', 'push'].includes(betProgress(b, prev, sport).status));
+  if (openTeamBet) {
     const scorer = next.teams.find((t) => t.score > (prev.teams.find((x) => x.id === t.id)?.score ?? 0));
     if (scorer) {
       const away = next.teams.find((t) => t.homeAway === 'away') ?? next.teams[1] ?? next.teams[0];
@@ -442,13 +444,15 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
     const p0 = betProgress(bet, prev, sport);
     const p1 = betProgress(bet, next, sport);
     if (p1.value === p0.value && p1.status === p0.status) continue;
+    // Once a bet is decided it goes quiet (one "BET HIT" / "BET LOST" and nothing more).
+    if (p0.status === 'hit' || p0.status === 'lost' || p0.status === 'push') continue;
     const def = bet.kind === 'player' ? PLAYER_PROPS[sport].find((x) => x.id === bet.prop) : TEAM_PROPS[sport].find((x) => x.id === bet.prop);
     const decided = p1.status !== p0.status && (p1.status === 'hit' || p1.status === 'lost' || p1.status === 'push');
     const lineText = def && 'spread' in def && def.spread ? `${bet.line > 0 ? '+' : ''}${bet.line}` : `${bet.side === 'over' ? 'O' : 'U'} ${bet.line}`;
     out.push({
       key: `b|${bet.id}|${p1.value}|${p1.status}`,
       kind: 'bet',
-      title: decided ? `${p1.status === 'hit' ? 'HIT' : p1.status === 'push' ? 'PUSH' : 'LOST'}: ${betLabel(bet, sport)}` : `${bet.athleteName ?? bet.teamName}: ${fmt(p1.value)} ${def?.unit ?? ''} (${lineText})`,
+      title: decided ? `${p1.status === 'hit' ? 'BET HIT' : p1.status === 'push' ? 'BET PUSH' : 'BET LOST'}: ${betLabel(bet, sport)}` : `${bet.athleteName ?? bet.teamName}: ${fmt(p1.value)} ${def?.unit ?? ''} (${lineText})`,
       detail: decided ? `${next.state === 'post' ? 'Finished at' : 'Now at'} ${fmt(p1.value)} ${def?.unit ?? ''}` : `${p1.value > p0.value ? '+' : ''}${fmt(p1.value - p0.value)} ${def?.unit ?? ''} · needs ${bet.side === 'over' ? 'over' : 'under'} ${bet.line}`,
       play: bet.athleteId ? latestPlayFor(next, bet.athleteId, bet.athleteName ?? '') : undefined,
       headshot: bet.athleteId ? shot(bet.athleteId, bet.headshot) : undefined,

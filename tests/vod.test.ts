@@ -152,7 +152,7 @@ test('Continue watching: one card per show (last watched), finished movies and f
     { ...base, key: 'e:p:e1', pos: 100, at: 1, series: ser(1), done: true, hasNext: true },
     { ...base, key: 'e:p:e2', pos: 40, at: 2, series: ser(2), hasNext: true },
     { ...base, key: 'm:p:1', pos: 50, at: 3 },
-    { ...base, key: 'e:p:x9', pos: 100, at: 4, series: { ...ser(9), id: 's2' }, done: true, hasNext: false },
+    { ...base, key: 'e:p:x9', pos: 100, at: 4, series: { ...ser(9), id: 's2', name: 'Other Show' }, done: true, hasNext: false },
   ];
   assert.deepEqual(continueList(list).map((e) => e.key), ['m:p:1', 'e:p:e2']);
 });
@@ -164,4 +164,20 @@ test('Continue watching groups older show entries (no show id) by the show name'
     { ...base, key: 'e:p:2', title: 'EN - Harbor', subtitle: 'S1 E2', pos: 40, at: 2 },
   ];
   assert.deepEqual(continueList(list).map((e) => e.key), ['e:p:2']);
+});
+
+import { parseTvmazeSchedule } from '../src/core/vod';
+
+test('Continue watching: one South Park card even across copies / playlists (most recent wins)', () => {
+  const base = { dur: 100, url: 'u', pos: 30 };
+  const list: ResumeEntry[] = [
+    { ...base, key: 'e:p1:1', title: 'South Park', playlistId: 'p1', at: 1, series: { id: '10', name: 'South Park', season: 26, episode: 1, episodeId: '1' } },
+    { ...base, key: 'e:p1:9', title: 'EN - South Park (4K)', playlistId: 'p1', at: 5, series: { id: '99', name: 'EN - South Park (4K)', season: 27, episode: 3, episodeId: '9' } },
+    { ...base, key: 'e:p2:5', title: 'South Park', playlistId: 'p2', at: 3 },
+  ];
+  assert.deepEqual(continueList(list).map((e) => e.key), ['e:p1:9']);
+});
+
+test('TVmaze schedules -> English show names (network and streaming)', () => {
+  assert.deepEqual(parseTvmazeSchedule([{ show: { name: 'Harbor', language: 'English' } }, { _embedded: { show: { name: 'The Bear', language: 'English' } } }, { show: { name: 'Dark', language: 'German' } }, { show: { name: 'Harbor', language: 'English' } }]), ['Harbor', 'The Bear']);
 });

@@ -255,27 +255,62 @@ export interface DirTeam {
 }
 
 /** League -> ESPN path for its team list (the team picker's leagues). */
-export const TEAM_DIRECTORY: { id: import('./teams').LeagueId; path: string }[] = [
+export const TEAM_DIRECTORY: { id: import('./teams').LeagueId; path: string; groups?: string[] }[] = [
   { id: 'nfl', path: 'football/nfl' }, { id: 'nba', path: 'basketball/nba' }, { id: 'wnba', path: 'basketball/wnba' },
   { id: 'mlb', path: 'baseball/mlb' }, { id: 'nhl', path: 'hockey/nhl' }, { id: 'mls', path: 'soccer/usa.1' },
   { id: 'epl', path: 'soccer/eng.1' }, { id: 'bundesliga', path: 'soccer/ger.1' }, { id: 'seriea', path: 'soccer/ita.1' },
   { id: 'ligue1', path: 'soccer/fra.1' }, { id: 'laliga', path: 'soccer/esp.1' }, { id: 'ucl', path: 'soccer/uefa.champions' },
-  { id: 'cbb', path: 'basketball/mens-college-basketball' }, { id: 'cfb', path: 'football/college-football' },
+  // College: only Division I (basketball) and FBS + FCS (football), from ESPN's standings by division.
+  { id: 'cbb', path: 'basketball/mens-college-basketball', groups: ['50'] }, { id: 'cfb', path: 'football/college-football', groups: ['80', '81'] },
 ];
+
+/** ESPN standings for a division (FBS = 80, FCS = 81, D-I basketball = 50): the teams in it. */
+export function standingsUrl(path: string, group: string, base = ESPN_BASE): string {
+  return `${base.replace(/\/+$/, '').replace('/apis/site/v2/', '/apis/v2/')}/${path}/standings?group=${group}`;
+}
+
+/** Teams from a standings response (conferences → standings.entries → team), walking nested groups. */
+export function parseStandingsTeams(json: unknown, league?: string): DirTeam[] {
+  const out: DirTeam[] = [];
+  const walk = (node: unknown) => {
+    const n = (node ?? {}) as { children?: unknown[]; standings?: { entries?: { team?: unknown }[] } };
+    for (const e of n.standings?.entries ?? []) {
+      const t = toDirTeam(e.team, league);
+      if (t && !out.some((x) => x.espnId === t.espnId)) out.push(t);
+    }
+    for (const c of n.children ?? []) walk(c);
+  };
+  walk(json);
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** ESPN's logo by team id when a feed leaves it out. */
+export function fallbackTeamLogo(league: string | undefined, id: string, abbr?: string): string | undefined {
+  if (league === 'cfb' || league === 'cbb') return `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
+  if (league && ['nfl', 'nba', 'mlb', 'nhl', 'wnba'].includes(league) && abbr) return `https://a.espncdn.com/i/teamlogos/${league}/500/${abbr.toLowerCase()}.png`;
+  if (league && ['epl', 'bundesliga', 'seriea', 'ligue1', 'laliga', 'ucl', 'mls'].includes(league)) return `https://a.espncdn.com/i/teamlogos/soccer/500/${id}.png`;
+  return undefined;
+}
+
+function toDirTeam(raw: unknown, league?: string): DirTeam | undefined {
+  const t = raw as { id?: string; displayName?: string; shortDisplayName?: string; nickname?: string; name?: string; abbreviation?: string; color?: string; isActive?: boolean; logos?: { href?: string; rel?: string[] }[] } | undefined;
+  if (!t?.id || !t.displayName || t.isActive === false) return undefined;
+  const abbr = (t.abbreviation || '').toUpperCase();
+  const logo = (t.logos ?? []).find((x) => x.href && !(x.rel ?? []).includes('dark'))?.href ?? t.logos?.[0]?.href ?? fallbackTeamLogo(league, String(t.id), abbr);
+  return { espnId: String(t.id), name: t.displayName, short: t.shortDisplayName || t.nickname || t.name || t.displayName, abbr, logo, color: t.color };
+}
 
 export function teamsUrl(path: string, base = ESPN_BASE): string {
   return `${base.replace(/\/+$/, '')}/${path}/teams?limit=1000`;
 }
 
 /** ESPN's /teams response -> teams with their logos. */
-export function parseTeams(json: unknown): DirTeam[] {
+export function parseTeams(json: unknown, league?: string): DirTeam[] {
   const leagues = (json as { sports?: { leagues?: { teams?: { team?: Record<string, unknown> }[] }[] }[] })?.sports?.[0]?.leagues ?? [];
   const out: DirTeam[] = [];
   for (const l of leagues) for (const row of l.teams ?? []) {
-    const t = row.team as { id?: string; displayName?: string; shortDisplayName?: string; nickname?: string; name?: string; abbreviation?: string; color?: string; isActive?: boolean; logos?: { href?: string; rel?: string[] }[] } | undefined;
-    if (!t?.id || !t.displayName || t.isActive === false) continue;
-    const logo = (t.logos ?? []).find((x) => x.href && !(x.rel ?? []).includes('dark'))?.href ?? t.logos?.[0]?.href;
-    out.push({ espnId: String(t.id), name: t.displayName, short: t.shortDisplayName || t.nickname || t.name || t.displayName, abbr: (t.abbreviation || '').toUpperCase(), logo, color: t.color });
+    const t = toDirTeam(row.team, league);
+    if (t) out.push(t);
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }

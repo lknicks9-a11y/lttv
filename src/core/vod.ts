@@ -267,13 +267,13 @@ export function isEnglishCategory(name: string): boolean {
   return !FOREIGN_WORDS.test(n);
 }
 
-export type VodGenre = 'action' | 'comedy' | 'drama' | 'thriller' | 'horror' | 'scifi' | 'family' | 'documentary' | 'crime' | 'romance' | 'war' | 'netflix' | 'disney' | 'hbo' | 'prime' | 'apple' | 'hulu' | 'paramount' | 'peacock';
+export type VodGenre = 'hulu' | 'action' | 'comedy' | 'drama' | 'thriller' | 'horror' | 'scifi' | 'family' | 'documentary' | 'crime' | 'romance' | 'war' | 'netflix' | 'disney' | 'hbo' | 'prime' | 'apple' | 'hulu' | 'paramount' | 'peacock';
 
 export const GENRE_ROWS: { id: VodGenre; label: string; re: RegExp }[] = [
   { id: 'action', label: 'Action & Adventure', re: /action|adventure|martial/i },
-  { id: 'comedy', label: 'Comedy', re: /comed|funny|stand.?up|sitcom/i },
-  { id: 'drama', label: 'Drama', re: /drama/i },
-  { id: 'thriller', label: 'Thrillers & Mystery', re: /thriller|suspense|myster/i },
+  { id: 'comedy', label: 'Comedies', re: /comed|funny|stand.?up|sitcom/i },
+  { id: 'drama', label: 'Dramas', re: /drama/i },
+  { id: 'thriller', label: 'Thrillers & Mysteries', re: /thriller|suspense|myster/i },
   { id: 'crime', label: 'Crime', re: /crime|gangster|mafia/i },
   { id: 'horror', label: 'Horror', re: /horror|scary|slasher/i },
   { id: 'scifi', label: 'Sci-Fi & Fantasy', re: /sci.?fi|science.?fiction|fantasy|superhero|marvel|\bdc\b/i },
@@ -281,12 +281,12 @@ export const GENRE_ROWS: { id: VodGenre; label: string; re: RegExp }[] = [
   { id: 'romance', label: 'Romance', re: /romance|romantic|rom.?com|\blove\b/i },
   { id: 'documentary', label: 'Documentaries', re: /docu/i },
   { id: 'war', label: 'War, History & Westerns', re: /\bwar\b|western|histor/i },
+  { id: 'hulu', label: 'Hulu', re: /hulu/i },
   { id: 'netflix', label: 'Netflix', re: /netflix/i },
   { id: 'disney', label: 'Disney+', re: /disney/i },
   { id: 'hbo', label: 'HBO & Max', re: /\bhbo\b|\bmax\b/i },
   { id: 'prime', label: 'Prime Video', re: /amazon|prime/i },
   { id: 'apple', label: 'Apple TV+', re: /apple/i },
-  { id: 'hulu', label: 'Hulu', re: /hulu/i },
   { id: 'paramount', label: 'Paramount+', re: /paramount/i },
   { id: 'peacock', label: 'Peacock', re: /peacock/i },
 ];
@@ -455,7 +455,8 @@ export function continueList(all: ResumeEntry[]): ResumeEntry[] {
   for (const e of [...all].sort((a, b) => b.at - a.at)) {
     if (e.series || e.key.startsWith('e:')) {
       // Older entries have no show id: the show's name groups them.
-      const k = e.series ? `${e.playlistId}:${e.series.id}` : `${e.playlistId}:name:${normTitle(cleanTitle(e.title))}`;
+      // One card per show: by its name, so copies (4K / HD), other playlists and older entries collapse too.
+      const k = `show:${normTitle(cleanTitle(e.series?.name ?? e.title))}`;
       if (seen.has(k)) continue;
       seen.add(k);
       if (e.done && !e.hasNext) continue; // finished the last episode
@@ -465,3 +466,15 @@ export function continueList(all: ResumeEntry[]): ResumeEntry[] {
   return out;
 }
 
+
+/** TVmaze schedule (network: [{show}], streaming: [{_embedded: {show}}]) -> show names that had a new episode. */
+export function parseTvmazeSchedule(json: unknown): string[] {
+  const out: string[] = [];
+  for (const x of arr(json)) {
+    const e = obj(x);
+    const show = obj(e.show ?? obj(e._embedded).show);
+    const n = str(show.name);
+    if (n && str(show.language || 'English') === 'English' && !out.includes(n)) out.push(n);
+  }
+  return out;
+}

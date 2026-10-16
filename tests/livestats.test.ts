@@ -68,7 +68,7 @@ test('Props: over 74.5 receiving yards moves, then hits; under loses; spread and
   assert.match(notes[0].play ?? '', /TOUCHDOWN/);
   assert.equal(notes[0].logo, 'https://x/sea.png');
   assert.equal(notes[0].headshot, 'https://a.espncdn.com/i/headshots/nfl/players/full/300.png');
-  assert.match(notes[1].title, /^HIT: Jaxon Smith-Njigba over 74\.5 receiving yards/);
+  assert.match(notes[1].title, /^BET HIT: Jaxon Smith-Njigba over 74\.5 receiving yards/);
   assert.equal(diffNotices(undefined, g2, 'football', { roster: [], bets: [bet] }).length, 0);
 });
 

@@ -171,3 +171,16 @@ export function teamChannels(m: TeamMatcher, lineup: LineupChannel[]): LineupCha
     return m.team.league === 'custom' || m.leagueContext.some((w) => has(ctx, sportsText(w).trim()));
   });
 }
+
+
+/** A replay / classic / highlights airing rather than the game itself. */
+export function isReplayProgramme(p: { title: string; subTitle?: string; desc?: string; categories?: string[] }): boolean {
+  const head = `${p.title} ${p.subTitle ?? ''} ${(p.categories ?? []).join(' ')}`;
+  return /\b(replay|re-?air|rebroadcast|encore|classics?|highlights|recap|condensed|rewind|marathon|best of|in 60|instant classic|throwback)\b|\((r|rpt|repeat)\)/i.test(head) || /^\s*(replay|encore|from (19|20)\d\d)\b/i.test(p.desc ?? '');
+}
+
+/** Whether a scoreboard game involves this team (by name, short name or abbreviation). */
+export function gameHasTeam(g: { home: { name: string; short: string; abbr: string }; away: { name: string; short: string; abbr: string } }, team: { name: string; short: string; abbr: string }): boolean {
+  const f = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return [g.home, g.away].some((t) => f(t.name) === f(team.name) || (!!team.abbr && t.abbr.toUpperCase() === team.abbr.toUpperCase() && f(t.short) === f(team.short)));
+}

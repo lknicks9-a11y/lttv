@@ -91,3 +91,29 @@ test('team channels require a full name or nickname with the league', () => {
   assert.deepEqual(teamChannels(m1('nba:lal'), lineup).map((c) => c.key), ['a', 'c']);
   assert.deepEqual(teamChannels(m1('wnba:chi'), lineup), []);
 });
+
+import { isReplayProgramme, gameHasTeam } from '../src/core/sports';
+import { parseStandingsTeams, fallbackTeamLogo } from '../src/core/schedule';
+
+test('replays, classics and highlights are not live games', () => {
+  assert.equal(isReplayProgramme({ title: 'NFL Football', subTitle: 'Giants at Cowboys' }), false);
+  assert.equal(isReplayProgramme({ title: 'NFL Game Replay', subTitle: 'Giants at Cowboys' }), true);
+  assert.equal(isReplayProgramme({ title: 'Classic NBA', subTitle: 'Bulls at Jazz' }), true);
+  assert.equal(isReplayProgramme({ title: 'College Football', subTitle: 'Alabama at LSU (R)' }), true);
+  assert.equal(isReplayProgramme({ title: 'MLB Baseball', desc: 'Encore presentation of last night\'s game.' }), true);
+  assert.equal(isReplayProgramme({ title: 'MLB Baseball', desc: 'Replay of last night\'s game.' }), true);
+  const g = { home: { name: 'New York Giants', short: 'Giants', abbr: 'NYG' }, away: { name: 'Dallas Cowboys', short: 'Cowboys', abbr: 'DAL' } };
+  assert.equal(gameHasTeam(g, { name: 'New York Giants', short: 'Giants', abbr: 'NYG' }), true);
+  assert.equal(gameHasTeam(g, { name: 'San Francisco Giants', short: 'Giants', abbr: 'SF' }), false);
+});
+
+test('college teams come from division standings (FBS/FCS only), with logo fallbacks', () => {
+  const json = { children: [
+    { name: 'SEC', standings: { entries: [{ team: { id: '333', displayName: 'Alabama Crimson Tide', abbreviation: 'ALA', logos: [{ href: 'https://x/333.png' }] } }] } },
+    { name: 'Big Sky', children: [{ standings: { entries: [{ team: { id: '2', displayName: 'Montana Grizzlies', abbreviation: 'MONT' } }] } }] },
+  ] };
+  const teams = parseStandingsTeams(json, 'cfb');
+  assert.deepEqual(teams.map((t) => t.name), ['Alabama Crimson Tide', 'Montana Grizzlies']);
+  assert.equal(teams[1].logo, 'https://a.espncdn.com/i/teamlogos/ncaa/500/2.png');
+  assert.equal(fallbackTeamLogo('nfl', '19', 'NYG'), 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png');
+});

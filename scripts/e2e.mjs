@@ -210,7 +210,9 @@ function fixtureServer() {
       if (u.pathname === '/espn/football/nfl/scoreboard') {
         const team = (id, name, abbr, side, score) => ({ homeAway: side, score: String(score), team: { id, displayName: name, shortDisplayName: name.split(' ').pop(), location: name, abbreviation: abbr, logo: `${b0()}/logo/${abbr}.png` } });
         resp.writeHead(200, { 'content-type': 'application/json' });
-        return resp.end(JSON.stringify({ events: [{ id: 'n1', name: 'San Francisco 49ers at Seattle Seahawks', date: new Date(Date.now() - 3600_000).toISOString(), competitions: [{ competitors: [team('26', 'Seattle Seahawks', 'SEA', 'home', 14), team('25', 'San Francisco 49ers', 'SF', 'away', 10)], status: { type: { state: 'in', shortDetail: '2nd 4:12' } } }], status: { type: { state: 'in' } } }] }));
+        return resp.end(JSON.stringify({ events: [{ id: 'n1', name: 'San Francisco 49ers at Seattle Seahawks', date: new Date(Date.now() - 3600_000).toISOString(), competitions: [{ competitors: [team('26', 'Seattle Seahawks', 'SEA', 'home', 14), team('25', 'San Francisco 49ers', 'SF', 'away', 10)], status: { type: { state: 'in', shortDetail: '2nd 4:12' } } }], status: { type: { state: 'in' } } },
+          // The Giants game the guide lists as on now really is live (My Teams only calls real games "live").
+          { id: 'n2', name: 'New York Giants at Dallas Cowboys', date: new Date(Date.now() - 1800_000).toISOString(), competitions: [{ competitors: [team('6', 'Dallas Cowboys', 'DAL', 'home', 7), team('19', 'New York Giants', 'NYG', 'away', 3)], status: { type: { state: 'in', shortDetail: '1st 2:00' } } }], status: { type: { state: 'in' } } }] }));
       }
       if (u.pathname === '/espn/stage3') {
         nflStage3 = true;
@@ -242,6 +244,14 @@ function fixtureServer() {
         resp.writeHead(200, { 'content-type': 'application/json' });
         return resp.end(JSON.stringify({ id: 501, name: 'Harbor', premiered: '2019-01-03', summary: '<p>A harbor town keeps its secrets.</p>', image: { original: img('harbor-poster') }, rating: { average: 8.1 }, genres: ['Drama'], externals: { imdb: 'tt0000001' },
           _embedded: { episodes: [{ season: 1, number: 1, name: 'Low Tide', summary: '<p>The boats come in.</p>', image: { original: img('ep1') }, runtime: 45 }, { season: 1, number: 2, name: 'High Water', summary: '<p>A storm arrives.</p>', image: { original: img('ep2') }, runtime: 44 }, { season: 2, number: 1, name: 'Return', summary: '<p>A year later.</p>', runtime: 46 }] } }));
+      }
+      if (u.pathname === '/tvmaze/schedule/web') {
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify([{ airdate: u.searchParams.get('date'), _embedded: { show: { name: 'Harbor', language: 'English' } } }]));
+      }
+      if (u.pathname === '/tvmaze/schedule') {
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end('[]');
       }
       if (u.pathname === '/itunes/search') {
         const ok = /night run/i.test(u.searchParams.get('term') ?? '');
@@ -947,18 +957,19 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
   const rows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.some((x) => /Other languages/.test(x)) && !document.querySelector('.vod-loading') ? t : null; }), 15000);
   await page.waitForTimeout(300);
-  check('Movies home: Trending now, Recently added, Top rated and English genre rows', !!rows && /^Trending now/.test(rows[0]) && rows.includes('Recently added') && rows.some((r) => /^Top rated/.test(r)) && rows.includes('Action & Adventure') && rows.includes('Comedy'), JSON.stringify(rows));
+  check('Movies home (Hulu-style): Popular Movies, Recently Added, Critically Acclaimed and English genre rows', !!rows && rows.includes('Popular Movies') && rows.includes('Recently Added') && rows.includes('Critically Acclaimed') && rows.includes('Action & Adventure') && rows.includes('Comedies'), JSON.stringify(rows));
   const vodHome = await page.evaluate(() => ({
     chips: document.querySelectorAll('.vod .chips').length,
     inputFocused: document.activeElement?.tagName === 'INPUT',
-    focusedCard: !!document.activeElement?.closest('.vod-card'),
-    trending: [...document.querySelectorAll('.vod-row')].find((r) => /Trending/.test(r.textContent))?.querySelector('.vod-name')?.textContent,
+    focusedCard: !!document.activeElement?.closest('.vod-card, .vod-hero'),
+    hero: document.querySelector('.vod-hero-title')?.textContent,
+    trending: [...document.querySelectorAll('.vod-row')].find((r) => /Popular Movies/.test(r.textContent))?.querySelector('.vod-name')?.textContent,
     browse: [...document.querySelectorAll('.vod-row')].find((r) => /Browse categories/.test(r.textContent))?.textContent ?? '',
     other: [...document.querySelectorAll('.vod-row')].find((r) => /Other languages/.test(r.textContent))?.textContent ?? '',
     rowText: [...document.querySelectorAll('.vod-row')].filter((r) => !/Other languages|Browse/.test(r.querySelector('.vod-row-title')?.textContent ?? '')).map((r) => r.textContent).join(' '),
   }));
-  check('Movies: no category tabs on top, and the search field doesn\'t open by itself (a poster has focus)', vodHome.chips === 0 && !vodHome.inputFocused && vodHome.focusedCard, JSON.stringify(vodHome).slice(0, 200));
-  check('Movies: the provider\'s "Trending" list leads the Trending row', vodHome.trending === 'Galaxy Quest Redux (2024)', String(vodHome.trending));
+  check('Movies: featured banner on top, no category tabs, search doesn\'t open by itself', vodHome.chips === 0 && !vodHome.inputFocused && vodHome.focusedCard && vodHome.hero === 'Galaxy Quest Redux', JSON.stringify(vodHome).slice(0, 200));
+  check('Movies: the provider\'s "Trending" list leads Popular Movies', vodHome.trending === 'Galaxy Quest Redux (2024)', String(vodHome.trending));
   check('Movies: rows and Browse are English; other languages are kept separate', /EN \| Action/.test(vodHome.browse) && !/أفلام/.test(vodHome.browse) && /أفلام/.test(vodHome.other) && !/فيلم/.test(vodHome.rowText), vodHome.other);
   await shot('40-movies');
   await page.evaluate(() => document.querySelector('.vod-row .vod-card')?.focus());
@@ -991,6 +1002,8 @@ try {
   await page.waitForTimeout(300);
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Shows/.test(b.textContent))?.click());
   await waitFor(() => page.evaluate(() => [...document.querySelectorAll('.vod-row')].some((r) => /Drama/.test(r.textContent) && r.querySelector('.vod-card')) ? true : null), 10000);
+  const showRows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.includes('New Episodes') ? t : null; }), 10000);
+  check('Shows home: New Episodes (aired this week, from TVmaze) with the show', !!showRows && await page.evaluate(() => /Harbor/.test([...document.querySelectorAll('.vod-row')].find((r) => /New Episodes/.test(r.textContent))?.textContent ?? '')), JSON.stringify(showRows));
   await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((r) => /Drama/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelector('.vod-card')?.click());
   const eps = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-episode .vod-ep-title')].map((x) => x.textContent); return t.length ? { eps: t, seasons: [...document.querySelectorAll('.vod-detail .chip')].map((c) => c.textContent) } : null; }), 8000);
   check('Shows: seasons and episodes from the provider', !!eps && eps.eps.length === 2 && eps.seasons.length === 2, JSON.stringify(eps));
