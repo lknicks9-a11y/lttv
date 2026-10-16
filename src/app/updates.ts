@@ -16,6 +16,7 @@ export interface UpdateInfo {
 
 let available: UpdateInfo | null = null;
 let dismissedBuild = 0;
+let dismissedAt = 0;
 const listeners = new Set<() => void>();
 const changed = () => listeners.forEach((l) => l());
 
@@ -41,8 +42,11 @@ export async function checkForUpdate(opts: { quiet?: boolean } = {}): Promise<Up
     const url = rel.assets?.find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `https://github.com/${UPDATE_REPO}/releases/latest/download/lttv.apk`;
     const current = currentBuild();
     if (build > current) {
+      const isNew = available?.build !== build;
       available = { build, current, url };
       changed();
+      // A short notice too, so it's seen even while watching full screen (the pop-up waits until you leave it).
+      if (isNew && opts.quiet) toast(`LTTV build ${build} is available — it installs over this one.`, 'info', 6000);
       return available;
     }
     if (!opts.quiet) toast(`LTTV is up to date (build ${current}).`, 'success', 3500);
@@ -58,8 +62,12 @@ export function installUpdate(u: UpdateInfo) {
   native?.installUpdate?.(u.url);
 }
 
+/** "Later": asks again in 3 hours (or right away when an even newer build is pushed). */
 export function dismissUpdate() {
-  if (available) dismissedBuild = available.build;
+  if (available) {
+    dismissedBuild = available.build;
+    dismissedAt = Date.now();
+  }
   changed();
 }
 
@@ -73,10 +81,11 @@ export function useAvailableUpdate(): UpdateInfo | null {
       listeners.delete(l);
     };
   }, []);
+  if (available && available.build === dismissedBuild && Date.now() - dismissedAt > 3 * 3600_000) dismissedBuild = 0;
   return available && available.build !== dismissedBuild ? available : null;
 }
 
-/** Check at startup and every 6 hours; show download / install progress from the app. */
+/** Check at startup, every 20 minutes and whenever the app comes back to the screen; show download / install progress. */
 export function startUpdateChecks() {
   if (!canUpdateInApp()) return;
   window.lttvHost = window.lttvHost ?? ({} as NonNullable<Window['lttvHost']>);
@@ -91,6 +100,13 @@ export function startUpdateChecks() {
       /* ignore */
     }
   };
-  setTimeout(() => void checkForUpdate({ quiet: true }), 15_000);
-  setInterval(() => void checkForUpdate({ quiet: true }), 6 * 3600_000);
+  setTimeout(() => void checkForUpdate({ quiet: true }), 8_000);
+  setInterval(() => void checkForUpdate({ quiet: true }), 20 * 60_000);
+  let lastResume = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - lastResume > 60_000) {
+      lastResume = Date.now();
+      void checkForUpdate({ quiet: true });
+    }
+  });
 }
