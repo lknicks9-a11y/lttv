@@ -1,5 +1,5 @@
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
-import { dismissUpdate, installUpdate, useAvailableUpdate } from '../app/updates';
+import { dismissUpdate, installUpdate, useAvailableUpdate, versionOf } from '../app/updates';
 import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
@@ -93,7 +93,7 @@ function UpdatePrompt() {
   if (!u || fullscreen) return null;
   return (
     <Modal title="Update available" onClose={dismissUpdate}>
-      <p>LTTV build <b>{u.build}</b> is ready (you have build {u.current}). It installs over this one — your playlists, My TV, teams and settings stay.</p>
+      <p>LTTV <b>{versionOf(u.build)}</b> is ready (you have {versionOf(u.current)}). It installs over this one — your playlists, My TV, teams and settings stay.</p>
       <div class="row gap modal-actions">
         <Button variant="primary" icon="refresh" data-autofocus onClick={() => { installUpdate(u); dismissUpdate(); }}>Update now</Button>
         <Button onClick={dismissUpdate}>Later</Button>

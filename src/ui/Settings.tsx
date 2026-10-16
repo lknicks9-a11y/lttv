@@ -1,5 +1,5 @@
 import { h, Fragment } from 'preact';
-import { canUpdateInApp, checkForUpdate, currentBuild, installUpdate } from '../app/updates';
+import { canUpdateInApp, checkForUpdate, currentBuild, versionOf, installUpdate } from '../app/updates';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useApp, updateSettings, repo, reloadAll, toast, pruneExpired, getState, loadGuide, stopPlayback, player } from '../app/state';
 import type { Settings } from '../core/types';
@@ -121,7 +121,7 @@ export function SettingsScreen() {
           {canUpdateInApp() && (
             <div class="row gap wrap">
               <Button icon="refresh" onClick={() => void checkForUpdate().then((u) => u && installUpdate(u))}>Check for updates</Button>
-              <span class="muted">Installed: build {currentBuild()}</span>
+              <span class="muted">Installed: LTTV {versionOf(currentBuild())}</span>
             </div>
           )}
           <Toggle label="Resume last channel on start" checked={s.autoplayLastChannel} onChange={(v) => set({ autoplayLastChannel: v })} />

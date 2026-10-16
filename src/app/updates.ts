@@ -24,6 +24,11 @@ export function canUpdateInApp(): boolean {
   return !!native?.installUpdate && !!native.appBuild;
 }
 
+/** Version shown to people: 1.0.0 was build 19 (the launch), each later build adds 1 (build 20 = 1.0.1). */
+export function versionOf(build: number): string {
+  return `1.0.${Math.max(0, build - 19)}`;
+}
+
 export function currentBuild(): number {
   try {
     return native?.appBuild?.() ?? 0;
@@ -46,10 +51,10 @@ export async function checkForUpdate(opts: { quiet?: boolean } = {}): Promise<Up
       available = { build, current, url };
       changed();
       // A short notice too, so it's seen even while watching full screen (the pop-up waits until you leave it).
-      if (isNew && opts.quiet) toast(`LTTV build ${build} is available — it installs over this one.`, 'info', 6000);
+      if (isNew && opts.quiet) toast(`LTTV ${versionOf(build)} is available — it installs over this one.`, 'info', 6000);
       return available;
     }
-    if (!opts.quiet) toast(`LTTV is up to date (build ${current}).`, 'success', 3500);
+    if (!opts.quiet) toast(`LTTV is up to date (${versionOf(current)}).`, 'success', 3500);
     return null;
   } catch (e) {
     if (!opts.quiet) toast('Couldn’t check for updates: ' + (e as Error).message, 'error');
