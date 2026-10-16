@@ -155,6 +155,7 @@ function fixtureServer() {
         resp.writeHead(200, { 'content-type': 'application/gzip' });
         return resp.end(fx.guideGz);
       }
+      const b0 = () => `http://127.0.0.1:${srv.address().port}`;
       // Mock ESPN scoreboard: Red Sox at Yankees (live, both teams' local TV + ESPN) and a game nobody carries.
       if (u.pathname === '/espn/baseball/mlb/scoreboard') {
         const team = (id, name, short, loc, abbr, side, score) => ({ homeAway: side, score: String(score), team: { id, displayName: name, shortDisplayName: short, location: loc, abbreviation: abbr, logo: `${base0}/logo/${abbr}.png`, color: '0c2340' }, records: [{ type: 'total', summary: '90-72' }] });
@@ -166,6 +167,35 @@ function fixtureServer() {
           ev('g1', -40, 'in', team('10', 'New York Yankees', 'Yankees', 'New York', 'NYY', 'home', 3), team('2', 'Boston Red Sox', 'Red Sox', 'Boston', 'BOS', 'away', 1), [tv('Home', 'YES'), tv('Away', 'NESN'), tv('National', 'ESPN'), { type: { shortName: 'Radio' }, market: { type: 'Home' }, media: { shortName: 'WFAN' } }]),
           ev('g2', 120, 'pre', team('27', 'Seattle Mariners', 'Mariners', 'Seattle', 'SEA', 'home', 0), team('17', 'Oakland Athletics', 'Athletics', 'Oakland', 'OAK', 'away', 0), [tv('Home', 'ROOT SPORTS')]),
         ] }));
+      }
+      // Mock NFL feeds for Fantasy and Bets: teams, a roster, a live game and its summary (stats grow on the 2nd read).
+      if (u.pathname === '/espn/football/nfl/teams') {
+        const t = (id, name, abbr) => ({ team: { id, displayName: name, shortDisplayName: name.split(' ').pop(), abbreviation: abbr, logos: [{ href: `${b0()}/logo/${abbr}.png` }] } });
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({ sports: [{ leagues: [{ teams: [t('26', 'Seattle Seahawks', 'SEA'), t('25', 'San Francisco 49ers', 'SF')] }] }] }));
+      }
+      if (u.pathname === '/espn/football/nfl/teams/26/roster') {
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({ athletes: [{ position: 'offense', items: [
+          { id: '100', displayName: 'Sam Darnold', position: { abbreviation: 'QB' } },
+          { id: '300', displayName: 'Jaxon Smith-Njigba', position: { abbreviation: 'WR' } },
+        ] }] }));
+      }
+      if (u.pathname === '/espn/football/nfl/scoreboard') {
+        const team = (id, name, abbr, side, score) => ({ homeAway: side, score: String(score), team: { id, displayName: name, shortDisplayName: name.split(' ').pop(), location: name, abbreviation: abbr, logo: `${b0()}/logo/${abbr}.png` } });
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({ events: [{ id: 'n1', name: 'San Francisco 49ers at Seattle Seahawks', date: new Date(Date.now() - 3600_000).toISOString(), competitions: [{ competitors: [team('26', 'Seattle Seahawks', 'SEA', 'home', 14), team('25', 'San Francisco 49ers', 'SF', 'away', 10)], status: { type: { state: 'in', shortDetail: '2nd 4:12' } } }], status: { type: { state: 'in' } } }] }));
+      }
+      if (u.pathname === '/espn/football/nfl/summary') {
+        const later = ++nflSummaryReads > 1;
+        const tm = (id, abbr, score) => ({ homeAway: id === '26' ? 'home' : 'away', score: String(score), team: { id, abbreviation: abbr, displayName: abbr, logos: [{ href: `${b0()}/logo/${abbr}.png` }] } });
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({
+          header: { competitions: [{ status: { type: { state: 'in', shortDetail: later ? '3rd 9:40' : '2nd 4:12' } }, competitors: [tm('26', 'SEA', later ? 21 : 14), tm('25', 'SF', 10)] }] },
+          boxscore: { players: [{ team: { id: '26' }, statistics: [{ name: 'receiving', keys: ['receptions', 'receivingYards', 'yardsPerReception', 'receivingTouchdowns', 'longReception', 'receivingTargets'],
+            athletes: [{ athlete: { id: '300', displayName: 'Jaxon Smith-Njigba' }, stats: later ? ['6', '83', '13.8', '2', '30', '9'] : ['5', '61', '12.2', '1', '30', '8'] }] }] }] },
+          drives: { previous: [{ plays: [{ id: '1', text: 'S.Darnold pass short right to J.Smith-Njigba for 12 yards' }, ...(later ? [{ id: '2', text: 'S.Darnold pass deep left to J.Smith-Njigba for 22 yards, TOUCHDOWN.', scoringPlay: true }] : [])] }] },
+        }));
       }
       // Mock of the tv-logos collection (a few real files from it).
       if (u.pathname.startsWith('/logos/')) {
@@ -276,6 +306,7 @@ const gotoNav = async (label) => {
   await page.waitForTimeout(700);
 };
 /** Walk a grid in a snake pattern until the focused element matches `re`. */
+let nflSummaryReads = 0;
 const findInGrid = async (re, rows = 14, cols = 5) => {
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -515,7 +546,7 @@ try {
 
   // --- Sports: pick favorite teams with the remote, see their games ---
   await gotoNav('Sports');
-  check('Sports opens on the league picker', await page.evaluate(() => document.querySelectorAll('.league-card').length === 14) && /My Teams/.test(await focused()), await focused());
+  check('Sports opens on the league picker', await page.evaluate(() => document.querySelectorAll('.league-card').length === 16) && /My Teams/.test(await focused()), await focused());
   await key('Enter');
   await page.waitForTimeout(500);
   await shot('22-sports-empty');
@@ -562,7 +593,11 @@ try {
   check('Live TV shows a banner when a favorite team is playing', await page.evaluate(() => /Giants at Dallas Cowboys/.test(document.querySelector('.live-banner')?.textContent ?? '')));
   await shot('25-home-team-banner');
 
-  // --- Colors: pick an accent swatch with the remote ---
+  // --- Colors: pick an accent swatch with the remote (Luxury always uses gold, so switch to Aero) ---
+  check('The Luxury theme (black & gold, owl logo) is switched on', await page.evaluate(() => document.documentElement.dataset.theme === 'luxury' && getComputedStyle(document.querySelector('.brand .logo-owl')).display !== 'none'));
+  await shot('25b-luxury');
+  await page.evaluate(() => window.__lttv.updateSettings({ theme: 'aero' }));
+  await page.waitForTimeout(300);
   await gotoNav('Settings');
   check('Settings opens on the color swatches', /^Sky$/.test(await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '')));
   await key('ArrowRight', 3);
@@ -755,7 +790,7 @@ try {
   await page.evaluate(() => { const n = [...document.querySelectorAll('.nav-item')].find((b) => /Sports/.test(b.textContent)); n.click(); });
   const leagueCards = await waitFor(() => page.evaluate(() => { const c = [...document.querySelectorAll('.league-card')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()); return c.some((t) => /2 games today/.test(t)) ? c : null; }), 15000);
   const names = await page.evaluate(() => [...document.querySelectorAll('.league-card-name')].map((c) => c.textContent).join(','));
-  check('League picker: NBA NFL MLB NHL UCL EPL Bundesliga Serie A Ligue 1 LaLiga MLS CBB CFB', names === 'My Teams,NBA,NFL,MLB,NHL,UEFA Champions League,Premier League,Bundesliga,Serie A,Ligue 1,LaLiga,MLS,College Basketball,College Football', names);
+  check('League picker: NBA NFL MLB NHL UCL EPL Bundesliga Serie A Ligue 1 LaLiga MLS CBB CFB', names === 'Fantasy,Bets,My Teams,NBA,NFL,MLB,NHL,UEFA Champions League,Premier League,Bundesliga,Serie A,Ligue 1,LaLiga,MLS,College Basketball,College Football', names);
   check('Each league shows how many games are on today', !!leagueCards && leagueCards.some((t) => /MLB/.test(t) && /2 games today/.test(t) && /1 LIVE/.test(t)), (leagueCards ?? []).join(' | '));
   await shot('29d-league-picker');
   await page.evaluate(() => [...document.querySelectorAll('.league-card')].find((c) => /^MLB/.test(c.querySelector('.league-card-name')?.textContent ?? '')).click());
@@ -788,6 +823,46 @@ try {
   await page.waitForTimeout(400);
 
   check('Multiview is removed (no Multiview buttons on the Sports screen or in the player)', await page.evaluate(() => ![...document.querySelectorAll('button')].some((b) => /Multiview/.test(b.textContent))));
+
+  // ---- Fantasy and Bets (mock NFL feed) ----
+  const clickText = (sel, re) => page.evaluate(([sel, src]) => { const el = [...document.querySelectorAll(sel)].find((b) => new RegExp(src).test(b.textContent)); el?.click(); return !!el; }, [sel, re.source]);
+  await clickText('.nav-item', /Sports/);
+  await page.waitForTimeout(500);
+  if (!(await clickText('.league-card', /Fantasy/))) { await clickText('.sports-crumbs button', /Sports/); await page.waitForTimeout(400); await clickText('.league-card', /Fantasy/); }
+  await page.waitForTimeout(400);
+  await clickText('button', /^Add player$/);
+  await waitFor(() => page.evaluate(() => document.querySelectorAll('.fx-picker .team-option').length > 0), 8000);
+  await clickText('.fx-picker .team-option', /Seattle Seahawks/);
+  await waitFor(() => page.evaluate(() => /Jaxon Smith-Njigba/.test(document.querySelector('.fx-picker')?.textContent ?? '')), 8000);
+  await clickText('.fx-picker .team-option', /Jaxon Smith-Njigba/);
+  await page.waitForTimeout(400);
+  check('Fantasy: add a player from a team\'s roster to your lineup', await page.evaluate(() => /Jaxon Smith-Njigba/.test(document.querySelector('.fx-list')?.textContent ?? '')));
+  await clickText('.sports-crumbs button', /Sports/);
+  await page.waitForTimeout(400);
+  await clickText('.league-card', /^Bets/);
+  await page.waitForTimeout(400);
+  await clickText('button', /Add player prop/);
+  await waitFor(() => page.evaluate(() => document.querySelectorAll('.fx-picker .team-option').length > 0), 8000);
+  await clickText('.fx-picker .team-option', /Seattle Seahawks/);
+  await waitFor(() => page.evaluate(() => /Jaxon Smith-Njigba/.test(document.querySelector('.fx-picker')?.textContent ?? '')), 8000);
+  await clickText('.fx-picker .team-option', /Jaxon Smith-Njigba/);
+  await page.waitForTimeout(300);
+  const propCount = await page.evaluate(() => document.querySelectorAll('.fx-props .fx-prop-grid button').length);
+  check('Bets: every player prop is offered (passing, rushing, receiving, TDs, combos…)', propCount >= 18, `${propCount} props`);
+  await clickText('.fx-props button', /^Receiving yards$/);
+  await page.waitForTimeout(200);
+  await page.fill('.fx-props input', '74.5');
+  await clickText('.fx-props button', /^Over$/);
+  await page.waitForTimeout(400);
+  check('Bets: "over 74.5 receiving yards" is tracked', await page.evaluate(() => /over 74\.5 receiving yards/.test(document.querySelector('.fx-list')?.textContent ?? '')));
+  await page.evaluate(() => window.__lttv.pollLive());
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.__lttv.pollLive());
+  const notice = await waitFor(() => page.evaluate(() => { const n = [...document.querySelectorAll('.live-notice')].map((x) => x.textContent); return n.length >= 2 ? n : null; }), 8000);
+  check('While watching, pop-ups show the fantasy points and the prop hitting, with the play', !!notice && notice.some((t) => /fantasy pts/.test(t) && /TOUCHDOWN/.test(t)) && notice.some((t) => /HIT/.test(t) && /74\.5/.test(t)), JSON.stringify(notice));
+  check('Pop-ups carry the player picture and team logo', await page.evaluate(() => !!document.querySelector('.live-notice .headshot') && !!document.querySelector('.live-notice .live-notice-logo')));
+  await shot('33-prop-hit-notice');
+  check('The bet row shows HIT with 83 / 74.5', await page.evaluate(() => /83 \/ 74\.5/.test(document.querySelector('.fx-list')?.textContent ?? '') && !!document.querySelector('.bet-badge-hit')));
   try { rmSync(xtProfile, { recursive: true, force: true }); } catch { /* browser still closing */ }
 
   // ---------------- Fire TV host contract (simulated native bridge) ----------------
@@ -875,9 +950,9 @@ try {
   check('TV host: Back closes the menu, then leaves full screen', await page.evaluate(() => !document.querySelector('.player')));
   const tvErr0 = errors.length;
   await page.evaluate(() => [...document.querySelectorAll('.nav-item')].find((n) => /Sports/.test(n.textContent)).click());
-  await waitFor(() => page.evaluate(() => document.querySelectorAll('.league-card').length === 14), 8000);
-  check('TV host: the Sports screen opens with its league cards', await page.evaluate(() => document.querySelectorAll('.league-card').length === 14) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
-  await page.evaluate(() => document.querySelector('.league-card')?.click());
+  await waitFor(() => page.evaluate(() => document.querySelectorAll('.league-card').length === 16), 8000);
+  check('TV host: the Sports screen opens with its league cards', await page.evaluate(() => document.querySelectorAll('.league-card').length === 16) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
+  await page.evaluate(() => [...document.querySelectorAll('.league-card')].find((c) => /My Teams/.test(c.textContent))?.click());
   await page.waitForTimeout(500);
   check('TV host: My Teams opens from Sports', await page.evaluate(() => /My Teams/.test(document.querySelector('.sports h1')?.textContent ?? '')) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
   await shot('22b-tv-host-sports');

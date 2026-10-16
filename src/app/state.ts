@@ -356,6 +356,12 @@ export async function reloadAll() {
     await repo.saveSettings(settings);
     await repo.setKv('aeroIntroduced', true).catch(() => undefined);
   }
+  // The Luxury look (with the owl logo) is switched on once when it arrives.
+  if (!(await repo.getKv<boolean>('luxuryIntroduced').catch(() => true))) {
+    settings = { ...settings, theme: 'luxury' };
+    await repo.saveSettings(settings);
+    await repo.setKv('luxuryIntroduced', true).catch(() => undefined);
+  }
   setHqLogos(settings.hqLogos !== false);
   setState({ loadingPhase: 'Reading your playlists and guide channels' });
   const data = await loadSources(repo);
@@ -440,7 +446,8 @@ export async function updateSettings(patch: Partial<Settings>) {
 
 export function applyTheme(s: Settings) {
   const root = document.documentElement;
-  const t = accentTokens(s.accent);
+  // Luxury always uses its champagne gold; other themes use the chosen accent.
+  const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.accent);
   root.style.setProperty('--accent', t.accent);
   root.style.setProperty('--accent-2', t.accent2);
   root.style.setProperty('--accent-soft', t.soft);

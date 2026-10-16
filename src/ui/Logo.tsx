@@ -7,10 +7,50 @@ let gid = 0;
  * aurora hill, a glass highlight across the top, a white "LT" and a bubble on-air dot.
  */
 export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+  return (
+    <>
+      <AeroMark size={size} class={cls} />
+      <OwlMark size={size} class={cls} />
+    </>
+  );
+}
+
+/**
+ * Luxury theme mark: an original owl drawn as a little TV — the screen is its face, the two
+ * round "lenses" its eyes, the antennas its ear tufts and the stand its feet — in fine gold line.
+ */
+export function OwlMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+  const n = ++gid;
+  const g = `lttv-owl${n}`;
+  return (
+    <svg class={'logo-mark logo-owl ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <defs>
+        <linearGradient id={g} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f3e2b8" /><stop offset="1" stop-color="#b08a43" />
+        </linearGradient>
+      </defs>
+      <g fill="none" stroke={`url(#${g})`} stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M24 13 17 4M40 13 47 4" />
+        <rect x="10" y="13" width="44" height="38" rx="15" fill="#0b0a08" />
+        <circle cx="24.5" cy="29" r="7.5" />
+        <circle cx="39.5" cy="29" r="7.5" />
+        <path d="M28 42.5 32 45.5 36 42.5" />
+        <path d="M27 51v5M37 51v5M22 57h20" />
+      </g>
+      <g fill={`url(#${g})`}>
+        <circle cx="17" cy="4" r="1.8" /><circle cx="47" cy="4" r="1.8" />
+        <circle class="logo-dot" cx="24.5" cy="29" r="2.8" /><circle cx="39.5" cy="29" r="2.8" />
+        <path d="M32 33.5 34.6 36.6 32 39.6 29.4 36.6Z" />
+      </g>
+    </svg>
+  );
+}
+
+function AeroMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
   const n = ++gid;
   const id = (k: string) => `lttv-${k}${n}`;
   return (
-    <svg class={'logo-mark ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+    <svg class={'logo-mark logo-aero ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
       <defs>
         <linearGradient id={id('sky')} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#8fe6ff" /><stop offset=".5" stop-color="#1f9ce9" /><stop offset="1" stop-color="#0a4aa6" />

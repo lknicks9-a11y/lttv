@@ -1,4 +1,5 @@
 import { h, Fragment } from 'preact';
+import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
 import { onAppKey, onBack, focusFirst } from '../app/nav';
@@ -180,6 +181,7 @@ export function App() {
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
       {fullscreen && <PlayerOverlay />}
+      <LiveNotices />
       {detail && <ProgrammeDetail />}
       <ReminderPrompt />
       {menuKey && <ChannelMenu channelKey={menuKey} onClose={() => setState({ channelMenu: undefined })} />}

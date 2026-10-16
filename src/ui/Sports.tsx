@@ -10,6 +10,7 @@ import type { LineupChannel } from '../core/types';
 import { Button, Chip, ChannelLogo, Empty, Icon, Modal, Progress, Toggle } from './common';
 import { clock, when, range, progress, remaining } from './fmt';
 import { LeagueGames, TeamLogo } from './Games';
+import { BetsScreen, FantasyScreen } from './Fantasy';
 import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams } from '../app/schedule';
 import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
 
@@ -93,7 +94,7 @@ function ListingRow({ l, now }: { l: TeamListing; now: number }) {
   );
 }
 
-export type SportsView = 'home' | 'teams' | ScheduleLeagueId;
+export type SportsView = 'home' | 'teams' | 'fantasy' | 'bets' | ScheduleLeagueId;
 
 /** Sports: pick a league (or My Teams), then today's games, then the streams for a game. */
 export function SportsScreen() {
@@ -125,15 +126,15 @@ export function SportsScreen() {
   }, [view]);
 
   if (view === 'home') return <LeaguePicker onPick={setView} />;
-  const league = view === 'teams' ? undefined : scheduleLeague(view);
+  const league = view === 'teams' || view === 'fantasy' || view === 'bets' ? undefined : scheduleLeague(view);
   return (
     <section class="screen sports">
       <div class="row gap sports-crumbs" data-group="sports-crumbs">
         <Button small icon="back" onClick={() => setView('home')}>Sports</Button>
         {league && leagueLogo(league.id) && <img class="league-logo-sm" src={leagueLogo(league.id)} alt="" />}
-        <h1>{league ? league.name : 'My Teams'}</h1>
+        <h1>{league ? league.name : view === 'fantasy' ? 'Fantasy' : view === 'bets' ? 'Bets · prop tracker' : 'My Teams'}</h1>
       </div>
-      {view === 'teams' ? <MyTeams /> : <LeagueGames key={view} leagueId={view} />}
+      {view === 'teams' ? <MyTeams /> : view === 'fantasy' ? <FantasyScreen /> : view === 'bets' ? <BetsScreen /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
     </section>
   );
 }
@@ -160,6 +161,20 @@ export function LeagueGrid({ onPick, teams: withTeams = true }: { onPick: (v: Sp
   const sums = useLeagueSummaries(scheduleDay(now, tz));
   return (
     <div class="league-grid" data-group="leagues">
+      {withTeams && (
+        <button type="button" class="f league-card league-card-special" onClick={() => onPick('fantasy')}>
+          <Icon name="star" size="3rem" class="league-card-icon" />
+          <span class="league-card-name">Fantasy</span>
+          <small class="muted">Your lineup, live points and scoring pop-ups</small>
+        </button>
+      )}
+      {withTeams && (
+        <button type="button" class="f league-card league-card-special" onClick={() => onPick('bets')}>
+          <Icon name="check" size="3rem" class="league-card-icon" />
+          <span class="league-card-name">Bets</span>
+          <small class="muted">Track player and team props against your lines</small>
+        </button>
+      )}
       {withTeams && (
         <button type="button" class="f league-card" data-autofocus onClick={() => onPick('teams')}>
           <Icon name="star" size="3rem" class="league-card-icon" />

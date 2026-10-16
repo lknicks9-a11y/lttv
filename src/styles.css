@@ -743,3 +743,100 @@ small, .small { font-size: 1.15rem; }
 :root.tv[data-theme='aero'] .btn, :root.tv[data-theme='aero'] .modal, :root.tv[data-theme='aero'] .toast { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5); }
 :root.tv[data-theme='aero'] .f:focus { box-shadow: var(--focus); }
 :root.tv .logo-hq img { filter: none; }
+
+/* ---------- Fantasy / Bets ---------- */
+.fx-screen { display: flex; flex-direction: column; gap: 1rem; min-height: 0; overflow-y: auto; padding: 0.3rem; }
+.fx-head { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+.fx-total { display: flex; align-items: baseline; gap: 0.6rem; margin-right: auto; }
+.fx-total b { font-size: 3rem; font-variant-numeric: tabular-nums; }
+.fx-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.fx-row { display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1rem; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); }
+.fx-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.fx-row-name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fx-pts { font-size: 1.8rem; font-variant-numeric: tabular-nums; min-width: 6rem; text-align: right; }
+.fx-progress { height: 0.4rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.fx-progress > div { height: 100%; background: var(--accent); border-radius: inherit; }
+.bet-hit .fx-progress > div { background: var(--ok); }
+.bet-lost .fx-progress > div { background: var(--danger); }
+.bet-badge { flex: none; font-size: 0.95rem; font-weight: 800; letter-spacing: 0.06em; padding: 0.2rem 0.6rem; border-radius: 0.4rem; background: rgba(255, 255, 255, 0.15); }
+.bet-badge-hit { background: var(--ok); color: #04210f; }
+.bet-badge-lost { background: var(--danger); color: #2a0606; }
+.bet-badge-live { background: #e5352b; color: #fff; }
+.headshot { flex: none; border-radius: 50%; object-fit: cover; background: rgba(255, 255, 255, 0.12); display: grid; place-items: center; font-weight: 700; overflow: hidden; }
+.headshot-sm { width: 2.8rem; height: 2.8rem; font-size: 0.95rem; }
+.headshot-md { width: 3.8rem; height: 3.8rem; font-size: 1.2rem; }
+.headshot-lg { width: 5.4rem; height: 5.4rem; font-size: 1.6rem; }
+.fx-prop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 0.6rem; max-height: 60vh; overflow-y: auto; padding: 0.3rem; }
+.league-card-special { background-image: linear-gradient(160deg, var(--accent-soft), transparent 60%); }
+
+/* pop-ups in the bottom corner (over full-screen video too) */
+.live-notices { position: fixed; right: var(--safe-x); bottom: var(--safe-y); z-index: 70; display: flex; flex-direction: column; gap: 0.7rem; align-items: flex-end; pointer-events: none; max-width: 46rem; }
+.live-notice { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.2rem; border-radius: 1rem; background: rgba(8, 12, 20, 0.92); border: 1px solid rgba(255, 255, 255, 0.2); border-left: 0.4rem solid var(--accent); box-shadow: 0 0.6rem 2rem rgba(0, 0, 0, 0.5); animation: notice-in 0.35s ease-out; }
+.live-notice.tone-good { border-left-color: var(--ok); }
+.live-notice.tone-bad { border-left-color: var(--danger); }
+.live-notice-art { position: relative; flex: none; }
+.live-notice-logo { position: absolute; right: -0.5rem; bottom: -0.4rem; width: 2.4rem; height: 2.4rem; object-fit: contain; filter: drop-shadow(0 0.1rem 0.2rem rgba(0, 0, 0, 0.7)); }
+.live-notice-art img.live-notice-logo:only-child { position: static; width: 4rem; height: 4rem; }
+.live-notice-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.live-notice-text b { font-size: 1.35rem; }
+.live-notice-text small { color: var(--text-2); }
+.live-notice-play { font-size: 1.1rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.live-notice-icon { color: var(--accent); }
+@keyframes notice-in { from { transform: translateY(1.5rem); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* =====================================================================
+   Luxury theme: deep black, warm champagne gold, thin rules and generous
+   spacing — a quiet, high-end night look. Fire TV keeps it flat (no blur).
+   ===================================================================== */
+:root[data-theme='luxury'] {
+  --accent: #c8a45d;
+  --accent-2: #e9d3a2;
+  --accent-soft: rgba(200, 164, 93, 0.16);
+  --accent-ink: #120e06;
+  --bg: #050505;
+  --bg-2: #0d0c0a;
+  --panel: #0f0e0c;
+  --panel-2: #171511;
+  --panel-3: #221f18;
+  --line: rgba(200, 164, 93, 0.22);
+  --text: #f4efe4;
+  --text-2: #d8cfbd;
+  --muted: #9a8f7a;
+  --radius: 0.4rem;
+  --radius-sm: 0.3rem;
+  --font: 'Didot', 'Bodoni 72', 'Playfair Display', 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --focus: 0 0 0 0.12rem #050505, 0 0 0 0.3rem var(--accent);
+}
+[data-theme='luxury'] body { font-family: 'Helvetica Neue', 'Segoe UI', system-ui, Roboto, Arial, sans-serif; letter-spacing: 0.01em; }
+[data-theme='luxury'] h1, [data-theme='luxury'] h2, [data-theme='luxury'] .modal-title, [data-theme='luxury'] .guide-info-title, [data-theme='luxury'] .osd-title { font-family: var(--font); font-weight: 400; letter-spacing: 0.04em; }
+[data-theme='luxury'] h1 { text-transform: uppercase; letter-spacing: 0.18em; font-size: 2.3rem; }
+[data-theme='luxury'] .backdrop { background: radial-gradient(90rem 50rem at 50% -20%, rgba(200, 164, 93, 0.10), transparent 60%), radial-gradient(60rem 40rem at 100% 120%, rgba(200, 164, 93, 0.06), transparent 60%), #050505; }
+[data-theme='luxury'] .card, [data-theme='luxury'] .modal, [data-theme='luxury'] .guide-grid, [data-theme='luxury'] .league-card, [data-theme='luxury'] .game-row,
+[data-theme='luxury'] .fx-row, [data-theme='luxury'] .toast, [data-theme='luxury'] .team-option, [data-theme='luxury'] .stream-pick-main, [data-theme='luxury'] .feed-option { background-color: var(--panel); background-image: none; border: 1px solid var(--line); box-shadow: none; }
+[data-theme='luxury'] .sidebar { border-right: 1px solid var(--line); padding-right: 0.6rem; }
+[data-theme='luxury'] .nav-item { border-radius: 0; color: var(--muted); }
+[data-theme='luxury'] .nav-item.active { background: transparent; color: var(--accent); box-shadow: inset 0.2rem 0 0 var(--accent); }
+[data-theme='luxury'] .nav-item.active .icon { color: var(--accent); }
+[data-theme='luxury'] .btn { border-radius: 0.2rem; background: transparent; border: 1px solid var(--line); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.92em; }
+[data-theme='luxury'] .btn:hover, [data-theme='luxury'] .btn:focus { background: var(--accent-soft); border-color: var(--accent); }
+[data-theme='luxury'] .btn-primary, [data-theme='luxury'] .chip-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+[data-theme='luxury'] .chip { border-radius: 0.2rem; background: transparent; border-color: var(--line); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.95em; }
+[data-theme='luxury'] .chip-active { color: var(--accent-ink); }
+[data-theme='luxury'] .prog { background: #0d0c0a; border: 1px solid rgba(200, 164, 93, 0.10); }
+[data-theme='luxury'] .prog.airing { background: #16130d; border-color: rgba(200, 164, 93, 0.35); }
+[data-theme='luxury'] .guide-ch { background: #0b0a08; }
+[data-theme='luxury'] .progress-fill, [data-theme='luxury'] .livebar-fill, [data-theme='luxury'] .fx-progress > div { background: linear-gradient(90deg, #a8843f, #e9d3a2); }
+[data-theme='luxury'] .badge-live, [data-theme='luxury'] .live-pill.on { background: var(--accent); color: var(--accent-ink); }
+[data-theme='luxury'] .input { background: #0b0a08; border-color: var(--line); color: var(--text); }
+[data-theme='luxury'] .osd { background: linear-gradient(to top, rgba(5, 5, 5, 0.96) 0%, rgba(5, 5, 5, 0.75) 55%, transparent 100%); }
+[data-theme='luxury'] .player-panel { background: rgba(8, 7, 5, 0.96); border-left: 1px solid var(--line); }
+[data-theme='luxury'] .live-notice { background: rgba(8, 7, 5, 0.95); border-color: var(--line); border-left-color: var(--accent); }
+[data-theme='luxury'] .wordmark { font-family: var(--font); font-weight: 400; letter-spacing: 0.22em; color: var(--text); }
+[data-theme='luxury'] .wordmark-tv { background: linear-gradient(180deg, #f3e2b8, #b8924a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-theme='luxury'] .brand .logo-mark { filter: drop-shadow(0 0 0.6rem rgba(200, 164, 93, 0.35)); }
+[data-theme='luxury'] .video-slot { border: 1px solid var(--line); }
+.logo-owl { display: none; }
+[data-theme='luxury'] .logo-owl { display: inline-block; }
+[data-theme='luxury'] .logo-aero { display: none; }
+[data-theme='luxury'] .chip.chip-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+[data-theme='luxury'] .btn.btn-primary:hover, [data-theme='luxury'] .btn.btn-primary:focus { background: var(--accent-2); border-color: var(--accent-2); color: var(--accent-ink); }

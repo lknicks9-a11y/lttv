@@ -1,4 +1,5 @@
 import { h, Fragment } from 'preact';
+import { pollLive, startLiveSports } from './app/livesports';
 import { render } from 'preact';
 import { App } from './ui/App';
 import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/nav';
@@ -23,7 +24,7 @@ async function boot() {
   };
 
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
-  (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme };
+  (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive };
   render(<App />, document.getElementById('app')!);
 
   try {
@@ -36,6 +37,7 @@ async function boot() {
   }
   const s = getState().settings;
   applyTheme(s);
+  void startLiveSports();
   const start = s.startupScreen;
   if (start === 'guide' || start === 'channels') setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');

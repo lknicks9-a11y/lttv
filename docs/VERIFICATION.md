@@ -6,9 +6,9 @@ Status of every requirement as of version 1.0.0. “Verified” means exercised 
 
 | Suite | Command | Result |
 |---|---|---|
-| Unit/integration (node:test) | `npm test` | **92/92 passed** (+ off-device JVM test of the Fire TV live-rewind buffer: `android/jvm-tests`, 16/16) — `test-results/unit-tests.txt` |
+| Unit/integration (node:test) | `npm test` | **96/96 passed** (+ off-device JVM test of the Fire TV live-rewind buffer: `android/jvm-tests`, 16/16) — `test-results/unit-tests.txt` |
 | TypeScript type check | `npm run typecheck` | **0 errors** |
-| End‑to‑end UI (headless Chromium, remote‑style keys only) | `node scripts/e2e.mjs` | **103/103 passed** — `test-results/e2e.txt`, screenshots in `test-results/screenshots/` |
+| End‑to‑end UI (headless Chromium, remote‑style keys only) | `node scripts/e2e.mjs` | **112/112 passed** — `test-results/e2e.txt`, screenshots in `test-results/screenshots/` |
 | Kotlin compile check (Android sources vs. real Android API 34 + AndroidX/Media3 signature stubs) | see below | **0 errors** — `test-results/kotlin-typecheck.txt` |
 | Android APK build (Gradle/AGP) | `./gradlew assembleDebug` | **Not run** — Google’s SDK/Maven servers were unreachable from the build environment. Use the GitHub Actions workflow or Android Studio. |
 
@@ -114,6 +114,9 @@ The end‑to‑end test serves a 5,004‑channel playlist and an 80,000‑progra
 | Multiview removed (at your request) | ✅ Verified (e2e: no Multiview buttons anywhere) |
 | Country tabs from the provider's group codes (US, CA, UK, ES…), whole groups under one country, code shown on the tab | ✅ Verified (unit, e2e) |
 | Team picker: all teams of 14 leagues from ESPN's team lists with logos; league logos always shown | ✅ Implemented; ESPN response format checked by hand; e2e covers the built-in fallback list (no internet in tests) |
+| Fantasy lineup with live fantasy points (PPR/half/standard, NBA scoring) and pop-ups with picture, logo and play | ✅ Verified (unit with ESPN-shaped summaries; e2e against a mock NFL feed). The real ESPN summary feed wasn't reachable from the test environment |
+| Bets: every player/team prop, your line, over/under, live progress, HIT/LOST/PUSH, pop-ups | ✅ Verified (unit, e2e against a mock NFL feed) |
+| Luxury theme (black & gold) with an original owl TV logo | ✅ Verified (e2e screenshot; switched on once on update) |
 | Frutiger Aero theme and glossy logo (new default; Fire TV skips blur effects) | ✅ Rendered in e2e screenshots; not checked on TV hardware |
 | English-first guide text: English `lang` / Latin-script title and description chosen; English channels with Arabic/foreign guide switch to an English source; clear note when none exists | ✅ Verified (unit). Real-world EPGs with mixed languages not tested |
 | Live rewind / fast forward / go to live in a browser (hls.js / mpegts.js back buffer; live edge chased only when not rewound) | ✅ Verified (e2e: rewind key and Live button move the stream position) for a recorded test stream; live-edge chasing with a real live stream not exercised |
