@@ -1,4 +1,5 @@
 import { ChannelName } from './ChannelName';
+import { onBack } from '../app/nav';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, setState, tune, getState, refreshAll, toast } from '../app/state';
@@ -60,6 +61,23 @@ export function GuideScreen() {
       /* ignore */
     }
   };
+  // Back on Live TV: from the channels go to the country tabs first, then to the menu (sidebar), then out.
+  useEffect(() => onBack(() => {
+    const a = document.activeElement as HTMLElement | null;
+    const content = document.querySelector('[data-group="content"]');
+    if (!a || !content?.contains(a)) return false;
+    if (!a.closest('.country-tabs')) {
+      const tab = document.querySelector<HTMLElement>('.country-tabs .chip-active') ?? document.querySelector<HTMLElement>('.country-tabs .chip');
+      if (tab) {
+        tab.focus();
+        tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
+      }
+    }
+    const item = document.querySelector<HTMLElement>('.sidebar .nav-item.active') ?? document.querySelector<HTMLElement>('.sidebar .nav-item');
+    item?.focus();
+    return !!item;
+  }), []);
   const chips = useCategoryChips(lineup);
   const filter = validFilter(savedFilter, chips);
   const rows = useMemo(() => filterLineup(lineup, filter, { recents }), [lineup, filter, recents]);
