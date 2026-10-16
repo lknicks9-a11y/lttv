@@ -81,6 +81,12 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun goLive() = activity.player.goLive()
 
+    /** Subtitles / closed captions on or off. */
+    @JavascriptInterface
+    fun setCaptions(on: Boolean) {
+        activity.player.setCaptions(on)
+    }
+
     // ---- Multiview tiles (0–3) ----
 
     /** json: { url, headers: {..}, key } */

@@ -5,13 +5,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import { player, setState, useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
-  episodeName, episodePlay, itemName, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
+  continueList, episodeName, episodePlay, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
   moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching,
-  type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay,
+  type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
-import { formatDuration, isEnglishCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
+import { formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
 import { Button, Chip, Empty, Icon, Modal } from './common';
 import { VideoSlot } from './VideoSlot';
+import { useArt } from '../app/vodmeta';
+import { isForeignScript } from '../core/lang';
+import { updateSettings } from '../app/state';
 import { usePlayerStatus, PlayerBadge } from './Home';
 
 
@@ -19,11 +22,32 @@ const PAGE = 48;
 
 function Poster({ src, name }: { src?: string; name: string }) {
   const [bad, setBad] = useState(false);
+  useEffect(() => setBad(false), [src]);
   return (
     <div class="vod-poster">
       {src && !bad ? <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBad(true)} /> : <div class="vod-poster-fallback">{name.replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'}</div>}
     </div>
   );
+}
+
+/** Card poster: once the card is on screen, a sharper poster from TVmaze (shows) / iTunes (movies) replaces the provider's. */
+function ArtPoster({ kind, name, year, src }: { kind: 'movie' | 'series'; name: string; year?: string; src?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return setSeen(true);
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) {
+        setSeen(true);
+        io.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const art = useArt(kind, name, year, seen);
+  return <div ref={ref} class="vod-poster-wrap"><Poster src={art?.poster ?? src} name={name} /></div>;
 }
 
 function fmtClock(sec: number): string {
@@ -38,7 +62,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   const title = kind === 'movies' ? 'Movies' : 'Shows';
   const [home, setHome] = useState<VodHome | null>(null);
   const [homeErr, setHomeErr] = useState('');
-  const cont = useContinueWatching().filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
+  const cont = continueList(useContinueWatching()).filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
   const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat }>({ mode: 'home' });
   const [open, setOpen] = useState<VodItem | null>(null);
   const rootRef = useRef<HTMLElement>(null);
@@ -94,11 +118,18 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                 <h2 class="vod-row-title">Continue watching</h2>
                 <div class="vod-strip" data-group="vod-row-continue" data-hlock>
                   {cont.map((e, i) => (
-                    <button type="button" class="f vod-card" key={e.key} data-autofocus={i === 0 ? '' : undefined} onClick={() => playVod(resumePlay(e))}>
-                      <Poster src={e.poster} name={e.title} />
-                      <div class="vod-progress"><div style={{ width: `${Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
-                      <div class="vod-name">{e.title}</div>
-                      <div class="vod-meta muted">{e.subtitle ? `${e.subtitle} · ` : ''}{fmtClock(Math.max(0, e.dur - e.pos))} left</div>
+                    <button
+                      type="button"
+                      class="f vod-card"
+                      key={e.key}
+                      data-autofocus={i === 0 ? '' : undefined}
+                      // Shows open their page with the episode selected; movies continue right away.
+                      onClick={() => (e.series ? setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } }) : playVod(resumePlay(e)))}
+                    >
+                      <ArtPoster kind={e.series ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? e.poster} />
+                      <div class="vod-progress"><div style={{ width: `${e.done ? 100 : Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
+                      <div class="vod-name">{e.series?.name ?? e.title}</div>
+                      <div class="vod-meta muted">{e.series ? (e.done ? `Up next after S${e.series.season} E${e.series.episode}` : `S${e.series.season} E${e.series.episode} · ${fmtClock(Math.max(0, e.dur - e.pos))} left`) : `${fmtClock(Math.max(0, e.dur - e.pos))} left`}</div>
                     </button>
                   ))}
                 </div>
@@ -137,7 +168,7 @@ function ItemCard({ it, onOpen, autofocus }: { it: VodItem; onOpen: (it: VodItem
   const name = itemName(it);
   return (
     <button type="button" class="f vod-card" key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(it)}>
-      <Poster src={poster} name={name} />
+      <ArtPoster kind={it.kind} name={name} year={year} src={poster} />
       <div class="vod-name">{name}</div>
       <div class="vod-meta muted">{[year, rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ')}</div>
     </button>
@@ -232,32 +263,81 @@ function VodSearch({ kind, onOpen }: { kind: VodKind; onOpen: (it: VodItem) => v
   );
 }
 
-function Facts({ d, year, rating }: { d: VodDetails; year?: string; rating?: number }) {
+function Facts({ d, year, rating, quality }: { d: VodDetails; year?: string; rating?: number; quality?: string }) {
   const bits = [d.year ?? year, formatDuration(d.durationSec), d.genre, (d.rating ?? rating) ? `★ ${(d.rating ?? rating)!.toFixed(1)}` : ''].filter(Boolean);
-  return bits.length ? <div class="vod-facts muted">{bits.join(' · ')}</div> : null;
+  return bits.length || quality ? <div class="vod-facts muted">{quality && <span class="vod-quality">{quality}</span>}{bits.join(' · ')}</div> : null;
 }
 
+/** "4K · 1080p · 720p" choice when the provider has the title more than once. */
+function VersionChips({ versions, sel, onSel }: { versions: VodVersion[]; sel: number; onSel: (i: number) => void }) {
+  if (versions.length < 2) return null;
+  return (
+    <div class="chips compact vod-versions" data-group="vod-versions">
+      {versions.map((v, i) => <Chip key={i} active={i === sel} onClick={() => onSel(i)}>{v.quality.label || `Version ${i + 1}`}</Chip>)}
+    </div>
+  );
+}
+
+/** Heights from the provider's media info for copies whose name doesn't say (up to 4), then best first. */
+async function refineVersions(vs: VodVersion[]): Promise<VodVersion[]> {
+  const out = await Promise.all(vs.map(async (v, i) => {
+    if (v.item.kind !== 'movie' || v.quality.rank !== 2 || i > 3) return v;
+    const d = await loadMovieDetails(v.item.playlistId, v.item.m);
+    return { ...v, quality: qualityOf(v.item.m.name, d.height) };
+  }));
+  return out.sort((a, b) => b.quality.rank - a.quality.rank);
+}
+
+const goodText = (t?: string) => (t && !isForeignScript(t) ? t : undefined);
+
 function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMovie; onClose: () => void }) {
+  const first: VodVersion = { item: { kind: 'movie', playlistId, m }, quality: qualityOf(m.name) };
+  const [versions, setVersions] = useState<VodVersion[]>([first]);
+  const [sel, setSel] = useState(0);
+  const cur = versions[sel]?.item as Extract<VodItem, { kind: 'movie' }>;
   const [d, setD] = useState<VodDetails | null>(null);
   const [resume, setResume] = useState<ResumeEntry | undefined>();
+  const art = useArt('movie', m.name, m.year, true, true);
+  const playing = useApp((s) => !!s.vodPlaying);
   useEffect(() => {
-    void loadMovieDetails(playlistId, m).then(setD);
-    void resumePosition(`m:${playlistId}:${m.id}`).then(setResume);
+    let alive = true;
+    void findVersions(first.item).then(refineVersions).then(async (vs) => {
+      if (!alive || vs.length < 2) return;
+      // A copy you already started wins; otherwise the best quality (1080p first).
+      let pick = 0;
+      for (let i = 0; i < vs.length; i++) {
+        const it = vs[i].item as Extract<VodItem, { kind: 'movie' }>;
+        if (await resumePosition(`m:${it.playlistId}:${it.m.id}`)) {
+          pick = i;
+          break;
+        }
+      }
+      setVersions(vs);
+      setSel(pick);
+    });
+    return () => {
+      alive = false;
+    };
   }, [m.id]);
+  useEffect(() => {
+    setD(null);
+    void loadMovieDetails(cur.playlistId, cur.m).then(setD);
+    void resumePosition(`m:${cur.playlistId}:${cur.m.id}`).then(setResume);
+  }, [cur.m.id, playing]);
   const play = (startSec?: number) => {
-    const v = moviePlay(playlistId, m, startSec);
-    if (v) {
-      onClose();
-      playVod(v);
-    }
+    const v = moviePlay(cur.playlistId, cur.m, startSec);
+    if (v) playVod({ ...v, poster: art?.poster ?? v.poster });
   };
+  const quality = qualityOf(cur.m.name, d?.height).label;
+  const plot = goodText(d?.plot) ?? art?.plot;
   return (
     <Modal title={m.name} onClose={onClose} wide class="vod-detail">
       <div class="vod-detail-body">
-        <Poster src={d?.poster ?? m.poster} name={m.name} />
+        <Poster src={art?.poster ?? d?.poster ?? m.poster} name={m.name} />
         <div class="vod-detail-text">
-          <Facts d={d ?? {}} year={m.year} rating={m.rating} />
-          {d === null ? <p class="muted row gap"><span class="spinner" /> Loading details…</p> : d.plot ? <p class="vod-plot">{d.plot}</p> : null}
+          <Facts d={{ ...(d ?? {}), genre: d?.genre ?? art?.genre }} year={m.year ?? art?.year} rating={m.rating} quality={quality} />
+          <VersionChips versions={versions} sel={sel} onSel={setSel} />
+          {d === null && art === undefined ? <p class="muted row gap"><span class="spinner" /> Loading details…</p> : plot ? <p class="vod-plot">{plot}</p> : null}
           {d?.cast && <p class="muted vod-cast">Starring {d.cast}</p>}
           {d?.director && <p class="muted vod-cast">Directed by {d.director}</p>}
           <div class="row gap modal-actions">
@@ -277,46 +357,108 @@ function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMov
   );
 }
 
+type SeriesInfo = Awaited<ReturnType<typeof loadSeriesDetails>>;
+
+/** The episode a show's page selects: the one watched last — or the next one when it was finished. */
+function targetEpisode(info: SeriesInfo | null, r: ResumeEntry | undefined): VodEpisode | undefined {
+  if (!info) return undefined;
+  const flat = info.seasons.flatMap((x) => x.episodes);
+  if (!r?.series) return flat[0];
+  const i = flat.findIndex((e) => e.id === r.series!.episodeId);
+  if (i < 0) return flat.find((e) => e.season === r.series!.season && e.episode === r.series!.episode) ?? flat[0];
+  return r.done && flat[i + 1] ? flat[i + 1] : flat[i];
+}
+
 function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSeries; onClose: () => void }) {
-  const [info, setInfo] = useState<Awaited<ReturnType<typeof loadSeriesDetails>> | null>(null);
+  const first: VodVersion = { item: { kind: 'series', playlistId, s }, quality: qualityOf(s.name) };
+  const [versions, setVersions] = useState<VodVersion[]>([first]);
+  const [sel, setSel] = useState(0);
+  const cur = versions[sel]?.item as Extract<VodItem, { kind: 'series' }>;
+  const [info, setInfo] = useState<SeriesInfo | null>(null);
   const [err, setErr] = useState('');
   const [season, setSeason] = useState<number | null>(null);
-  const cont = useContinueWatching();
+  const all = useContinueWatching();
+  const art = useArt('series', s.name, s.year, true, true);
+  const playing = useApp((st) => !!st.vodPlaying);
+  const listRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    loadSeriesDetails(playlistId, s).then(setInfo).catch((e) => {
+    let alive = true;
+    void findVersions(first.item).then((vs) => {
+      if (!alive || vs.length < 2) return;
+      // The copy you've been watching wins; otherwise the best quality.
+      const watched = vs.findIndex((v) => all.some((r) => r.series?.id === (v.item as Extract<VodItem, { kind: 'series' }>).s.id && r.playlistId === v.item.playlistId));
+      setVersions(vs);
+      setSel(Math.max(0, watched));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [s.id]);
+  useEffect(() => {
+    setInfo(null);
+    loadSeriesDetails(cur.playlistId, cur.s).then(setInfo).catch((e) => {
       setErr((e as Error).message);
       setInfo({ details: {}, seasons: [] });
     });
-  }, [s.id]);
-  const resumeOf = (e: VodEpisode) => cont.find((r) => r.key === `e:${playlistId}:${e.id}`);
-  // Open on the season of the episode last watched, else the first.
-  const lastSeason = useMemo(() => {
-    if (!info) return null;
-    for (const r of cont) for (const se of info.seasons) if (se.episodes.some((e) => r.key === `e:${playlistId}:${e.id}`)) return se.season;
-    return info.seasons[0]?.season ?? null;
-  }, [info]);
-  const cur = season ?? lastSeason;
-  const seasonEps = info?.seasons.find((x) => x.season === cur)?.episodes ?? [];
+  }, [cur.s.id]);
+
+  const last = lastWatched(all, cur.playlistId, cur.s.id);
+  const target = targetEpisode(info, last);
+  const shownSeason = season ?? target?.season ?? info?.seasons[0]?.season ?? null;
+  const seasonEps = info?.seasons.find((x) => x.season === shownSeason)?.episodes ?? [];
   const d = info?.details ?? {};
+  const resumeOf = (e: VodEpisode) => all.find((r) => r.key === `e:${cur.playlistId}:${e.id}`);
+
+  // When the episodes arrive, select the one watched last (or the first).
+  useEffect(() => {
+    if (!info || playing) return;
+    const t = setTimeout(() => {
+      const list = listRef.current;
+      const el = list?.querySelector<HTMLElement>('[data-target]') ?? list?.querySelector<HTMLElement>('.vod-episode');
+      if (el && list && !list.contains(document.activeElement)) {
+        el.focus({ preventScroll: true });
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [info]);
+
+  // Back from the player: this page again, with the episode watched last (or the next one) selected — like Hulu.
+  const wasPlaying = useRef(false);
+  useEffect(() => {
+    if (playing) {
+      wasPlaying.current = true;
+      return;
+    }
+    if (!wasPlaying.current) return;
+    wasPlaying.current = false;
+    setSeason(null);
+    const t = setTimeout(() => listRef.current?.querySelector<HTMLElement>('[data-target]')?.focus(), 120);
+    return () => clearTimeout(t);
+  }, [playing]);
 
   const play = (e: VodEpisode, startSec?: number) => {
     if (!info) return;
     const flat = info.seasons.flatMap((x) => x.episodes);
     const i = flat.findIndex((x) => x.id === e.id);
-    const v = episodePlay(playlistId, s, e, startSec);
+    const show = { ...cur.s, poster: art?.poster ?? cur.s.poster };
+    const v = episodePlay(cur.playlistId, show, e, startSec);
     if (!v) return;
-    v.queue = flat.slice(i + 1, i + 31).map((x) => episodePlay(playlistId, s, x)).filter((x): x is VodPlay => !!x);
-    onClose();
+    v.queue = flat.slice(i + 1, i + 31).map((x) => episodePlay(cur.playlistId, show, x)).filter((x): x is VodPlay => !!x);
     playVod(v);
   };
+  const epArt = (e: VodEpisode) => art?.episodes?.[`${e.season}:${e.episode}`];
+  const plot = goodText(d.plot) ?? goodText(s.plot) ?? art?.plot;
 
   return (
     <Modal title={s.name} onClose={onClose} wide class="vod-detail">
       <div class="vod-detail-body">
-        <Poster src={d.poster ?? s.poster} name={s.name} />
+        <Poster src={art?.poster ?? d.poster ?? s.poster} name={s.name} />
         <div class="vod-detail-text">
-          <Facts d={d} year={s.year} rating={s.rating} />
-          {(d.plot ?? s.plot) && <p class="vod-plot">{d.plot ?? s.plot}</p>}
+          <Facts d={{ ...d, genre: d.genre ?? art?.genre }} year={s.year ?? art?.year} rating={s.rating ?? art?.rating} quality={versions[sel]?.quality.label} />
+          <VersionChips versions={versions} sel={sel} onSel={(i) => { setSel(i); setSeason(null); }} />
+          {plot && <p class="vod-plot">{plot}</p>}
           {(d.cast ?? s.cast) && <p class="muted vod-cast">Starring {d.cast ?? s.cast}</p>}
           {!info ? (
             <p class="muted row gap"><span class="spinner" /> Loading episodes…</p>
@@ -327,24 +469,36 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
               {info.seasons.length > 1 && (
                 <div class="chips compact" data-group="vod-seasons">
                   {info.seasons.map((x) => (
-                    <Chip key={x.season} active={x.season === cur} onClick={() => setSeason(x.season)}>Season {x.season}</Chip>
+                    <Chip key={x.season} active={x.season === shownSeason} onClick={() => setSeason(x.season)}>Season {x.season}</Chip>
                   ))}
                 </div>
               )}
-              <div class="vod-episodes" data-group="vod-episodes">
+              <div class="vod-episodes" data-group="vod-episodes" ref={listRef}>
                 {seasonEps.map((e, i) => {
                   const r = resumeOf(e);
+                  const a = epArt(e);
+                  const isTarget = target?.id === e.id;
+                  const name = episodeName(s.name, e) || a?.title || `Episode ${e.episode || i + 1}`;
+                  const watched = !!r?.done;
                   return (
-                    <button type="button" class="f vod-episode" key={e.id} data-autofocus={(r ? true : i === 0) ? '' : undefined} onClick={() => play(e, r ? Math.max(0, r.pos - 5) : 0)}>
-                      <span class="vod-ep-num">{e.episode || i + 1}</span>
+                    <button
+                      type="button"
+                      class={`f vod-episode ${isTarget ? 'is-target' : ''}`}
+                      key={e.id}
+                      data-ep-id={e.id}
+                      data-target={isTarget ? '' : undefined}
+                      data-autofocus={(target && shownSeason === target.season ? isTarget : i === 0) ? '' : undefined}
+                      onClick={() => play(e, r && !r.done ? Math.max(0, r.pos - 5) : 0)}
+                    >
+                      {(a?.image ?? e.image) ? <img class="vod-ep-img" src={a?.image ?? e.image} alt="" loading="lazy" /> : <span class="vod-ep-num">{e.episode || i + 1}</span>}
                       <span class="vod-ep-text">
-                        <span class="vod-ep-title">{episodeName(s.name, e) || `Episode ${e.episode || i + 1}`}</span>
+                        <span class="vod-ep-title">{e.episode ? `${e.episode}. ` : ''}{name}</span>
                         <span class="muted vod-ep-meta">
-                          {[formatDuration(e.durationSec), r ? `Resume at ${fmtClock(r.pos)}` : ''].filter(Boolean).join(' · ')}
+                          {[formatDuration(e.durationSec ?? (a?.runtime ? a.runtime * 60 : undefined)), watched ? 'Watched' : r ? `Resume at ${fmtClock(r.pos)}` : '', isTarget && last ? (watched ? '' : 'Continue') : ''].filter(Boolean).join(' · ')}
                         </span>
-                        {e.plot && <span class="muted vod-ep-plot">{e.plot}</span>}
+                        {(goodText(e.plot) ?? a?.plot) && <span class="muted vod-ep-plot">{goodText(e.plot) ?? a?.plot}</span>}
                       </span>
-                      {r && <span class="vod-ep-bar"><span style={{ width: `${Math.min(100, (r.pos / Math.max(1, r.dur)) * 100)}%` }} /></span>}
+                      {r && !watched && <span class="vod-ep-bar"><span style={{ width: `${Math.min(100, (r.pos / Math.max(1, r.dur)) * 100)}%` }} /></span>}
                     </button>
                   );
                 })}
@@ -375,7 +529,7 @@ export function VodPlayer() {
 
   const save = () => {
     const p = posRef.current;
-    if (p.dur > 0) void saveProgress({ key: v.key, title: v.title, subtitle: v.subtitle, poster: v.poster, pos: p.at, dur: p.dur, url: v.url, playlistId: v.playlistId });
+    if (p.dur > 0) void saveProgress({ key: v.key, title: v.title, subtitle: v.subtitle, poster: v.poster, pos: p.at, dur: p.dur, url: v.url, playlistId: v.playlistId, series: v.series, hasNext: !!v.queue?.length });
   };
   const close = () => {
     save();
@@ -416,11 +570,19 @@ export function VodPlayer() {
   // The end: next episode, or close.
   useEffect(() => {
     if (status.state !== 'ended' || status.key !== v.key) return;
-    void saveProgress({ key: v.key, title: v.title, subtitle: v.subtitle, poster: v.poster, pos: posRef.current.dur, dur: posRef.current.dur, url: v.url, playlistId: v.playlistId });
+    void saveProgress({ key: v.key, title: v.title, subtitle: v.subtitle, poster: v.poster, pos: posRef.current.dur, dur: posRef.current.dur, url: v.url, playlistId: v.playlistId, series: v.series, hasNext: !!v.queue?.length });
     const [next, ...rest] = v.queue ?? [];
     if (next) setState({ vodPlaying: { ...next, queue: rest } });
     else close();
   }, [status.state]);
+
+  const captions = useApp((st) => !!st.settings.captions);
+  const toggleCaptions = () => {
+    const on = !captions;
+    void updateSettings({ captions: on });
+    player.setCaptions(on);
+    poke();
+  };
 
   const nextEpisode = () => {
     const [next, ...rest] = v.queue ?? [];
@@ -540,6 +702,10 @@ export function VodPlayer() {
         <div class="vod-osd-title">
           <div class="osd-title">{v.title}</div>
           {v.subtitle && <div class="muted">{v.subtitle}</div>}
+          <div class="vod-osd-badges">
+            {status.videoHeight ? <span class="vod-quality">{qualityOf('', status.videoHeight).label || `${status.videoHeight}p`}</span> : null}
+            {captions && status.textTracks === 0 ? <span class="muted">No captions in this video</span> : null}
+          </div>
         </div>
         <div class="livebar">
           <span class="livebar-note">{fmtClock(pos.at)}</span>
@@ -554,8 +720,11 @@ export function VodPlayer() {
           <Button small data-autofocus icon={paused ? 'play' : 'pause'} onClick={() => { player.togglePause(); poke(); }} aria-label="Play/pause" />
           <Button small icon="ffwd" onClick={() => skip(1)} aria-label="Forward 10 seconds">10s</Button>
           {v.queue?.length ? <Button small icon="ffwd" onClick={nextEpisode}>Next episode</Button> : null}
+          <Button small class={`cc-btn ${captions ? 'cc-on' : ''}`} onClick={toggleCaptions} aria-pressed={captions} aria-label="Captions">
+            CC {captions ? 'On' : 'Off'}
+          </Button>
           <Button small icon="close" onClick={close}>Close</Button>
-          <span class="muted vod-hint">← → seek · OK pause · Back to close</span>
+          <span class="muted vod-hint">← → seek · OK pause · ↓ more · Back to close</span>
         </div>
       </div>
     </div>

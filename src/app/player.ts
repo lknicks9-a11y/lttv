@@ -26,6 +26,8 @@ export interface PlayerStatus {
   noRetry?: boolean;
   /** Internal: retry the same URL right away (e.g. switching to the local helper after a CORS block). */
   retrySame?: boolean;
+  /** Subtitle / caption tracks in the stream. */
+  textTracks?: number;
 }
 
 export interface PlayRequest {
@@ -81,6 +83,8 @@ interface Backend {
   setShifted(on: boolean): void;
   /** A still of the current picture (browser only), as a data URL. */
   snapshot?(): string | undefined;
+  /** Subtitles / captions on or off. */
+  setCaptions?(on: boolean): void;
 }
 
 type StreamKind = 'hls' | 'ts' | 'progressive' | 'unknown';
@@ -140,11 +144,31 @@ export class WebBackend implements Backend {
     v.addEventListener('ended', () => this.emit(this.current?.vod ? { state: 'ended' } : { state: 'error', error: 'The stream ended.' }));
     // Resume a movie where it was left.
     v.addEventListener('loadedmetadata', () => {
+      this.applyCaptions();
       const start = this.current?.startSec;
       if (start && start > 5 && Number.isFinite(v.duration) && start < v.duration - 10) v.currentTime = start;
     });
     // Stay near the live edge unless the viewer rewound or paused (we chase it ourselves so rewinding works).
     window.setInterval(() => this.chaseLive(), 2000);
+  }
+
+  private captions = false;
+  setCaptions(on: boolean) {
+    this.captions = on;
+    this.applyCaptions();
+  }
+  private applyCaptions() {
+    const v = this.video;
+    const list = Array.from(v.textTracks ?? []).filter((t) => t.kind === 'subtitles' || t.kind === 'captions');
+    const h = this.hls as unknown as { subtitleTracks?: { lang?: string }[]; subtitleDisplay: boolean; subtitleTrack: number } | null;
+    const hlsSubs = h?.subtitleTracks?.length ?? 0;
+    const en = list.find((t) => /^en/i.test(t.language)) ?? list[0];
+    for (const t of list) t.mode = this.captions && t === en ? 'showing' : 'disabled';
+    if (h && hlsSubs) {
+      h.subtitleDisplay = this.captions;
+      if (this.captions && h.subtitleTrack < 0) h.subtitleTrack = Math.max(0, (h.subtitleTracks ?? []).findIndex((t) => /^en/i.test(t.lang ?? '')));
+    }
+    this.emit({ textTracks: list.length + hlsSubs });
   }
 
   private rewindSec() {
@@ -500,6 +524,10 @@ class NativeBackend implements Backend {
     const handle = (json: string) => {
       try {
         const ev = JSON.parse(json) as { type?: string; state: PlayerState; error?: string; width?: number; height?: number; fatal?: boolean; behind?: number; window?: number; seekable?: boolean; live?: boolean };
+        if (ev.type === 'tracks') {
+          this.emit({ textTracks: (ev as { text?: number }).text ?? 0 });
+          return;
+        }
         if (ev.type === 'live') {
           this.live = { seekable: !!ev.seekable, behind: Math.max(0, (ev.behind ?? 0) / 1000), window: Math.max(0, (ev.window ?? 0) / 1000), live: ev.live !== false };
           return;
@@ -529,6 +557,9 @@ class NativeBackend implements Backend {
   }
   goLive() {
     if (this.slot === undefined) native!.goLive?.();
+  }
+  setCaptions(on: boolean) {
+    if (this.slot === undefined) native!.setCaptions?.(on);
   }
   setShifted() {
     /* the native player keeps its place when paused */
@@ -713,7 +744,8 @@ export class PlayerController {
     this.workingIndex = undefined;
     this.lastPos = -1;
     this.lastProgressAt = Date.now();
-    this.set({ state: 'loading', key: req.key, error: undefined, attempt: undefined, noRetry: undefined, videoWidth: undefined, videoHeight: undefined });
+    this.set({ state: 'loading', key: req.key, error: undefined, attempt: undefined, noRetry: undefined, videoWidth: undefined, videoHeight: undefined, textTracks: undefined });
+    this.backend.setCaptions?.(!!this.getSettings().captions);
     this.backend.load(this.variant(req), 0);
     this.updateRect();
   }
@@ -750,6 +782,11 @@ export class PlayerController {
 
   liveInfo(): LiveInfo | null {
     return this.req ? this.backend.liveInfo() : null;
+  }
+
+  /** Subtitles / captions on or off (kept for the next streams too). */
+  setCaptions(on: boolean) {
+    this.backend.setCaptions?.(on);
   }
 
   /** Still of the current picture (browser only). */

@@ -116,3 +116,43 @@ test('lines typed on a TV keyboard', () => {
   assert.equal(parseLine('abc'), undefined);
   assert.equal(parseLine('7.4.5'), undefined);
 });
+
+import { cleanTitle, parseItunesMovie, parseTvmazeShow, qualityOf } from '../src/core/vod';
+import { continueList, type ResumeEntry } from '../src/core/vod';
+
+test('quality from names and video height, 1080p preferred', () => {
+  assert.equal(qualityOf('Night Run (2021) 4K').label, '4K');
+  assert.equal(qualityOf('Night Run FHD').label, '1080p');
+  assert.equal(qualityOf('EN - Night Run HD').label, '720p');
+  assert.equal(qualityOf('Night Run').label, '');
+  assert.equal(qualityOf('Night Run', 1080).label, '1080p');
+  assert.ok(qualityOf('x 1080p').rank > qualityOf('x 4K').rank && qualityOf('x 4K').rank > qualityOf('x HD').rank);
+  assert.equal(cleanTitle('EN - The Batman (2022) 4K'), 'The Batman');
+  assert.equal(cleanTitle('US: Night Run FHD'), 'Night Run');
+});
+
+test('TVmaze and iTunes artwork only for exact matches', () => {
+  const show = { name: 'Harbor', premiered: '2019-01-03', summary: '<p>Secrets.</p>', image: { original: 'https://img.example/p.jpg' }, _embedded: { episodes: [{ season: 1, number: 2, name: 'High Water', image: { original: 'https://img.example/e.jpg' } }] } };
+  const a = parseTvmazeShow(show, 'EN - Harbor (2019)');
+  assert.equal(a?.poster, 'https://img.example/p.jpg');
+  assert.equal(a?.plot, 'Secrets.');
+  assert.equal(a?.episodes?.['1:2'].title, 'High Water');
+  assert.equal(parseTvmazeShow(show, 'Harbor (2005)'), undefined);
+  assert.equal(parseTvmazeShow(show, 'Harbor Lights'), undefined);
+  const m = parseItunesMovie({ results: [{ trackName: 'Other' }, { trackName: 'Night Run', releaseDate: '2021-05-01', artworkUrl100: 'https://is1.example/abc/100x100bb.jpg', longDescription: 'A courier.' }] }, 'Night Run (2021) 4K');
+  assert.equal(m?.poster, 'https://is1.example/abc/600x900bb.jpg');
+  assert.equal(m?.plot, 'A courier.');
+  assert.equal(parseItunesMovie({ results: [{ trackName: 'Night Run', releaseDate: '1990-01-01' }] }, 'Night Run (2021)'), undefined);
+});
+
+test('Continue watching: one card per show (last watched), finished movies and finales drop off', () => {
+  const ser = (ep: number) => ({ id: 's1', name: 'Harbor', season: 1, episode: ep, episodeId: `e${ep}` });
+  const base = { title: 'x', dur: 100, url: 'u', playlistId: 'p' };
+  const list: ResumeEntry[] = [
+    { ...base, key: 'e:p:e1', pos: 100, at: 1, series: ser(1), done: true, hasNext: true },
+    { ...base, key: 'e:p:e2', pos: 40, at: 2, series: ser(2), hasNext: true },
+    { ...base, key: 'm:p:1', pos: 50, at: 3 },
+    { ...base, key: 'e:p:x9', pos: 100, at: 4, series: { ...ser(9), id: 's2' }, done: true, hasNext: false },
+  ];
+  assert.deepEqual(continueList(list).map((e) => e.key), ['m:p:1', 'e:p:e2']);
+});

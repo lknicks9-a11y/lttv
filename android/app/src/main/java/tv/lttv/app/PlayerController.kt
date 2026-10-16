@@ -12,6 +12,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
@@ -86,6 +87,25 @@ class PlayerController(
     /** Playing a movie / episode (seekable, ends, no live recording). */
     private var vod = false
     private var startMs = 0L
+    /** Show subtitles / closed captions when the stream has them. */
+    private var captions = false
+    private var lastTracks = ""
+
+    fun setCaptions(on: Boolean) = main.post {
+        captions = on
+        applyTrackPrefs()
+    }
+
+    /** Captions on/off (English first), and movies / episodes at the best quality the stream offers. */
+    private fun applyTrackPrefs() {
+        val p = exo ?: return
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !captions)
+            .setPreferredTextLanguage("en")
+            .setSelectUndeterminedTextLanguage(true)
+            .setForceHighestSupportedBitrate(vod)
+            .build()
+    }
 
     fun configure(bufferSec: Int, timeoutSec: Int, rewindMin: Int = this.rewindMin) {
         main.post {
@@ -159,6 +179,15 @@ class PlayerController(
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             size = videoSize
+        }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            val text = tracks.groups.count { it.type == C.TRACK_TYPE_TEXT }
+            val o = JSONObject().put("type", "tracks").put("text", text)
+            if (o.toString() != lastTracks) {
+                lastTracks = o.toString()
+                emit(lastTracks)
+            }
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -257,6 +286,8 @@ class PlayerController(
         // these flags let ExoPlayer start such streams instead of failing or showing black.
         val tsFlags = DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
         p.repeatMode = if (vod) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE
+        lastTracks = ""
+        applyTrackPrefs()
         if (!vod && mime == MimeTypes.VIDEO_MP2T && audioFocus && rewindMin > 0 && (url.startsWith("http://") || url.startsWith("https://"))) {
             // Raw MPEG-TS can't be rewound by the player itself: record it on the device and play the recording.
             startTimeshift(url, headers, tsFlags)

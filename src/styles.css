@@ -935,3 +935,13 @@ small, .small { font-size: 1.15rem; }
 .vod-search .input { max-width: 40rem; }
 .vod-loading { padding-left: 0.5rem; }
 :root.tv .vod-strip .vod-card { width: 10.5rem; }
+/* Movies / Shows: quality, versions, episode stills, captions */
+.vod-quality { display: inline-block; padding: 0.05rem 0.5rem; margin-right: 0.6rem; border: 1px solid currentColor; border-radius: 0.35rem; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.04em; color: var(--accent); }
+.vod-versions { margin: 0; }
+.vod-poster-wrap { width: 100%; }
+.vod-episode { align-items: center; }
+.vod-ep-img { flex: none; width: 11rem; aspect-ratio: 16 / 9; object-fit: cover; border-radius: calc(var(--radius) * 0.7); background: var(--panel); }
+.vod-episode.is-target { border-color: var(--accent); }
+.vod-osd-badges { display: flex; gap: 0.8rem; align-items: center; margin-top: 0.3rem; font-size: 1rem; }
+.cc-btn.cc-on { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 640px) { .vod-ep-img { width: 7rem; } }

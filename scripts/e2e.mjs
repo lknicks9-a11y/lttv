@@ -111,6 +111,8 @@ function fixtureServer() {
             { stream_id: 502, name: 'Laugh Track', category_id: '2', container_extension: 'mp4' },
             { stream_id: 503, name: 'Galaxy Quest Redux (2024)', category_id: '3', rating: '8.4', added: '1700000900', container_extension: 'mp4' },
             { stream_id: 504, name: 'فيلم عربي', category_id: '4', container_extension: 'mp4' },
+            { stream_id: 505, name: 'Night Run (2021) 4K', category_id: '1', added: '1700000400', container_extension: 'mkv' },
+            { stream_id: 506, name: 'Night Run FHD', category_id: '1', added: '1700000300', container_extension: 'mp4' },
           ].filter((m) => !u.searchParams.get('category_id') || m.category_id === u.searchParams.get('category_id')),
           get_vod_info: { info: { plot: 'A courier races across the city overnight.', cast: 'Test Actor', duration: '01:42:10', releasedate: '2021-05-01' } },
           get_series_categories: [{ category_id: '9', category_name: 'EN | Drama' }],
@@ -230,6 +232,21 @@ function fixtureServer() {
         }
       }
       // Mock TVmaze and Wikipedia for programme descriptions.
+      if (u.pathname === '/tvmaze/singlesearch/shows' && u.searchParams.get('q') === 'Harbor') {
+        const img = (n) => `http://127.0.0.1:${srv.address().port}/art/${n}.jpg`;
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({ id: 501, name: 'Harbor', premiered: '2019-01-03', summary: '<p>A harbor town keeps its secrets.</p>', image: { original: img('harbor-poster') }, rating: { average: 8.1 }, genres: ['Drama'], externals: { imdb: 'tt0000001' },
+          _embedded: { episodes: [{ season: 1, number: 1, name: 'Low Tide', summary: '<p>The boats come in.</p>', image: { original: img('ep1') }, runtime: 45 }, { season: 1, number: 2, name: 'High Water', summary: '<p>A storm arrives.</p>', image: { original: img('ep2') }, runtime: 44 }, { season: 2, number: 1, name: 'Return', summary: '<p>A year later.</p>', runtime: 46 }] } }));
+      }
+      if (u.pathname === '/itunes/search') {
+        const ok = /night run/i.test(u.searchParams.get('term') ?? '');
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({ results: ok ? [{ trackName: 'Night Run', releaseDate: '2021-05-01T07:00:00Z', artworkUrl100: `http://127.0.0.1:${srv.address().port}/art/nightrun/100x100bb.jpg`, longDescription: 'A courier races across the city overnight.', primaryGenreName: 'Action' }] : [] }));
+      }
+      if (u.pathname.startsWith('/art/')) {
+        resp.writeHead(200, { 'content-type': 'image/png' });
+        return resp.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+      }
       if (u.pathname === '/tvmaze/singlesearch/shows') {
         if (u.searchParams.get('q') !== 'Provider Late Show') { resp.writeHead(404); return resp.end('null'); }
         resp.writeHead(200, { 'content-type': 'application/json' });
@@ -898,6 +915,7 @@ try {
   // ---- Movies and Shows from the provider ----
   const vodNav = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.sidebar .nav-label')].map((x) => x.textContent); return t.includes('Movies') && t.includes('Shows') ? t : null; }), 15000);
   check('Movies and Shows appear in the menu when the provider has them', !!vodNav, JSON.stringify(vodNav));
+  await page.evaluate((b) => { localStorage.setItem('lttvTvmazeBase', b + '/tvmaze'); localStorage.setItem('lttvItunesBase', b + '/itunes'); localStorage.setItem('lttvWikiBase', b + '/wiki/'); }, fxBase);
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
   const rows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.some((x) => /Other languages/.test(x)) && !document.querySelector('.vod-loading') ? t : null; }), 15000);
   await page.waitForTimeout(300);
@@ -925,12 +943,19 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((r) => /Action/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelector('.vod-card')?.click());
   const movieInfo = await waitFor(() => page.evaluate(() => { const t = document.querySelector('.vod-detail')?.textContent ?? ''; return /courier/.test(t) ? t : null; }), 8000);
   check('Movie details: plot, runtime and Play', !!movieInfo && /1 h 42 min/.test(movieInfo) && /Play/.test(movieInfo), String(movieInfo).slice(0, 200));
+  check('The same movie in several qualities shows once in the rows', await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((r) => /Action/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelectorAll('.vod-card').length === 2));
+  const versions = await waitFor(() => page.evaluate(() => { const c = [...document.querySelectorAll('.vod-versions .chip')]; return c.length ? { labels: c.map((x) => x.textContent), active: document.querySelector('.vod-versions .chip-active')?.textContent } : null; }), 8000);
+  check('Movie versions (4K / 1080p…) are offered and 1080p is picked', !!versions && versions.labels.includes('4K') && versions.labels.includes('1080p') && versions.active === '1080p', JSON.stringify(versions));
+  const poster = await waitFor(() => page.evaluate(() => { const s = document.querySelector('.vod-detail .vod-poster img')?.getAttribute('src') ?? ''; return /600x900bb/.test(s) ? s : null; }), 8000);
+  check('Movie poster comes from iTunes in a large size', !!poster, String(poster));
   await page.evaluate(() => [...document.querySelectorAll('.vod-detail button')].find((b) => /^Play$/.test(b.textContent.trim()))?.click());
   const vodReq = await waitFor(() => page.evaluate(() => { const v = window.__lttv.getState().vodPlaying; return v && document.querySelector('.vod-player') && /^m:/.test(window.__lttv.player.currentKey ?? '') ? { url: v.url, key: window.__lttv.player.currentKey } : null; }), 5000) ?? await page.evaluate(() => ({ url: window.__lttv.getState().vodPlaying?.url ?? '', key: window.__lttv.player.currentKey }));
-  check('Play opens the movie full screen from the provider\'s movie address', !!vodReq && /\/movie\/demo\/[^/]+\/500\.mp4$/.test(vodReq.url) && /^m:/.test(vodReq.key), JSON.stringify(vodReq).replace(/secret123/g, '…'));
+  check('Play opens the movie full screen from the provider\'s movie address', !!vodReq && /\/movie\/demo\/[^/]+\/506\.mp4$/.test(vodReq.url) && /^m:/.test(vodReq.key), JSON.stringify(vodReq).replace(/secret123/g, '…'));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
-  check('Back closes the movie player', await page.evaluate(() => !document.querySelector('.vod-player') && !window.__lttv.getState().vodPlaying));
+  check('Back closes the movie player and returns to the movie page', await page.evaluate(() => !document.querySelector('.vod-player') && !window.__lttv.getState().vodPlaying && !!document.querySelector('.vod-detail')));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Shows/.test(b.textContent))?.click());
   await waitFor(() => page.evaluate(() => [...document.querySelectorAll('.vod-row')].some((r) => /Drama/.test(r.textContent) && r.querySelector('.vod-card')) ? true : null), 10000);
   await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((r) => /Drama/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelector('.vod-card')?.click());
@@ -939,7 +964,36 @@ try {
   await page.evaluate(() => document.querySelector('.vod-episode')?.click());
   const epReq = await waitFor(() => page.evaluate(() => { const v = window.__lttv.getState().vodPlaying; return v ? { url: v.url, queue: v.queue?.length ?? 0, sub: v.subtitle } : null; }), 5000);
   check('An episode plays with the next episodes queued', !!epReq && /\/series\/demo\/[^/]+\/7701\.mp4$/.test(epReq.url) && epReq.queue === 2 && /S1 E1/.test(epReq.sub), JSON.stringify(epReq).replace(/secret123/g, '…'));
+  await page.evaluate(() => document.querySelector('.vod-player')?.focus());
+  await page.keyboard.press('ArrowDown');
+  await page.waitForTimeout(200);
+  await page.evaluate(() => [...document.querySelectorAll('.vod-controls button')].find((b) => /^CC/.test(b.textContent))?.click());
+  await page.waitForTimeout(200);
+  check('Captions can be turned on and off in the player (CC)', await page.evaluate(() => window.__lttv.getState().settings.captions === true && /CC On/.test(document.querySelector('.cc-btn')?.textContent ?? '')));
+  await page.evaluate(() => [...document.querySelectorAll('.vod-controls button')].find((b) => /^CC/.test(b.textContent))?.click());
   await shot('41-episode-player');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  check('Backing out of an episode returns to the show page', await page.evaluate(() => !document.querySelector('.vod-player') && !!document.querySelector('.vod-detail .vod-episodes')));
+  const epArt = await page.evaluate(() => ({ titles: [...document.querySelectorAll('.vod-ep-title')].map((x) => x.textContent), imgs: document.querySelectorAll('.vod-ep-img').length, plot: document.querySelector('.vod-detail .vod-plot')?.textContent }));
+  check('Episode names and stills come from TVmaze', epArt.titles[0] === '1. Low Tide' && epArt.imgs >= 2 && /harbor town|Boats/.test(epArt.plot ?? ''), JSON.stringify(epArt));
+  // Watched episode 1 to the end and half of episode 2: one card for the show, on episode 2.
+  await page.evaluate(async () => {
+    const st = window.__lttv.getState();
+    const pl = st.playlists[0].id;
+    const ser = (ep, id) => ({ id: '77', name: 'Harbor', season: 1, episode: ep, episodeId: id, year: '2019' });
+    await window.__lttv.saveProgress({ key: `e:${pl}:7701`, title: 'Harbor', subtitle: 'S1 E1', pos: 2700, dur: 2700, url: 'x', playlistId: pl, series: ser(1, '7701'), hasNext: true });
+    await new Promise((r) => setTimeout(r, 20));
+    await window.__lttv.saveProgress({ key: `e:${pl}:7702`, title: 'Harbor', subtitle: 'S1 E2', pos: 900, dur: 2640, url: 'x', playlistId: pl, series: ser(2, '7702'), hasNext: true });
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  const cont = await page.evaluate(() => { const r = [...document.querySelectorAll('.vod-row')].find((x) => /Continue watching/.test(x.textContent)); return r ? [...r.querySelectorAll('.vod-card')].map((c) => c.textContent) : null; });
+  check('Continue watching shows one card per show: the episode watched last', !!cont && cont.length === 1 && /Harbor/.test(cont[0]) && /S1 E2/.test(cont[0]), JSON.stringify(cont));
+  await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((x) => /Continue watching/.test(x.textContent))?.querySelector('.vod-card')?.click());
+  const sel = await waitFor(() => page.evaluate(() => { const a = document.activeElement; return document.querySelector('.vod-detail') && a?.closest('.vod-episode') ? { id: a.closest('.vod-episode').getAttribute('data-ep-id'), player: !!document.querySelector('.vod-player') } : null; }), 8000);
+  check('Continuing a show opens its page with the last-watched episode selected (no auto-play)', !!sel && sel.id === '7702' && !sel.player, JSON.stringify(sel));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
   try { rmSync(xtProfile, { recursive: true, force: true }); } catch { /* browser still closing */ }

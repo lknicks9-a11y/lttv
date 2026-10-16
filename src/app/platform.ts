@@ -28,6 +28,8 @@ export interface NativeBridge {
   /** Live rewind / fast forward (ms, negative = back) and back to live. Optional: older app builds lack them. */
   seekBy?(ms: number): void;
   goLive?(): void;
+  /** Subtitles on/off (optional: older app builds lack it). */
+  setCaptions?(on: boolean): void;
   /** In-app updates (optional: older app builds lack them). */
   appBuild?(): number;
   installUpdate?(url: string): void;

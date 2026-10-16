@@ -59,6 +59,8 @@ export interface VodDetails {
   poster?: string;
   backdrop?: string;
   trailer?: string;
+  /** Video height of the file (from the provider's media info), e.g. 1080. */
+  height?: number;
 }
 
 type J = Record<string, unknown>;
@@ -144,6 +146,7 @@ export function parseMovieInfo(json: unknown): VodDetails {
     poster: url(info.movie_image) ?? url(info.cover_big),
     backdrop: url(info.backdrop_path),
     trailer: yt ? (/^https?:/.test(yt) ? yt : `https://www.youtube.com/watch?v=${yt}`) : undefined,
+    height: num(obj(info.video).height) ?? num(obj(obj(json).movie_data).height),
   };
 }
 
@@ -317,3 +320,147 @@ export function parseItunesChart(json: unknown): string[] {
   const entries = arr(obj(obj(json).feed).entry);
   return entries.map((e) => str(obj(obj(e)['im:name']).label)).filter(Boolean);
 }
+
+// ---------------- Quality ----------------
+
+export interface Quality {
+  /** Higher is preferred: 1080p first, then 4K, 720p, unknown, SD. */
+  rank: number;
+  label: string;
+}
+
+/** Quality from the title / category tags ("4K", "FHD", "1080p", "HD", "SD") or the file's video height. */
+export function qualityOf(text: string, height?: number): Quality {
+  const h = height ?? 0;
+  if (h >= 2000 || /\b(4k|uhd|2160p?)\b/i.test(text)) return { rank: 4, label: '4K' };
+  if (h >= 1000 || /\b(fhd|1080p?|full\s?hd)\b/i.test(text)) return { rank: 5, label: '1080p' };
+  if (h >= 700 || /\b(hd|720p?)\b/i.test(text)) return { rank: 3, label: '720p' };
+  if ((h > 0 && h < 700) || /\b(sd|480p?|576p?|cam|ts)\b/i.test(text)) return { rank: 1, label: 'SD' };
+  return { rank: 2, label: '' };
+}
+
+/** The search name of a title: no language prefix, year or quality tags ("EN - The Batman (2022) 4K" -> "The Batman"). */
+export function cleanTitle(name: string): string {
+  return name
+    .replace(/^\s*[[(|]?\s*[A-Za-z]{2,4}\s*[\])|:»•·]\s*/, '')
+    .replace(/^\s*[A-Za-z]{2,4}\s+[-–—]\s+/, '')
+    .replace(/[([]\s*(19|20)\d\d\s*[)\]]/g, ' ')
+    .replace(/[([][^)\]]*[)\]]/g, (m) => (/\b(4k|uhd|fhd|hd|sd|multi|sub|dub|1080|720)\b/i.test(m) ? ' ' : m))
+    .replace(/\b(4k|uhd|fhd|hd|sd|hevc|x265|h265|multi|1080p|720p|2160p)\b/gi, ' ')
+    .replace(/\s+(19|20)\d\d\s*$/, ' ')
+    .replace(/\s*[-–|]+\s*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export function titleYear(name: string): string | undefined {
+  return yearOf(name);
+}
+
+// ---------------- Artwork and descriptions (TVmaze for shows, iTunes for movies) ----------------
+
+export interface ArtInfo {
+  poster?: string;
+  plot?: string;
+  year?: string;
+  genre?: string;
+  rating?: number;
+  imdb?: string;
+  /** Episodes by "season:episode". */
+  episodes?: Record<string, { title?: string; plot?: string; image?: string; runtime?: number }>;
+  source: 'tvmaze' | 'itunes' | 'wikipedia';
+}
+
+const strip = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/\s{2,}/g, ' ').trim();
+const near = (a?: string, b?: string) => !a || !b || Math.abs(Number(a) - Number(b)) <= 1;
+
+/** TVmaze "singlesearch/shows?embed=episodes" -> poster, summary and every episode (only when the name — and year, if known — match). */
+export function parseTvmazeShow(json: unknown, name: string, year?: string): ArtInfo | undefined {
+  const s = obj(json);
+  if (!str(s.name) || normTitle(str(s.name)) !== normTitle(cleanTitle(name))) return undefined;
+  const premiered = yearOf(s.premiered);
+  if (!near(premiered, year ?? yearOf(name))) return undefined;
+  const episodes: NonNullable<ArtInfo['episodes']> = {};
+  for (const x of arr(obj(s._embedded).episodes)) {
+    const e = obj(x);
+    const k = `${str(e.season)}:${str(e.number)}`;
+    episodes[k] = { title: str(e.name) || undefined, plot: strip(str(e.summary)) || undefined, image: url(obj(e.image).original) ?? url(obj(e.image).medium), runtime: num(e.runtime) };
+  }
+  return {
+    poster: url(obj(s.image).original) ?? url(obj(s.image).medium),
+    plot: strip(str(s.summary)) || undefined,
+    year: premiered,
+    genre: arr(s.genres).map(str).filter(Boolean).join(', ') || undefined,
+    rating: num(obj(s.rating).average),
+    imdb: str(obj(s.externals).imdb) || undefined,
+    episodes,
+    source: 'tvmaze',
+  };
+}
+
+/** iTunes Search (movies) -> the matching movie's large poster and description. */
+export function parseItunesMovie(json: unknown, name: string, year?: string): ArtInfo | undefined {
+  const want = normTitle(cleanTitle(name));
+  for (const x of arr(obj(json).results)) {
+    const r = obj(x);
+    if (normTitle(str(r.trackName)) !== want) continue;
+    const y = yearOf(r.releaseDate);
+    if (!near(y, year ?? yearOf(name))) continue;
+    const art = str(r.artworkUrl100);
+    return {
+      poster: art ? art.replace(/\/\d+x\d+(bb)?\.(jpg|png)$/i, '/600x900bb.jpg') : undefined,
+      plot: str(r.longDescription) || str(r.shortDescription) || undefined,
+      year: y,
+      genre: str(r.primaryGenreName) || undefined,
+      source: 'itunes',
+    };
+  }
+  return undefined;
+}
+
+// ---------------- Continue watching ----------------
+
+export interface SeriesRef {
+  id: string;
+  name: string;
+  poster?: string;
+  season: number;
+  episode: number;
+  episodeId: string;
+  year?: string;
+}
+
+export interface ResumeEntry {
+  key: string;
+  title: string;
+  subtitle?: string;
+  poster?: string;
+  pos: number;
+  dur: number;
+  at: number;
+  /** What's needed to play it again from "Continue watching". */
+  url: string;
+  playlistId: string;
+  series?: SeriesRef;
+  /** Watched to the end (kept for shows, so the next episode is picked). */
+  done?: boolean;
+  /** Another episode follows this one. */
+  hasNext?: boolean;
+}
+
+/** Continue watching: unfinished movies, and one card per show — the episode watched last. */
+export function continueList(all: ResumeEntry[]): ResumeEntry[] {
+  const seen = new Set<string>();
+  const out: ResumeEntry[] = [];
+  for (const e of [...all].sort((a, b) => b.at - a.at)) {
+    if (e.series) {
+      const k = `${e.playlistId}:${e.series.id}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (e.done && !e.hasNext) continue; // finished the last episode
+      out.push(e);
+    } else if (!e.done) out.push(e);
+  }
+  return out;
+}
+

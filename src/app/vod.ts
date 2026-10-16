@@ -4,11 +4,13 @@
 import { useEffect, useState } from 'preact/hooks';
 import { loginFor, xtreamApiUrl, type XtreamLogin } from '../core/xtream';
 import {
-  GENRE_ROWS, genreOf, isEnglishCategory, isTrendingCategory, normTitle, parseItunesChart,
+  GENRE_ROWS, cleanTitle, genreOf, isEnglishCategory, qualityOf, type Quality, isTrendingCategory, normTitle, parseItunesChart,
   episodeUrl, m3uVod, movieUrl, parseCategories, parseMovieInfo, parseMovies, parseSeriesInfo, parseSeriesList,
   type VodCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries,
 } from '../core/vod';
 import { openRemote } from './platform';
+import { continueList, type ResumeEntry, type SeriesRef } from '../core/vod';
+export { continueList, type ResumeEntry, type SeriesRef };
 import { getState, repo, setState, subscribe } from './state';
 import type { PlaylistSource } from '../core/types';
 
@@ -201,22 +203,13 @@ export interface VodPlay {
   headers?: Record<string, string>;
   startSec?: number;
   playlistId: string;
+  /** For an episode: its show (Continue watching shows one card per show). */
+  series?: SeriesRef;
   /** Following episodes (played automatically when one ends). */
   queue?: VodPlay[];
 }
 
-export interface ResumeEntry {
-  key: string;
-  title: string;
-  subtitle?: string;
-  poster?: string;
-  pos: number;
-  dur: number;
-  at: number;
-  /** What's needed to play it again from "Continue watching". */
-  url: string;
-  playlistId: string;
-}
+
 
 const RESUME_KV = 'vodResume';
 let resume: Record<string, ResumeEntry> | null = null;
@@ -234,12 +227,21 @@ export async function resumePosition(key: string): Promise<ResumeEntry | undefin
 export async function saveProgress(e: Omit<ResumeEntry, 'at'>) {
   const store = await resumeStore();
   const done = e.dur > 0 && e.pos / e.dur > 0.93;
-  if (done || e.pos < 20) delete store[e.key];
+  if (e.series) {
+    // Shows: remember the last episode watched, also when finished (then the next one is offered).
+    if (e.pos < 20 && !done && !store[e.key]) return;
+    store[e.key] = { ...e, done: done || undefined, at: Date.now() };
+  } else if (done || e.pos < 20) delete store[e.key];
   else store[e.key] = { ...e, at: Date.now() };
   const keys = Object.keys(store).sort((a, b) => store[b].at - store[a].at);
-  for (const k of keys.slice(60)) delete store[k];
+  for (const k of keys.slice(150)) delete store[k];
   await repo.setKv(RESUME_KV, store).catch(() => undefined);
   resumeListeners.forEach((l) => l());
+}
+
+/** The episode to select on a show's page: the last one watched, or the next one if it was finished. */
+export function lastWatched(all: ResumeEntry[], playlistId: string, seriesId: string): ResumeEntry | undefined {
+  return [...all].filter((e) => e.series?.id === seriesId && e.playlistId === playlistId).sort((a, b) => b.at - a.at)[0];
 }
 
 export function useContinueWatching(): ResumeEntry[] {
@@ -276,12 +278,16 @@ export function episodePlay(playlistId: string, s: VodSeries, e: VodEpisode, sta
   const src = srcOf(playlistId);
   if (!src) return null;
   if (!src.login && !e.url) return null;
-  return { key: `e:${playlistId}:${e.id}`, title: s.name, subtitle: `S${e.season} E${e.episode}${episodeName(s.name, e) ? ' · ' + episodeName(s.name, e) : ''}`, poster: e.image ?? s.poster, url: e.url ?? episodeUrl(src.login!, e), headers: headersFor(playlistId), startSec, playlistId };
+  return {
+    key: `e:${playlistId}:${e.id}`, title: s.name, subtitle: `S${e.season} E${e.episode}${episodeName(s.name, e) ? ' · ' + episodeName(s.name, e) : ''}`, poster: s.poster ?? e.image,
+    url: e.url ?? episodeUrl(src.login!, e), headers: headersFor(playlistId), startSec, playlistId,
+    series: { id: s.id, name: s.name, poster: s.poster, season: e.season, episode: e.episode, episodeId: e.id, year: s.year },
+  };
 }
 
 /** Play again from "Continue watching". */
 export function resumePlay(e: ResumeEntry, fromStart = false): VodPlay {
-  return { key: e.key, title: e.title, subtitle: e.subtitle, poster: e.poster, url: e.url, headers: headersFor(e.playlistId), startSec: fromStart ? 0 : Math.max(0, e.pos - 5), playlistId: e.playlistId };
+  return { key: e.key, title: e.title, subtitle: e.subtitle, poster: e.poster, url: e.url, headers: headersFor(e.playlistId), startSec: fromStart ? 0 : Math.max(0, e.pos - 5), playlistId: e.playlistId, series: e.series };
 }
 
 /** Start playing a movie / episode full screen. */
@@ -428,3 +434,31 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
 
 /** Items of one category (for "Browse"). */
 export const loadCategoryItems = catItems;
+
+// ---- Versions (the same title in 4K / 1080p / 720p) ----
+
+export interface VodVersion {
+  item: VodItem;
+  quality: Quality;
+}
+
+/** Other copies of this movie / show in your provider's list (same title and year), best quality first. */
+export async function findVersions(it: VodItem): Promise<VodVersion[]> {
+  const name = itemName(it);
+  const key = normTitle(cleanTitle(name));
+  const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  let list: VodItem[] = [];
+  try {
+    list = it.kind === 'movie'
+      ? (await loadAllMovies()).map((m): VodItem => ({ kind: 'movie', playlistId: m.playlistId, m }))
+      : (await loadAllSeries()).map((s): VodItem => ({ kind: 'series', playlistId: s.playlistId, s }));
+  } catch {
+    /* only this one */
+  }
+  const same = list.filter((x) => {
+    const y = x.kind === 'movie' ? x.m.year : x.s.year;
+    return normTitle(cleanTitle(itemName(x))) === key && (!year || !y || y === year);
+  });
+  if (!same.some((x) => itemId(x) === itemId(it))) same.unshift(it);
+  return same.map((x) => ({ item: x, quality: qualityOf(itemName(x)) })).sort((a, b) => b.quality.rank - a.quality.rank);
+}

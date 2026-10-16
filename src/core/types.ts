@@ -221,6 +221,8 @@ export interface Settings {
   rewindMin: number;
   /** Prefer English programme titles/descriptions when the guide has several languages. */
   preferEnglish: boolean;
+  /** Subtitles / captions on movies and shows that have them. */
+  captions?: boolean;
   /** Streams you chose for My TV numbers (they win over the automatic pick, and follow you to other providers by name / call sign). */
   myTvPins: MyTvPin[];
 }
