@@ -36,6 +36,7 @@ LTTV turns **your own** IPTV playlist (M3U/M3U8) and XMLTV program guide into a 
 - **Colors**: pick an accent color from 13 swatches or any hex value; the logo, buttons, focus rings and progress bars follow it.
 - **Search** channels (name, original name, number, category) and programs (now and upcoming) with category/favorites/guide filters.
 - **Settings**: time zone and 12/24 h clock, guide refresh interval, theme and accent, start screen, playback buffer/timeout/retries, export/import settings, clear cache, reset, diagnostics (secrets redacted).
+- **Updates inside the app (Fire TV)**: LTTV checks for a newer build at start-up and every 6 hours (or Settings → Check for updates), downloads it itself and opens the installer — press **Install** and it updates over the current app, keeping all your settings. The first time, Fire TV asks you to allow LTTV to install apps.
 - **Fire TV setup from your phone**: the TV shows an address and PIN; open it on your phone/computer to paste URLs or upload files instead of typing with the remote.
 
 ## Quick start — desktop

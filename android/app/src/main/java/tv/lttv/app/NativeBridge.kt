@@ -29,6 +29,17 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun appVersion(): String = BuildConfig.VERSION_NAME
 
+    /** Build number (grows with every GitHub build) — used to tell whether an update is newer. */
+    @JavascriptInterface
+    fun appBuild(): Int = BuildConfig.VERSION_CODE
+
+    /** Download an update APK and open the system installer (progress via lttvHost.onUpdateEvent). */
+    @JavascriptInterface
+    fun installUpdate(url: String) = activity.updater.install(url)
+
+    @JavascriptInterface
+    fun resumeUpdate() = activity.runOnUiThread { activity.updater.resumeInstall() }
+
     /** json: { url, headers: {..}, key } */
     @JavascriptInterface
     fun play(json: String) {

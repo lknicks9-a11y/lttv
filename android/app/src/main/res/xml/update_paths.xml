@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where in-app updates are downloaded before the system installer opens them. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+    <external-cache-path name="updates_ext" path="updates/" />
+</paths>

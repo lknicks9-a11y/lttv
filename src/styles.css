@@ -839,4 +839,28 @@ small, .small { font-size: 1.15rem; }
 [data-theme='luxury'] .logo-owl { display: inline-block; }
 [data-theme='luxury'] .logo-aero { display: none; }
 [data-theme='luxury'] .chip.chip-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-[data-theme='luxury'] .btn.btn-primary:hover, [data-theme='luxury'] .btn.btn-primary:focus { background: var(--accent-2); border-color: var(--accent-2); color: var(--accent-ink); }
+[data-theme='luxury'] .btn.btn-primary:hover, [data-theme='luxury'] .btn.btn-primary:focus { background: #e9d3a2; border-color: #e9d3a2; color: var(--accent-ink); }
+
+/* ---------- Sidebar: opens over the screen instead of resizing it ----------
+   Growing the rail used to re-lay out the whole screen on every frame (very slow on TV sticks). */
+.sidebar, .sidebar:focus-within, .sidebar:hover { width: 6.25rem; transition: none; }
+.sidebar .nav-item { width: 100%; }
+.sidebar:focus-within .nav-item, .sidebar:hover .nav-item { width: 15.5rem; }
+.sidebar::before { content: ''; position: absolute; top: calc(-1 * var(--safe-y)); bottom: calc(-1 * var(--safe-y)); left: calc(-0.6 * var(--safe-x)); width: calc(17rem + 0.6 * var(--safe-x)); background: var(--sidebar-open, rgba(10, 13, 18, 0.97)); opacity: 0; pointer-events: none; z-index: -1; }
+.sidebar:focus-within::before, .sidebar:hover::before { opacity: 1; }
+[data-theme='aero'] { --sidebar-open: rgba(10, 64, 130, 0.97); }
+[data-theme='luxury'] { --sidebar-open: rgba(8, 7, 5, 0.98); }
+/* The logo sits on the same centre line as the menu icons. */
+.brand { padding-left: 0; }
+.brand .logo-mark { width: 4.2rem; height: 4.2rem; }
+
+/* Room for focus rings inside scrolling areas (they were clipped on the left). */
+.sports, .sources, .settings, .matches, .wizard, .search { padding-left: 0.7rem; margin-left: -0.7rem; }
+.fx-screen, .league-grid, .stream-picks, .fx-prop-grid, .picker-options, .country-menu .sheet-actions { padding: 0.7rem; }
+.chips { padding: 0.6rem 0.7rem; margin: -0.25rem -0.7rem; }
+.team-picker .team-grid { padding: 0.7rem; }
+
+/* ---------- TVs: no animations or transitions (each one costs frames on a Fire TV Stick) ---------- */
+:root.tv *, :root.tv *::before, :root.tv *::after { transition: none !important; animation: none !important; }
+:root.tv .spinner { animation: spin 0.8s linear infinite !important; }
+:root.tv .btn:focus, :root.tv .chip:focus, :root.tv .swatch:focus { transform: none; }

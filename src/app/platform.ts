@@ -28,6 +28,10 @@ export interface NativeBridge {
   /** Live rewind / fast forward (ms, negative = back) and back to live. Optional: older app builds lack them. */
   seekBy?(ms: number): void;
   goLive?(): void;
+  /** In-app updates (optional: older app builds lack them). */
+  appBuild?(): number;
+  installUpdate?(url: string): void;
+  resumeUpdate?(): void;
 }
 
 declare global {
@@ -38,6 +42,7 @@ declare global {
       onPlayerEvent(json: string): void;
       onMultiviewEvent?(slot: number, json: string): void;
       onKey(key: string): void;
+      onUpdateEvent?(json: string): void;
       onSetupSubmit(json: string): void;
     };
   }

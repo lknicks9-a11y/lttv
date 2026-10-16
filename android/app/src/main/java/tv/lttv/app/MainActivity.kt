@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         private set
     lateinit var player: PlayerController
         private set
+    val updater by lazy { Updater(this) }
     private lateinit var api: ApiHandler
     private lateinit var root: FrameLayout
     /** Multiview tiles (up to 4), created on first use. */

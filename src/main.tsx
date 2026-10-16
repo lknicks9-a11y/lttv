@@ -1,4 +1,5 @@
 import { h, Fragment } from 'preact';
+import { startUpdateChecks } from './app/updates';
 import { pollLive, startLiveSports } from './app/livesports';
 import { render } from 'preact';
 import { App } from './ui/App';
@@ -38,6 +39,7 @@ async function boot() {
   const s = getState().settings;
   applyTheme(s);
   void startLiveSports();
+  startUpdateChecks();
   const start = s.startupScreen;
   if (start === 'guide' || start === 'channels') setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');

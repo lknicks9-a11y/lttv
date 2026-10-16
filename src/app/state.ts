@@ -449,7 +449,7 @@ export function applyTheme(s: Settings) {
   // Luxury always uses its champagne gold; other themes use the chosen accent.
   const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.accent);
   root.style.setProperty('--accent', t.accent);
-  root.style.setProperty('--accent-2', t.accent2);
+  root.style.setProperty('--accent-2', s.theme === 'luxury' ? '#e9d3a2' : t.accent2);
   root.style.setProperty('--accent-soft', t.soft);
   root.style.setProperty('--accent-ink', t.ink);
   root.dataset.theme = s.theme;

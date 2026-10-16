@@ -1,11 +1,12 @@
 import { h, Fragment } from 'preact';
+import { dismissUpdate, installUpdate, useAvailableUpdate } from '../app/updates';
 import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
 import { onAppKey, onBack, focusFirst } from '../app/nav';
 import { adjacentChannel } from '../core/organize';
 import { native, isNative } from '../app/platform';
-import { Icon } from './common';
+import { Button, Icon, Modal } from './common';
 import { LogoMark, Wordmark } from './Logo';
 import { clock } from './fmt';
 import { GuideScreen } from './Guide';
@@ -77,6 +78,22 @@ function LoadingScreen() {
         </div>
       )}
     </div>
+  );
+}
+
+/** "A new LTTV build is available" — installs over the current app (no uninstalling). */
+function UpdatePrompt() {
+  const u = useAvailableUpdate();
+  const fullscreen = useApp((s) => s.fullscreen);
+  if (!u || fullscreen) return null;
+  return (
+    <Modal title="Update available" onClose={dismissUpdate}>
+      <p>LTTV build <b>{u.build}</b> is ready (you have build {u.current}). It installs over this one — your playlists, My TV, teams and settings stay.</p>
+      <div class="row gap modal-actions">
+        <Button variant="primary" icon="refresh" data-autofocus onClick={() => { installUpdate(u); dismissUpdate(); }}>Update now</Button>
+        <Button onClick={dismissUpdate}>Later</Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -182,6 +199,7 @@ export function App() {
       </div>
       {fullscreen && <PlayerOverlay />}
       <LiveNotices />
+      <UpdatePrompt />
       {detail && <ProgrammeDetail />}
       <ReminderPrompt />
       {menuKey && <ChannelMenu channelKey={menuKey} onClose={() => setState({ channelMenu: undefined })} />}
