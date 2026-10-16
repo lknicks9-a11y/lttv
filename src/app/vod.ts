@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { loginFor, xtreamApiUrl, type XtreamLogin } from '../core/xtream';
 import {
+  GENRE_ROWS, genreOf, isEnglishCategory, isTrendingCategory, normTitle, parseItunesChart,
   episodeUrl, m3uVod, movieUrl, parseCategories, parseMovieInfo, parseMovies, parseSeriesInfo, parseSeriesList,
   type VodCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries,
 } from '../core/vod';
@@ -172,6 +173,7 @@ export async function detectVod(): Promise<void> {
 export function resetVod() {
   mem.clear();
   m3uCache.clear();
+  homeCache.clear();
   void detectVod();
 }
 
@@ -286,3 +288,143 @@ export function resumePlay(e: ResumeEntry, fromStart = false): VodPlay {
 export function playVod(v: VodPlay) {
   setState({ vodPlaying: v });
 }
+
+// ---- Home page rows ----
+
+export type VodItem = { kind: 'movie'; playlistId: string; m: VodMovie } | { kind: 'series'; playlistId: string; s: VodSeries };
+
+export interface VodRow {
+  id: string;
+  title: string;
+  items: VodItem[];
+  /** Where the row comes from, shown small next to the title. */
+  note?: string;
+}
+
+export interface VodHome {
+  rows: VodRow[];
+  /** English categories to browse, then the others. */
+  categories: VodCat[];
+  otherLanguages: VodCat[];
+  loading: boolean;
+}
+
+export const itemName = (it: VodItem) => (it.kind === 'movie' ? it.m.name : it.s.name);
+const itemId = (it: VodItem) => `${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`;
+const itemAdded = (it: VodItem) => (it.kind === 'movie' ? it.m.added : it.s.added) ?? 0;
+const itemRating = (it: VodItem) => (it.kind === 'movie' ? it.m.rating : it.s.rating) ?? 0;
+
+const ROW_MAX = 30;
+const MAX_CATS = 40;
+
+const homeCache = new Map<VodKind, VodHome>();
+
+/** Apple's public charts of what people are watching (titles only), to find those in your provider's list. */
+async function chartTitles(kind: VodKind): Promise<string[]> {
+  const k = `chart|${kind}`;
+  if (mem.has(k)) return mem.get(k) as string[];
+  try {
+    const url = kind === 'movies' ? 'https://itunes.apple.com/us/rss/topmovies/limit=100/json' : 'https://itunes.apple.com/us/rss/toptvseasons/limit=100/json';
+    const { stream } = await openRemote(url, AbortSignal.timeout?.(15_000));
+    const titles = parseItunesChart(JSON.parse(await new Response(stream).text()));
+    mem.set(k, titles);
+    return titles;
+  } catch {
+    return [];
+  }
+}
+
+async function catItems(kind: VodKind, cat: VodCat): Promise<VodItem[]> {
+  return kind === 'movies'
+    ? (await loadMovies(cat)).map((m): VodItem => ({ kind: 'movie', playlistId: cat.playlistId, m }))
+    : (await loadSeries(cat)).map((s): VodItem => ({ kind: 'series', playlistId: cat.playlistId, s }));
+}
+
+function dedupe(list: VodItem[]): VodItem[] {
+  const seen = new Set<string>();
+  const out: VodItem[] = [];
+  for (const it of list) {
+    const k = normTitle(itemName(it)) || itemId(it);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  return out;
+}
+
+/**
+ * The Movies / Shows home page: Trending now, Recently added, Top rated and English genre rows
+ * (Action, Comedy, Netflix…) from the provider's English categories. Calls onUpdate as rows fill in.
+ */
+export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise<VodHome> {
+  const hit = homeCache.get(kind);
+  if (hit && !hit.loading) {
+    onUpdate(hit);
+    return hit;
+  }
+  const cats = await loadCategories(kind);
+  const english = cats.filter((c) => isEnglishCategory(c.name));
+  const otherLanguages = cats.filter((c) => !isEnglishCategory(c.name));
+  // Which categories feed which row; trending and genre lists first, then the rest (for Recently added / Top rated).
+  const trendingCats = english.filter((c) => isTrendingCategory(c.name));
+  const genreCats = english.filter((c) => !isTrendingCategory(c.name) && genreOf(c.name));
+  const rest = english.filter((c) => !isTrendingCategory(c.name) && !genreOf(c.name));
+  const order = [...trendingCats, ...genreCats, ...rest].slice(0, MAX_CATS);
+  const loaded = new Map<string, VodItem[]>();
+  let chart: string[] = [];
+
+  const build = (loading: boolean): VodHome => {
+    const all = dedupe([...loaded.values()].flat());
+    const rows: VodRow[] = [];
+    // Trending: the provider's own "Trending / Popular / Top 10" lists, then chart titles found in your list.
+    const trending: VodItem[] = trendingCats.flatMap((c) => loaded.get(c.key) ?? []);
+    if (chart.length) {
+      const byTitle = new Map(all.map((it) => [normTitle(itemName(it)), it]));
+      for (const t of chart) {
+        const it = byTitle.get(normTitle(t));
+        if (it) trending.push(it);
+      }
+    }
+    const tr = dedupe(trending).slice(0, ROW_MAX);
+    if (tr.length) rows.push({ id: 'trending', title: 'Trending now', items: tr, note: trendingCats.length ? undefined : 'Apple TV charts' });
+    const recent = [...all].filter((it) => itemAdded(it) > 0).sort((a, b) => itemAdded(b) - itemAdded(a)).slice(0, ROW_MAX);
+    if (recent.length) rows.push({ id: 'recent', title: kind === 'movies' ? 'Recently added' : 'New and recent', items: recent });
+    const top = all.filter((it) => itemRating(it) >= 7).sort((a, b) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a)).slice(0, ROW_MAX);
+    if (top.length) rows.push({ id: 'top', title: 'Top rated', items: top, note: 'by rating' });
+    for (const g of GENRE_ROWS) {
+      const items = dedupe(genreCats.filter((c) => genreOf(c.name) === g.id).flatMap((c) => loaded.get(c.key) ?? [])).slice(0, ROW_MAX);
+      if (items.length) rows.push({ id: `genre:${g.id}`, title: g.label, items });
+    }
+    return { rows, categories: english, otherLanguages, loading };
+  };
+
+  void chartTitles(kind).then((t) => {
+    chart = t;
+    if (loaded.size) onUpdate(build(loaded.size < order.length));
+  });
+  let next = 0;
+  let lastEmit = 0;
+  const worker = async () => {
+    while (next < order.length) {
+      const c = order[next++];
+      try {
+        loaded.set(c.key, await catItems(kind, c));
+      } catch {
+        loaded.set(c.key, []);
+      }
+      if (Date.now() - lastEmit > 700) {
+        lastEmit = Date.now();
+        onUpdate(build(true));
+      }
+    }
+  };
+  onUpdate(build(true));
+  await Promise.all([worker(), worker(), worker()]);
+  const done = build(false);
+  homeCache.set(kind, done);
+  onUpdate(done);
+  return done;
+}
+
+/** Items of one category (for "Browse"). */
+export const loadCategoryItems = catItems;

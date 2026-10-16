@@ -2,7 +2,8 @@
 // plus the pop-ups that announce plays while you watch.
 import { h, Fragment } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { LIVE_LEAGUES, PLAYER_PROPS, TEAM_PROPS, betLabel, fantasyPoints, liveLeague, type Bet, type LiveLeague, type LiveNotice } from '../core/livestats';
+import { TEAM_PROPS, betLabel, fantasyPoints, groupRoster, liveLeague, parseLine, propsForPosition, type Bet, type LiveLeague, type LiveNotice } from '../core/livestats';
+import { isTV } from '../app/platform';
 import {
   addBet, addFantasyPlayer, betStatus, clearSettledBets, fantasyTotal, gameForTeam, headshotUrl, loadRoster, onLiveNotice, removeBet, removeFantasyPlayer,
   setNotify, setScoring, useLiveSports, type FantasyPlayer,
@@ -29,12 +30,12 @@ function Logo({ src }: { src?: string }) {
 interface PickedTeam { id: string; name: string; logo?: string }
 interface PickedPlayer { id: string; name: string; position: string; headshot?: string }
 
-/** League → team (→ player). */
-function TeamAndPlayerPicker({ title, needPlayer, onPick, onClose }: { title: string; needPlayer: boolean; onPick: (league: LiveLeague, team: PickedTeam, player?: PickedPlayer) => void; onClose: () => void }) {
-  const [league, setLeague] = useState<LiveLeague>('nfl');
+/** Team (→ player, grouped by position) within one league. */
+function TeamAndPlayerPicker({ league, title, needPlayer, purpose, onPick, onClose }: { league: LiveLeague; title: string; needPlayer: boolean; purpose: 'bets' | 'fantasy'; onPick: (league: LiveLeague, team: PickedTeam, player?: PickedPlayer) => void; onClose: () => void }) {
   const [team, setTeam] = useState<PickedTeam | null>(null);
   const [q, setQ] = useState('');
   const dir = useLeagueTeams(league);
+  const sport = liveLeague(league)!.sport;
   const [roster, setRoster] = useState<{ list: PickedPlayer[] | null; error?: string }>({ list: null });
   useEffect(() => {
     if (!team || !needPlayer) return;
@@ -42,13 +43,11 @@ function TeamAndPlayerPicker({ title, needPlayer, onPick, onClose }: { title: st
     loadRoster(league, team.id).then((list) => setRoster({ list })).catch((e: Error) => setRoster({ list: [], error: e.message }));
   }, [team?.id, league]);
   const teams = (dir.teams ?? []).filter((t) => !q.trim() || `${t.name} ${t.abbr}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const groups = roster.list ? groupRoster(sport, roster.list, purpose) : [];
   return (
     <Modal title={team ? team.name : title} onClose={onClose} wide class="fx-picker">
       {!team ? (
         <>
-          <div class="chips compact" data-group="fx-leagues">
-            {LIVE_LEAGUES.map((l) => <Chip active={league === l.id} onClick={() => { setLeague(l.id); setQ(''); }}>{l.name}</Chip>)}
-          </div>
           {(dir.teams?.length ?? 0) > 40 && <input class="f input" type="search" placeholder="Search teams" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} />}
           <div class="team-grid fx-grid" data-group="fx-teams" data-hlock>
             {teams.map((t, i) => (
@@ -63,14 +62,22 @@ function TeamAndPlayerPicker({ title, needPlayer, onPick, onClose }: { title: st
       ) : (
         <>
           <div class="row gap"><Button small icon="back" onClick={() => setTeam(null)}>Teams</Button><span class="muted">Choose a player</span></div>
-          <div class="team-grid fx-grid" data-group="fx-players" data-hlock>
-            {(roster.list ?? []).map((p, i) => (
-              <button type="button" class="f team-option" data-autofocus={i === 0 ? '' : undefined} onClick={() => onPick(league, team, p)}>
-                <Headshot src={headshotUrl(league, p.id, p.headshot)} name={p.name} size="sm" />
-                <span>{p.name} <small class="muted">{p.position}</small></span>
-              </button>
+          <div class="fx-positions">
+            {groups.map(({ group, players }, gi) => (
+              <div class="fx-position" key={group.id}>
+                <h3 class="fx-position-head">{group.label}</h3>
+                <div class="team-grid fx-grid" data-group={`fx-players-${group.id}`} data-hlock>
+                  {players.map((p, i) => (
+                    <button type="button" class="f team-option" data-autofocus={gi === 0 && i === 0 ? '' : undefined} onClick={() => onPick(league, team, p)}>
+                      <Headshot src={headshotUrl(league, p.id, p.headshot)} name={p.name} size="sm" />
+                      <span>{p.name} <small class="muted">{p.position}</small></span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
             {!roster.list && <p class="muted">Loading players…</p>}
+            {roster.list && !groups.length && !roster.error && <p class="muted">No players with {purpose === 'bets' ? 'props' : 'fantasy points'} listed for this team.</p>}
             {roster.error && <p class="muted">Couldn’t load the players: {roster.error}</p>}
           </div>
         </>
@@ -79,17 +86,36 @@ function TeamAndPlayerPicker({ title, needPlayer, onPick, onClose }: { title: st
   );
 }
 
+/** On-screen number pad (TV keyboards' number pads often have no decimal point). */
+function LinePad({ value, onChange, allowMinus }: { value: string; onChange: (v: string) => void; allowMinus: boolean }) {
+  const press = (k: string) => {
+    if (k === '⌫') return onChange(value.slice(0, -1));
+    if (k === '−') return onChange(value.startsWith('-') ? value.slice(1) : '-' + value);
+    if (k === '.' && value.includes('.')) return;
+    if (k === '.5') return onChange((value.split('.')[0] || '0').replace(/^(-?)$/, '$10') + '.5');
+    onChange(value + k);
+  };
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫', '.5', ...(allowMinus ? ['−'] : [])];
+  return (
+    <div class="line-pad" data-group="line-pad" data-hlock>
+      {keys.map((k, i) => (
+        <button type="button" class={`f btn line-key ${k === '.' || k === '.5' ? 'line-key-dot' : ''}`} data-autofocus={i === 0 ? '' : undefined} aria-label={k === '⌫' ? 'Delete' : k === '−' ? 'Plus/minus' : k} onClick={() => press(k)}>{k}</button>
+      ))}
+    </div>
+  );
+}
+
 /** Choose a prop, type your line and pick over / under. */
 function PropForm({ league, team, player, onDone, onClose }: { league: LiveLeague; team: PickedTeam; player?: PickedPlayer; onDone: () => void; onClose: () => void }) {
   const sport = liveLeague(league)!.sport;
-  const props = player ? PLAYER_PROPS[sport] : TEAM_PROPS[sport];
+  const props = player ? propsForPosition(sport, player.position) : TEAM_PROPS[sport];
   const [prop, setProp] = useState<string | null>(null);
   const [line, setLine] = useState('');
   const def = props.find((p) => p.id === prop);
   const spread = !!def && 'spread' in def && !!def.spread;
   const save = (side: 'over' | 'under') => {
-    const n = Number(line.replace(',', '.'));
-    if (!line.trim() || !Number.isFinite(n)) {
+    const n = parseLine(line);
+    if (n === undefined) {
       toast('Type your line first, e.g. 74.5', 'error');
       return;
     }
@@ -110,7 +136,8 @@ function PropForm({ league, team, player, onDone, onClose }: { league: LiveLeagu
       ) : (
         <form class="form" onSubmit={(e) => { e.preventDefault(); save('over'); }}>
           <p><b>{def!.label}</b> {player ? `· ${player.name}` : `· ${team.name}`}</p>
-          <input class="f input big" data-autofocus inputMode="decimal" placeholder={spread ? 'e.g. -3.5' : 'Your line, e.g. 74.5'} value={line} onInput={(e) => setLine((e.target as HTMLInputElement).value)} />
+          <input class="f input big line-input" type="text" inputMode="text" readOnly={isTV} data-autofocus={isTV ? undefined : ''} placeholder={spread ? 'e.g. -3.5' : 'Your line, e.g. 74.5'} value={line} onInput={(e) => setLine((e.target as HTMLInputElement).value)} aria-label="Your line" />
+          <LinePad value={line} onChange={setLine} allowMinus={spread} />
           <div class="row gap modal-actions">
             {spread ? (
               <Button variant="primary" icon="check" onClick={() => save('over')}>Track this spread</Button>
@@ -130,32 +157,34 @@ function PropForm({ league, team, player, onDone, onClose }: { league: LiveLeagu
 
 // ---------------- Fantasy ----------------
 
-export function FantasyScreen() {
+export function FantasyScreen({ league }: { league: LiveLeague }) {
   const live = useLiveSports();
   const [adding, setAdding] = useState(false);
-  const total = fantasyTotal();
+  const roster = live.roster.filter((p) => p.league === league);
+  const total = fantasyTotal(league);
+  const sport = liveLeague(league)!.sport;
   return (
     <div class="fx-screen">
       <div class="fx-head card" data-group="fx-head">
         <div class="fx-total"><span class="muted">Today</span><b>{fmt(total)}</b><span class="muted">fantasy pts</span></div>
-        <div class="chips compact">
+        {sport === 'football' && <div class="chips compact">
           {(['ppr', 'half', 'standard'] as const).map((s) => <Chip active={live.scoring === s} onClick={() => void setScoring(s)}>{s === 'ppr' ? 'PPR' : s === 'half' ? 'Half PPR' : 'Standard'}</Chip>)}
-        </div>
+        </div>}
         <Button variant="primary" icon="add" data-autofocus onClick={() => setAdding(true)}>Add player</Button>
       </div>
       <Toggle label="Pop-ups while watching (scoring plays, points, props)" checked={live.notify} onChange={(v) => void setNotify(v)} />
-      {!live.roster.length ? (
+      {!roster.length ? (
         <Empty icon="sports" title="Your lineup is empty">
-          <p>Add your fantasy players (NFL, NBA, college). LTTV keeps their points live from the game feeds and pops up when they score while you watch.</p>
+          <p>Add your {liveLeague(league)!.name} fantasy players. LTTV keeps their points live from the game feeds and pops up when they score while you watch.</p>
         </Empty>
       ) : (
         <div class="fx-list" data-group="fx-roster">
-          {live.roster.map((p) => <RosterRow p={p} scoring={live.scoring} />)}
+          {roster.map((p) => <RosterRow p={p} scoring={live.scoring} />)}
         </div>
       )}
-      <p class="hint">Stats from ESPN’s live game feeds, checked every 30 seconds during games. Scoring: {live.scoring === 'ppr' ? 'PPR' : live.scoring === 'half' ? 'half PPR' : 'standard'} (NFL), points/rebounds/assists/steals/blocks (NBA).</p>
+      <p class="hint">Stats from ESPN’s live game feeds, checked every 30 seconds during games. Scoring: {sport === 'football' ? (live.scoring === 'ppr' ? 'PPR' : live.scoring === 'half' ? 'half PPR' : 'standard') : 'points, rebounds, assists, steals and blocks'}.</p>
       {adding && (
-        <TeamAndPlayerPicker title="Add a fantasy player" needPlayer onClose={() => setAdding(false)} onPick={(league, team, pl) => {
+        <TeamAndPlayerPicker league={league} purpose="fantasy" title="Add a fantasy player" needPlayer onClose={() => setAdding(false)} onPick={(league, team, pl) => {
           const fp: FantasyPlayer = { athleteId: pl!.id, name: pl!.name, league, teamId: team.id, teamName: team.name, teamLogo: team.logo, position: pl!.position, headshot: headshotUrl(league, pl!.id, pl!.headshot) };
           void addFantasyPlayer(fp);
           toast(`${pl!.name} added to your lineup`, 'success');
@@ -202,31 +231,32 @@ function statLine(s: Record<string, number>, sport: 'football' | 'basketball'): 
 
 // ---------------- Bets ----------------
 
-export function BetsScreen() {
+export function BetsScreen({ league }: { league: LiveLeague }) {
   const live = useLiveSports();
+  const bets = live.bets.filter((b) => b.league === league);
   const [mode, setMode] = useState<null | 'player' | 'team'>(null);
   const [picked, setPicked] = useState<{ league: LiveLeague; team: PickedTeam; player?: PickedPlayer } | null>(null);
   return (
     <div class="fx-screen">
       <div class="fx-head card" data-group="fx-head">
-        <div class="fx-total"><span class="muted">Tracking</span><b>{live.bets.length}</b><span class="muted">props</span></div>
+        <div class="fx-total"><span class="muted">Tracking</span><b>{bets.length}</b><span class="muted">props</span></div>
         <Button variant="primary" icon="add" data-autofocus onClick={() => setMode('player')}>Add player prop</Button>
         <Button icon="add" onClick={() => setMode('team')}>Add team prop</Button>
-        {live.bets.length > 0 && <Button icon="close" onClick={() => void clearSettledBets()}>Clear finished</Button>}
+        {bets.length > 0 && <Button icon="close" onClick={() => void clearSettledBets()}>Clear finished</Button>}
       </div>
       <Toggle label="Pop-ups while watching (progress and when a prop hits)" checked={live.notify} onChange={(v) => void setNotify(v)} />
-      {!live.bets.length ? (
+      {!bets.length ? (
         <Empty icon="sports" title="No props yet">
           <p>Pick a player or team, choose any prop (yards, receptions, points, rebounds, game total, spread…), type your line — e.g. over 74.5 receiving yards — and LTTV follows it live and pops up in the corner as it moves and when it hits.</p>
         </Empty>
       ) : (
         <div class="fx-list" data-group="fx-bets">
-          {live.bets.map((b) => <BetRow b={b} />)}
+          {bets.map((b) => <BetRow b={b} />)}
         </div>
       )}
       <p class="hint">LTTV only tracks the lines you type in; it doesn’t place bets or show odds. Stats from ESPN’s live game feeds, checked every 30 seconds during games.</p>
       {mode && !picked && (
-        <TeamAndPlayerPicker title={mode === 'player' ? 'Player prop' : 'Team prop'} needPlayer={mode === 'player'} onClose={() => setMode(null)} onPick={(league, team, player) => setPicked({ league, team, player })} />
+        <TeamAndPlayerPicker league={league} purpose="bets" title={mode === 'player' ? 'Player prop' : 'Team prop'} needPlayer={mode === 'player'} onClose={() => setMode(null)} onPick={(league, team, player) => setPicked({ league, team, player })} />
       )}
       {picked && <PropForm league={picked.league} team={picked.team} player={picked.player} onDone={() => { setPicked(null); setMode(null); }} onClose={() => setPicked(null)} />}
     </div>

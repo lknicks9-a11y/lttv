@@ -32,6 +32,8 @@ export interface VodSeries {
   genre?: string;
   cast?: string;
   backdrop?: string;
+  /** Last update from the provider (unix seconds). */
+  added?: number;
 }
 
 export interface VodEpisode {
@@ -114,6 +116,7 @@ export function parseSeriesList(json: unknown): VodSeries[] {
       genre: str(s.genre) || undefined,
       cast: str(s.cast) || undefined,
       backdrop: url(s.backdrop_path),
+      added: num(s.last_modified),
     };
   }).filter((s) => s.id && s.name);
 }
@@ -239,4 +242,78 @@ export function formatDuration(sec: number | undefined): string {
   const h = Math.floor(sec / 3600);
   const m = Math.round((sec % 3600) / 60);
   return h ? `${h} h ${m} min` : `${m} min`;
+}
+
+// ---------------- Home page: English categories, genres, trending ----------------
+
+const ENGLISH_CODES = new Set(['EN', 'ENG', 'US', 'USA', 'UK', 'GB', 'CA', 'CAN', 'AU', 'AUS', 'NZ', 'IE']);
+const FOREIGN_WORDS = /\b(arab|arabic|french|fran[cç]ais|german|deutsch|ital|spanish|espa[nñ]ol|latino|latin|portug|brasil|brazil|turk|t[uü]rk|hindi|bollywood|tamil|telugu|malayalam|punjabi|bangla|urdu|pakistan|persian|farsi|iran|kurd|polish|polska|dutch|nederland|greek|russian|ukrain|albania|romania|bulgar|serbia|croatia|bosnia|ex-?yu|hungar|czech|swed|norw|danish|finn|nordic|korean|k-?drama|chinese|japanese|anime|thai|vietnam|filipino|pinoy|indones|malay|african|nollywood|somali|ethiopia|amharic|hebrew|israel)\b/i;
+const NON_LATIN = /[^\u0000-ɏḀ-ỿ -⯿︀-️\u{1F000}-\u{1FAFF}\s]/u;
+
+/** Whether a provider category is English (EN|, US:, UK -, or no foreign language / code at all). */
+export function isEnglishCategory(name: string): boolean {
+  const n = name.normalize('NFKC');
+  if (NON_LATIN.test(n)) return false;
+  const m = /^\s*[[(|]?\s*([A-Za-z]{2,4})\s*(?:[\])|:»•·\/]|\s[-–—]\s|\s*[-–—]\s)/.exec(n);
+  if (m) {
+    const code = m[1].toUpperCase();
+    if (ENGLISH_CODES.has(code)) return !FOREIGN_WORDS.test(n);
+    // Short codes that are other countries / languages (FR|, AR:, DE -, ES |…)
+    if (/^[A-Z]{2,3}$/.test(code) && code === m[1] && !/^(TOP|NEW|HOT|ALL|THE|VOD|HD|FHD|UHD|4K|KID|ACT)$/.test(code)) return false;
+  }
+  return !FOREIGN_WORDS.test(n);
+}
+
+export type VodGenre = 'action' | 'comedy' | 'drama' | 'thriller' | 'horror' | 'scifi' | 'family' | 'documentary' | 'crime' | 'romance' | 'war' | 'netflix' | 'disney' | 'hbo' | 'prime' | 'apple' | 'hulu' | 'paramount' | 'peacock';
+
+export const GENRE_ROWS: { id: VodGenre; label: string; re: RegExp }[] = [
+  { id: 'action', label: 'Action & Adventure', re: /action|adventure|martial/i },
+  { id: 'comedy', label: 'Comedy', re: /comed|funny|stand.?up|sitcom/i },
+  { id: 'drama', label: 'Drama', re: /drama/i },
+  { id: 'thriller', label: 'Thrillers & Mystery', re: /thriller|suspense|myster/i },
+  { id: 'crime', label: 'Crime', re: /crime|gangster|mafia/i },
+  { id: 'horror', label: 'Horror', re: /horror|scary|slasher/i },
+  { id: 'scifi', label: 'Sci-Fi & Fantasy', re: /sci.?fi|science.?fiction|fantasy|superhero|marvel|\bdc\b/i },
+  { id: 'family', label: 'Kids & Family', re: /\bkids?\b|family|animat|cartoon|children|pixar/i },
+  { id: 'romance', label: 'Romance', re: /romance|romantic|rom.?com|\blove\b/i },
+  { id: 'documentary', label: 'Documentaries', re: /docu/i },
+  { id: 'war', label: 'War, History & Westerns', re: /\bwar\b|western|histor/i },
+  { id: 'netflix', label: 'Netflix', re: /netflix/i },
+  { id: 'disney', label: 'Disney+', re: /disney/i },
+  { id: 'hbo', label: 'HBO & Max', re: /\bhbo\b|\bmax\b/i },
+  { id: 'prime', label: 'Prime Video', re: /amazon|prime/i },
+  { id: 'apple', label: 'Apple TV+', re: /apple/i },
+  { id: 'hulu', label: 'Hulu', re: /hulu/i },
+  { id: 'paramount', label: 'Paramount+', re: /paramount/i },
+  { id: 'peacock', label: 'Peacock', re: /peacock/i },
+];
+
+export function genreOf(category: string): VodGenre | undefined {
+  return GENRE_ROWS.find((g) => g.re.test(category))?.id;
+}
+
+/** Provider categories that are themselves a "what's popular" list. */
+export function isTrendingCategory(category: string): boolean {
+  return /trend|popular|top\s?10|top\s?20|box\s?office|\bhot\b|most\s?watched|in\s?cinema|in\s?theat/i.test(category);
+}
+
+/** Title for matching across sources: no "EN - " prefix, year, quality tags or punctuation. */
+export function normTitle(name: string): string {
+  return name
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/^\s*[[(|]?\s*[A-Za-z]{2,4}\s*[\])|:»•·]\s*/, '')
+    .replace(/^\s*[A-Za-z]{2,4}\s+[-–—]\s+/, '')
+    .replace(/[([]\s*(19|20)\d\d\s*[)\]]/g, ' ')
+    .replace(/\b(4k|uhd|fhd|hd|sd|hevc|x265|multi|sub(s|bed)?|dubbed|1080p|720p)\b/gi, ' ')
+    .replace(/,?\s*season\s*\d+.*$/i, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** Apple's public iTunes top-movies / top-TV-seasons chart (JSON) -> titles in chart order. */
+export function parseItunesChart(json: unknown): string[] {
+  const entries = arr(obj(obj(json).feed).entry);
+  return entries.map((e) => str(obj(obj(e)['im:name']).label)).filter(Boolean);
 }

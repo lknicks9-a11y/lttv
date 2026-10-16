@@ -449,3 +449,59 @@ export function parseRoster(json: unknown): { id: string; name: string; position
   }
   return out;
 }
+
+// ---------------- position groups ----------------
+
+export interface PositionGroup {
+  id: string;
+  label: string;
+  positions: string[];
+  /** Player props that make sense for this group (ids from PLAYER_PROPS). */
+  props: string[];
+  /** Counts for fantasy scoring. */
+  fantasy: boolean;
+}
+
+/** Position groups in roster order; positions not listed (linemen, punters, long snappers) have no props. */
+export const POSITION_GROUPS: Record<LiveSport, PositionGroup[]> = {
+  football: [
+    { id: 'qb', label: 'Quarterbacks', positions: ['QB'], props: ['passYds', 'passTD', 'completions', 'passAtt', 'int', 'passRushYds', 'rushYds', 'rushAtt', 'rushTD', 'longRush', 'anyTD'], fantasy: true },
+    { id: 'rb', label: 'Running backs', positions: ['RB', 'HB', 'FB'], props: ['rushYds', 'rushAtt', 'rushTD', 'longRush', 'rec', 'recYds', 'longRec', 'rushRecYds', 'anyTD'], fantasy: true },
+    { id: 'wr', label: 'Wide receivers', positions: ['WR'], props: ['rec', 'recYds', 'recTD', 'longRec', 'rushRecYds', 'rushYds', 'anyTD'], fantasy: true },
+    { id: 'te', label: 'Tight ends', positions: ['TE'], props: ['rec', 'recYds', 'recTD', 'longRec', 'rushRecYds', 'anyTD'], fantasy: true },
+    { id: 'k', label: 'Kickers', positions: ['K', 'PK'], props: ['fgMade', 'kickPts'], fantasy: true },
+    { id: 'def', label: 'Defense', positions: ['DE', 'DT', 'DL', 'NT', 'EDGE', 'LB', 'OLB', 'ILB', 'MLB', 'CB', 'DB', 'S', 'FS', 'SS'], props: ['tackles', 'sacks'], fantasy: false },
+  ],
+  basketball: [
+    { id: 'g', label: 'Guards', positions: ['PG', 'SG', 'G'], props: PLAYER_PROPS.basketball.map((p) => p.id), fantasy: true },
+    { id: 'f', label: 'Forwards', positions: ['SF', 'PF', 'F', 'GF', 'G-F', 'F-G'], props: PLAYER_PROPS.basketball.map((p) => p.id), fantasy: true },
+    { id: 'c', label: 'Centers', positions: ['C', 'FC', 'F-C', 'C-F'], props: PLAYER_PROPS.basketball.map((p) => p.id), fantasy: true },
+  ],
+};
+
+export function positionGroup(sport: LiveSport, position: string): PositionGroup | undefined {
+  const p = position.trim().toUpperCase();
+  return POSITION_GROUPS[sport].find((g) => g.positions.includes(p));
+}
+
+/** A roster grouped by position (in the groups' order), keeping only players with props (or fantasy points). */
+export function groupRoster<T extends { position: string; name: string }>(sport: LiveSport, players: T[], purpose: 'bets' | 'fantasy'): { group: PositionGroup; players: T[] }[] {
+  return POSITION_GROUPS[sport]
+    .filter((g) => (purpose === 'fantasy' ? g.fantasy : g.props.length > 0))
+    .map((group) => ({ group, players: players.filter((p) => group.positions.includes(p.position.trim().toUpperCase())) }))
+    .filter((x) => x.players.length > 0);
+}
+
+/** The props offered for a player at this position (all of them when the position is unknown). */
+export function propsForPosition(sport: LiveSport, position: string): PropDef[] {
+  const g = positionGroup(sport, position);
+  return g ? PLAYER_PROPS[sport].filter((p) => g.props.includes(p.id)) : PLAYER_PROPS[sport];
+}
+
+/** "74.5", "74,5", "-3.5" (typed on a TV keyboard) -> number. */
+export function parseLine(text: string): number | undefined {
+  const t = text.trim().replace(',', '.').replace(/[^\d.+-]/g, '');
+  if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(t)) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : undefined;
+}

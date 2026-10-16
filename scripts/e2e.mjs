@@ -104,14 +104,16 @@ function fixtureServer() {
       if (/^get_(vod|series)/.test(vodAction)) {
         const img = `http://127.0.0.1:${srv.address().port}/nologo/poster.png`;
         const out = {
-          get_vod_categories: [{ category_id: '1', category_name: 'Action' }, { category_id: '2', category_name: 'Comedy' }],
+          get_vod_categories: [{ category_id: '1', category_name: 'EN | Action' }, { category_id: '2', category_name: 'EN | Comedy' }, { category_id: '3', category_name: 'EN | Trending' }, { category_id: '4', category_name: 'AR | أفلام عربية' }],
           get_vod_streams: [
             { stream_id: 500, name: 'Night Run (2021)', stream_icon: img, category_id: '1', rating_5based: 4, added: '1700000500', container_extension: 'mp4' },
             { stream_id: 501, name: 'Harbor Lights (2019)', stream_icon: '', category_id: '1', added: '1700000100', container_extension: 'mkv' },
             { stream_id: 502, name: 'Laugh Track', category_id: '2', container_extension: 'mp4' },
+            { stream_id: 503, name: 'Galaxy Quest Redux (2024)', category_id: '3', rating: '8.4', added: '1700000900', container_extension: 'mp4' },
+            { stream_id: 504, name: 'فيلم عربي', category_id: '4', container_extension: 'mp4' },
           ].filter((m) => !u.searchParams.get('category_id') || m.category_id === u.searchParams.get('category_id')),
           get_vod_info: { info: { plot: 'A courier races across the city overnight.', cast: 'Test Actor', duration: '01:42:10', releasedate: '2021-05-01' } },
-          get_series_categories: [{ category_id: '9', category_name: 'Drama' }],
+          get_series_categories: [{ category_id: '9', category_name: 'EN | Drama' }],
           get_series: [{ series_id: 77, name: 'Harbor', cover: img, category_id: '9', releaseDate: '2019-01-01', plot: 'Boats and secrets.' }],
           get_series_info: { info: { plot: 'Boats and secrets.' }, episodes: { 1: [{ id: '7701', episode_num: 1, title: 'Harbor S01E01', season: 1, container_extension: 'mp4' }, { id: '7702', episode_num: 2, title: 'Harbor S01E02', season: 1, container_extension: 'mp4' }], 2: [{ id: '7703', episode_num: 1, title: 'Harbor S02E01', season: 2, container_extension: 'mp4' }] } },
         }[vodAction] ?? [];
@@ -198,6 +200,9 @@ function fixtureServer() {
         return resp.end(JSON.stringify({ athletes: [{ position: 'offense', items: [
           { id: '100', displayName: 'Sam Darnold', position: { abbreviation: 'QB' } },
           { id: '300', displayName: 'Jaxon Smith-Njigba', position: { abbreviation: 'WR' } },
+          { id: '400', displayName: 'Kenneth Walker III', position: { abbreviation: 'RB' } },
+          { id: '500', displayName: 'Charles Cross', position: { abbreviation: 'OT' } },
+          { id: '600', displayName: 'Michael Dickson', position: { abbreviation: 'P' } },
         ] }] }));
       }
       if (u.pathname === '/espn/football/nfl/scoreboard') {
@@ -565,7 +570,7 @@ try {
 
   // --- Sports: pick favorite teams with the remote, see their games ---
   await gotoNav('Sports');
-  check('Sports opens on the league picker', await page.evaluate(() => document.querySelectorAll('.league-card').length === 16) && /My Teams/.test(await focused()), await focused());
+  check('Sports opens on the league picker', await page.evaluate(() => document.querySelectorAll('.league-card').length === 14) && /My Teams/.test(await focused()), await focused());
   await key('Enter');
   await page.waitForTimeout(500);
   await shot('22-sports-empty');
@@ -809,7 +814,7 @@ try {
   await page.evaluate(() => { const n = [...document.querySelectorAll('.nav-item')].find((b) => /Sports/.test(b.textContent)); n.click(); });
   const leagueCards = await waitFor(() => page.evaluate(() => { const c = [...document.querySelectorAll('.league-card')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()); return c.some((t) => /2 games today/.test(t)) ? c : null; }), 15000);
   const names = await page.evaluate(() => [...document.querySelectorAll('.league-card-name')].map((c) => c.textContent).join(','));
-  check('League picker: NBA NFL MLB NHL UCL EPL Bundesliga Serie A Ligue 1 LaLiga MLS CBB CFB', names === 'Fantasy,Bets,My Teams,NBA,NFL,MLB,NHL,UEFA Champions League,Premier League,Bundesliga,Serie A,Ligue 1,LaLiga,MLS,College Basketball,College Football', names);
+  check('League picker: NBA NFL MLB NHL UCL EPL Bundesliga Serie A Ligue 1 LaLiga MLS CBB CFB', names === 'My Teams,NBA,NFL,MLB,NHL,UEFA Champions League,Premier League,Bundesliga,Serie A,Ligue 1,LaLiga,MLS,College Basketball,College Football', names);
   check('Each league shows how many games are on today', !!leagueCards && leagueCards.some((t) => /MLB/.test(t) && /2 games today/.test(t) && /1 LIVE/.test(t)), (leagueCards ?? []).join(' | '));
   await shot('29d-league-picker');
   await page.evaluate(() => [...document.querySelectorAll('.league-card')].find((c) => /^MLB/.test(c.querySelector('.league-card-name')?.textContent ?? '')).click());
@@ -847,30 +852,37 @@ try {
   const clickText = (sel, re) => page.evaluate(([sel, src]) => { const el = [...document.querySelectorAll(sel)].find((b) => new RegExp(src).test(b.textContent)); el?.click(); return !!el; }, [sel, re.source]);
   await clickText('.nav-item', /Sports/);
   await page.waitForTimeout(500);
-  if (!(await clickText('.league-card', /Fantasy/))) { await clickText('.sports-crumbs button', /Sports/); await page.waitForTimeout(400); await clickText('.league-card', /Fantasy/); }
+  if (await page.evaluate(() => !document.querySelector('.league-card'))) { await clickText('.sports-crumbs button', /Sports/); await page.waitForTimeout(400); }
+  check('Fantasy and Bets are not on the Sports home screen', await page.evaluate(() => ![...document.querySelectorAll('.league-card')].some((c) => /Fantasy|Bets/.test(c.textContent))));
+  await clickText('.league-card', /^NFL/);
+  await page.waitForTimeout(400);
+  check('Each football / basketball league has Games, Fantasy and Bets tabs', await page.evaluate(() => [...document.querySelectorAll('.league-tabs .chip')].map((c) => c.textContent).join(',') === 'Games,Fantasy,Bets'));
+  await clickText('.league-tabs .chip', /^Fantasy$/);
   await page.waitForTimeout(400);
   await clickText('button', /^Add player$/);
   await waitFor(() => page.evaluate(() => document.querySelectorAll('.fx-picker .team-option').length > 0), 8000);
+  check('The player picker stays in the league (no league tabs)', await page.evaluate(() => !document.querySelector('.fx-picker .chips')));
   await clickText('.fx-picker .team-option', /Seattle Seahawks/);
   await waitFor(() => page.evaluate(() => /Jaxon Smith-Njigba/.test(document.querySelector('.fx-picker')?.textContent ?? '')), 8000);
   await clickText('.fx-picker .team-option', /Jaxon Smith-Njigba/);
   await page.waitForTimeout(400);
   check('Fantasy: add a player from a team\'s roster to your lineup', await page.evaluate(() => /Jaxon Smith-Njigba/.test(document.querySelector('.fx-list')?.textContent ?? '')));
-  await clickText('.sports-crumbs button', /Sports/);
-  await page.waitForTimeout(400);
-  await clickText('.league-card', /^Bets/);
+  await clickText('.league-tabs .chip', /^Bets$/);
   await page.waitForTimeout(400);
   await clickText('button', /Add player prop/);
   await waitFor(() => page.evaluate(() => document.querySelectorAll('.fx-picker .team-option').length > 0), 8000);
   await clickText('.fx-picker .team-option', /Seattle Seahawks/);
   await waitFor(() => page.evaluate(() => /Jaxon Smith-Njigba/.test(document.querySelector('.fx-picker')?.textContent ?? '')), 8000);
+  const groups = await page.evaluate(() => ({ heads: [...document.querySelectorAll('.fx-position-head')].map((x) => x.textContent), text: document.querySelector('.fx-picker')?.textContent ?? '' }));
+  check('Players are grouped by position (QB, RB, WR…) and only positions with props are listed', groups.heads.join(',') === 'Quarterbacks,Running backs,Wide receivers' && !/Charles Cross|Michael Dickson/.test(groups.text), JSON.stringify(groups.heads));
   await clickText('.fx-picker .team-option', /Jaxon Smith-Njigba/);
   await page.waitForTimeout(300);
-  const propCount = await page.evaluate(() => document.querySelectorAll('.fx-props .fx-prop-grid button').length);
-  check('Bets: every player prop is offered (passing, rushing, receiving, TDs, combos…)', propCount >= 18, `${propCount} props`);
+  const props = await page.evaluate(() => [...document.querySelectorAll('.fx-props .fx-prop-grid button')].map((b) => b.textContent));
+  check('Bets: a receiver gets the receiving props (not passing or kicking)', props.includes('Receiving yards') && props.includes('Receptions') && !props.includes('Passing yards') && !props.includes('Field goals made'), props.join(', '));
   await clickText('.fx-props button', /^Receiving yards$/);
   await page.waitForTimeout(200);
-  await page.fill('.fx-props input', '74.5');
+  for (const k of ['7', '4', '.', '5']) await clickText('.line-pad button', new RegExp('^' + k.replace('.', '\\.') + '$'));
+  check('Bets: the on-screen number pad types decimals (74.5)', await page.evaluate(() => document.querySelector('.fx-props .line-input')?.value === '74.5'), await page.evaluate(() => document.querySelector('.fx-props .line-input')?.value));
   await clickText('.fx-props button', /^Over$/);
   await page.waitForTimeout(400);
   check('Bets: "over 74.5 receiving yards" is tracked', await page.evaluate(() => /over 74\.5 receiving yards/.test(document.querySelector('.fx-list')?.textContent ?? '')));
@@ -887,10 +899,30 @@ try {
   const vodNav = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.sidebar .nav-label')].map((x) => x.textContent); return t.includes('Movies') && t.includes('Shows') ? t : null; }), 15000);
   check('Movies and Shows appear in the menu when the provider has them', !!vodNav, JSON.stringify(vodNav));
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
-  const movieCards = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-card .vod-name')].map((x) => x.textContent); return t.length ? t : null; }), 10000);
-  check('Movies: categories from the provider and the newest movies first', !!movieCards && movieCards[0] === 'Night Run (2021)' && movieCards.length === 2 && await page.evaluate(() => /Action/.test(document.querySelector('.vod .chips')?.textContent ?? '') && /Comedy/.test(document.querySelector('.vod .chips')?.textContent ?? '')), JSON.stringify(movieCards));
+  const rows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.some((x) => /Other languages/.test(x)) && !document.querySelector('.vod-loading') ? t : null; }), 15000);
+  await page.waitForTimeout(300);
+  check('Movies home: Trending now, Recently added, Top rated and English genre rows', !!rows && /^Trending now/.test(rows[0]) && rows.includes('Recently added') && rows.some((r) => /^Top rated/.test(r)) && rows.includes('Action & Adventure') && rows.includes('Comedy'), JSON.stringify(rows));
+  const vodHome = await page.evaluate(() => ({
+    chips: document.querySelectorAll('.vod .chips').length,
+    inputFocused: document.activeElement?.tagName === 'INPUT',
+    focusedCard: !!document.activeElement?.closest('.vod-card'),
+    trending: [...document.querySelectorAll('.vod-row')].find((r) => /Trending/.test(r.textContent))?.querySelector('.vod-name')?.textContent,
+    browse: [...document.querySelectorAll('.vod-row')].find((r) => /Browse categories/.test(r.textContent))?.textContent ?? '',
+    other: [...document.querySelectorAll('.vod-row')].find((r) => /Other languages/.test(r.textContent))?.textContent ?? '',
+    rowText: [...document.querySelectorAll('.vod-row')].filter((r) => !/Other languages|Browse/.test(r.querySelector('.vod-row-title')?.textContent ?? '')).map((r) => r.textContent).join(' '),
+  }));
+  check('Movies: no category tabs on top, and the search field doesn\'t open by itself (a poster has focus)', vodHome.chips === 0 && !vodHome.inputFocused && vodHome.focusedCard, JSON.stringify(vodHome).slice(0, 200));
+  check('Movies: the provider\'s "Trending" list leads the Trending row', vodHome.trending === 'Galaxy Quest Redux (2024)', String(vodHome.trending));
+  check('Movies: rows and Browse are English; other languages are kept separate', /EN \| Action/.test(vodHome.browse) && !/أفلام/.test(vodHome.browse) && /أفلام/.test(vodHome.other) && !/فيلم/.test(vodHome.rowText), vodHome.other);
   await shot('40-movies');
-  await page.evaluate(() => document.querySelector('.vod-card')?.click());
+  await page.evaluate(() => document.querySelector('.vod-search-btn')?.click());
+  await page.waitForTimeout(400);
+  check('Search opens only when chosen', await page.evaluate(() => document.activeElement?.matches('.vod-search input') === true));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((r) => /Action/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelector('.vod-card')?.click());
   const movieInfo = await waitFor(() => page.evaluate(() => { const t = document.querySelector('.vod-detail')?.textContent ?? ''; return /courier/.test(t) ? t : null; }), 8000);
   check('Movie details: plot, runtime and Play', !!movieInfo && /1 h 42 min/.test(movieInfo) && /Play/.test(movieInfo), String(movieInfo).slice(0, 200));
   await page.evaluate(() => [...document.querySelectorAll('.vod-detail button')].find((b) => /^Play$/.test(b.textContent.trim()))?.click());
@@ -900,8 +932,8 @@ try {
   await page.waitForTimeout(300);
   check('Back closes the movie player', await page.evaluate(() => !document.querySelector('.vod-player') && !window.__lttv.getState().vodPlaying));
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Shows/.test(b.textContent))?.click());
-  await waitFor(() => page.evaluate(() => document.querySelector('.vod-card') ? true : null), 10000);
-  await page.evaluate(() => document.querySelector('.vod-card')?.click());
+  await waitFor(() => page.evaluate(() => [...document.querySelectorAll('.vod-row')].some((r) => /Drama/.test(r.textContent) && r.querySelector('.vod-card')) ? true : null), 10000);
+  await page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((r) => /Drama/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelector('.vod-card')?.click());
   const eps = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-episode .vod-ep-title')].map((x) => x.textContent); return t.length ? { eps: t, seasons: [...document.querySelectorAll('.vod-detail .chip')].map((c) => c.textContent) } : null; }), 8000);
   check('Shows: seasons and episodes from the provider', !!eps && eps.eps.length === 2 && eps.seasons.length === 2, JSON.stringify(eps));
   await page.evaluate(() => document.querySelector('.vod-episode')?.click());
@@ -997,8 +1029,8 @@ try {
   check('TV host: Back closes the menu, then leaves full screen', await page.evaluate(() => !document.querySelector('.player')));
   const tvErr0 = errors.length;
   await page.evaluate(() => [...document.querySelectorAll('.nav-item')].find((n) => /Sports/.test(n.textContent)).click());
-  await waitFor(() => page.evaluate(() => document.querySelectorAll('.league-card').length === 16), 8000);
-  check('TV host: the Sports screen opens with its league cards', await page.evaluate(() => document.querySelectorAll('.league-card').length === 16) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
+  await waitFor(() => page.evaluate(() => document.querySelectorAll('.league-card').length === 14), 8000);
+  check('TV host: the Sports screen opens with its league cards', await page.evaluate(() => document.querySelectorAll('.league-card').length === 14) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));
   await page.evaluate(() => [...document.querySelectorAll('.league-card')].find((c) => /My Teams/.test(c.textContent))?.click());
   await page.waitForTimeout(500);
   check('TV host: My Teams opens from Sports', await page.evaluate(() => /My Teams/.test(document.querySelector('.sports h1')?.textContent ?? '')) && errors.length === tvErr0, errors.slice(tvErr0).join(' | '));

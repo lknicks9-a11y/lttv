@@ -905,3 +905,33 @@ small, .small { font-size: 1.15rem; }
   .vod-detail .vod-poster { width: 9rem; }
   .vod-hint { display: none; }
 }
+
+/* ---------- Sidebar alignment (all themes): logo and icons on the rail's exact centre line ----------
+   Rail 6.25rem; items inset 0.5rem each side so focus glows stay inside the rail; icon 1.9rem; logo 4.2rem. */
+.sidebar { padding-left: 0; padding-right: 0; }
+.brand { padding-left: 1.025rem; height: 4.6rem; overflow: visible; }
+.sidebar .nav-item { width: calc(100% - 1rem); margin: 0 0.5rem; padding: 0 0 0 1.675rem; }
+.sidebar:focus-within .nav-item, .sidebar:hover .nav-item { width: 15.5rem; }
+.sidebar-clock { white-space: normal; line-height: 1.2; padding: 0 0.3rem 0.25rem; }
+.sidebar:focus-within .sidebar-clock, .sidebar:hover .sidebar-clock { white-space: nowrap; text-align: left; padding-left: 1.2rem; }
+[data-theme='luxury'] .sidebar { padding-right: 0; }
+/* Aero: the glass rail fits its contents; when the menu opens the glass panel opens with it. */
+[data-theme='aero'] .sidebar { padding: 0.6rem 0; }
+[data-theme='aero'] .sidebar:focus-within, [data-theme='aero'] .sidebar:hover { background: transparent; border-color: transparent; box-shadow: none; }
+[data-theme='aero'] .sidebar::before { border-radius: 0 1.4rem 1.4rem 0; background-image: var(--gloss); box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.35); }
+[data-theme='aero'] .nav-item:focus { box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.9), 0 0 0.9rem 0.2rem rgba(120, 230, 255, 0.65); }
+.vod { padding-left: 0.7rem; margin-left: -0.7rem; }
+/* Movies / Shows home rows */
+.vod-body { display: flex; flex-direction: column; gap: 1.4rem; }
+.vod-row { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.vod-row-title { font-size: 1.5rem; font-weight: 600; margin: 0; padding-left: 0.5rem; }
+.vod-row-title small { font-size: 1rem; font-weight: 400; }
+.vod-strip { display: flex; gap: 0.9rem; overflow-x: auto; overflow-y: hidden; padding: 0.5rem; scrollbar-width: none; scroll-padding: 0 2rem; }
+.vod-strip::-webkit-scrollbar { display: none; }
+.vod-strip .vod-card { flex: none; width: 11.5rem; }
+.vod-cat-strip .vod-cat-card { flex: none; min-width: 12rem; max-width: 20rem; height: 5rem; padding: 0 1.3rem; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 1.2rem; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vod-cat-card:focus, .vod-cat-card:hover { border-color: var(--accent); }
+.vod-search { margin-bottom: 0.6rem; }
+.vod-search .input { max-width: 40rem; }
+.vod-loading { padding-left: 0.5rem; }
+:root.tv .vod-strip .vod-card { width: 10.5rem; }

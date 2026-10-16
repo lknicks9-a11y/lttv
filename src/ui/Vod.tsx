@@ -5,19 +5,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import { player, setState, useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
-  episodeName, episodePlay, loadAllMovies, loadAllSeries, loadCategories, loadMovieDetails, loadMovies, loadSeries, loadSeriesDetails,
+  episodeName, episodePlay, itemName, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
   moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching,
-  type ResumeEntry, type VodCat, type VodKind, type VodPlay,
+  type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay,
 } from '../app/vod';
-import { formatDuration, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
+import { formatDuration, isEnglishCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
 import { Button, Chip, Empty, Icon, Modal } from './common';
 import { VideoSlot } from './VideoSlot';
 import { usePlayerStatus, PlayerBadge } from './Home';
 
-type Item = { kind: 'movie'; playlistId: string; m: VodMovie } | { kind: 'series'; playlistId: string; s: VodSeries };
 
 const PAGE = 48;
-const CONTINUE = '__continue';
 
 function Poster({ src, name }: { src?: string; name: string }) {
   const [bad, setBad] = useState(false);
@@ -38,142 +36,199 @@ function fmtClock(sec: number): string {
 
 export function VodScreen({ kind }: { kind: VodKind }) {
   const title = kind === 'movies' ? 'Movies' : 'Shows';
-  const [cats, setCats] = useState<VodCat[] | null>(null);
-  const [catErr, setCatErr] = useState('');
+  const [home, setHome] = useState<VodHome | null>(null);
+  const [homeErr, setHomeErr] = useState('');
   const cont = useContinueWatching().filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
-  const [sel, setSel] = useState<string>(() => sessionStorage.getItem(`vodCat:${kind}`) ?? '');
-  const [items, setItems] = useState<Item[] | null>(null);
-  const [err, setErr] = useState('');
-  const [shown, setShown] = useState(PAGE);
-  const [q, setQ] = useState('');
-  const [all, setAll] = useState<Item[] | null>(null);
-  const [open, setOpen] = useState<Item | null>(null);
+  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat }>({ mode: 'home' });
+  const [open, setOpen] = useState<VodItem | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     let alive = true;
-    setCats(null);
-    loadCategories(kind).then((c) => alive && setCats(c)).catch((e) => alive && setCatErr((e as Error).message));
+    setHome(null);
+    loadHome(kind, (h) => alive && setHome(h)).catch((e) => alive && setHomeErr((e as Error).message));
     return () => {
       alive = false;
     };
   }, [kind]);
 
-  // Default selection: "Continue watching" when there is something, else the first category.
-  const current = sel && (sel === CONTINUE ? cont.length > 0 : cats?.some((c) => c.key === sel)) ? sel : cont.length ? CONTINUE : cats?.[0]?.key ?? '';
-
+  // Back leaves search / a category before leaving the screen.
   useEffect(() => {
-    try {
-      sessionStorage.setItem(`vodCat:${kind}`, current);
-    } catch {
-      /* ignore */
-    }
-    if (!current || current === CONTINUE || !cats) return;
-    const cat = cats.find((c) => c.key === current);
-    if (!cat) return;
-    let alive = true;
-    setItems(null);
-    setErr('');
-    setShown(PAGE);
-    const job = kind === 'movies'
-      ? loadMovies(cat).then((l) => l.map((m): Item => ({ kind: 'movie', playlistId: cat.playlistId, m })))
-      : loadSeries(cat).then((l) => l.map((s): Item => ({ kind: 'series', playlistId: cat.playlistId, s })));
-    job.then((l) => alive && setItems(l)).catch((e) => alive && (setErr((e as Error).message), setItems([])));
-    return () => {
-      alive = false;
-    };
-  }, [current, cats]);
-
-  // Search across every category (the full list is loaded once, on the first search).
-  const query = q.trim().toLowerCase();
+    if (view.mode === 'home') return;
+    return onBack(() => {
+      setView({ mode: 'home' });
+      return true;
+    });
+  }, [view]);
+  useLayoutEffect(() => {
+    requestAnimationFrame(() => focusFirst(rootRef.current?.querySelector<HTMLElement>('.vod-body') ?? null));
+  }, [view.mode, view.mode === 'category' ? view.cat.key : '']);
+  // Rows arrive after the screen opens: put focus on the first poster once (unless the viewer moved elsewhere).
+  const hasRows = !!home?.rows.length || cont.length > 0;
   useEffect(() => {
-    if (query.length < 2 || all) return;
-    let alive = true;
-    const job = kind === 'movies'
-      ? loadAllMovies().then((l) => l.map((m): Item => ({ kind: 'movie', playlistId: m.playlistId, m })))
-      : loadAllSeries().then((l) => l.map((s): Item => ({ kind: 'series', playlistId: s.playlistId, s })));
-    job.then((l) => alive && setAll(l)).catch(() => alive && setAll([]));
-    return () => {
-      alive = false;
-    };
-  }, [query.length >= 2]);
+    if (!hasRows || view.mode !== 'home') return;
+    const a = document.activeElement as HTMLElement | null;
+    if (!a || a === document.body || (rootRef.current?.contains(a) && !a.closest('.vod-card'))) requestAnimationFrame(() => focusFirst(rootRef.current?.querySelector<HTMLElement>('.vod-body') ?? null));
+  }, [hasRows]);
 
-  const nameOf = (it: Item) => (it.kind === 'movie' ? it.m.name : it.s.name);
-  const hits = useMemo(() => {
-    if (query.length < 2 || !all) return null;
-    const words = query.split(/\s+/);
-    return all.filter((it) => {
-      const n = nameOf(it).toLowerCase();
-      return words.every((w) => n.includes(w));
-    }).slice(0, 120);
-  }, [all, query]);
-
-  const playResume = (e: ResumeEntry) => playVod(resumePlay(e));
-
-  const list = hits ?? items;
   return (
-    <section class="screen vod">
+    <section class="screen vod" ref={rootRef}>
       <header class="screen-head compact">
-        <h1>{title}</h1>
-        <div class="vod-search" data-group="vod-search">
-          <Icon name="search" size="1.6rem" />
-          <input class="f input" type="search" placeholder={`Search ${title.toLowerCase()}`} value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} aria-label={`Search ${title.toLowerCase()}`} />
-        </div>
-      </header>
-      {catErr && <p class="error-text">Couldn’t load {title.toLowerCase()}: {catErr}</p>}
-      {!hits && (
-        <div class="chips" data-group="vod-cats" role="tablist">
-          {cont.length > 0 && <Chip active={current === CONTINUE} data-autofocus={current === CONTINUE ? '' : undefined} onClick={() => setSel(CONTINUE)} count={cont.length}>Continue watching</Chip>}
-          {cats?.map((c) => (
-            <Chip key={c.key} active={current === c.key} data-autofocus={current === c.key ? '' : undefined} onClick={() => setSel(c.key)}>{c.name}</Chip>
-          ))}
-          {!cats && !catErr && <span class="muted row gap"><span class="spinner" /> Loading categories…</span>}
-        </div>
-      )}
-      <div class="vod-body">
-        {query.length >= 2 && !all ? (
-          <div class="muted row gap"><span class="spinner" /> Searching all {title.toLowerCase()}…</div>
-        ) : !hits && current === CONTINUE ? (
-          <div class="vod-grid" data-group="vod-grid" data-hlock>
-            {cont.map((e) => (
-              <button type="button" class="f vod-card" key={e.key} onClick={() => playResume(e)}>
-                <Poster src={e.poster} name={e.title} />
-                <div class="vod-progress"><div style={{ width: `${Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
-                <div class="vod-name">{e.title}</div>
-                <div class="vod-meta muted">{e.subtitle ? `${e.subtitle} · ` : ''}{fmtClock(Math.max(0, e.dur - e.pos))} left</div>
-              </button>
-            ))}
+        {view.mode === 'home' ? <h1>{title}</h1> : (
+          <div class="row gap">
+            <Button small icon="back" onClick={() => setView({ mode: 'home' })}>{title}</Button>
+            <h1>{view.mode === 'search' ? 'Search' : view.cat.name}</h1>
           </div>
-        ) : !list ? (
-          <div class="muted row gap"><span class="spinner" /> Loading…</div>
-        ) : list.length === 0 ? (
-          <Empty icon="search" title={hits ? 'Nothing matches' : err ? 'This category didn’t load' : 'Nothing here'}>{err && <p>{err}</p>}</Empty>
+        )}
+        {view.mode !== 'search' && <Button icon="search" class="vod-search-btn" onClick={() => setView({ mode: 'search' })}>Search</Button>}
+      </header>
+      <div class="vod-body">
+        {view.mode === 'search' ? (
+          <VodSearch kind={kind} onOpen={setOpen} />
+        ) : view.mode === 'category' ? (
+          <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
         ) : (
           <>
-            <div class="vod-grid" data-group="vod-grid" data-hlock>
-              {list.slice(0, shown).map((it) => {
-                const poster = it.kind === 'movie' ? it.m.poster : it.s.poster;
-                const year = it.kind === 'movie' ? it.m.year : it.s.year;
-                const rating = it.kind === 'movie' ? it.m.rating : it.s.rating;
-                return (
-                  <button type="button" class="f vod-card" key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} onClick={() => setOpen(it)}>
-                    <Poster src={poster} name={nameOf(it)} />
-                    <div class="vod-name">{nameOf(it)}</div>
-                    <div class="vod-meta muted">{[year, rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ')}</div>
-                  </button>
-                );
-              })}
-            </div>
-            {list.length > shown && (
-              <div class="row vod-more">
-                <Button icon="add" onClick={() => setShown((n) => n + PAGE)}>Show more ({(list.length - shown).toLocaleString()} left)</Button>
-              </div>
+            {cont.length > 0 && (
+              <section class="vod-row">
+                <h2 class="vod-row-title">Continue watching</h2>
+                <div class="vod-strip" data-group="vod-row-continue" data-hlock>
+                  {cont.map((e, i) => (
+                    <button type="button" class="f vod-card" key={e.key} data-autofocus={i === 0 ? '' : undefined} onClick={() => playVod(resumePlay(e))}>
+                      <Poster src={e.poster} name={e.title} />
+                      <div class="vod-progress"><div style={{ width: `${Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
+                      <div class="vod-name">{e.title}</div>
+                      <div class="vod-meta muted">{e.subtitle ? `${e.subtitle} · ` : ''}{fmtClock(Math.max(0, e.dur - e.pos))} left</div>
+                    </button>
+                  ))}
+                </div>
+              </section>
             )}
+            {home?.rows.map((r, ri) => (
+              <section class="vod-row" key={r.id}>
+                <h2 class="vod-row-title">{r.title}{r.note && <small class="muted"> · {r.note}</small>}</h2>
+                <div class="vod-strip" data-group={`vod-row-${r.id}`} data-hlock>
+                  {r.items.map((it, i) => <ItemCard it={it} autofocus={!cont.length && ri === 0 && i === 0} onOpen={setOpen} />)}
+                </div>
+              </section>
+            ))}
+            {(!home || home.loading) && !homeErr && <div class="muted row gap vod-loading"><span class="spinner" /> Loading {title.toLowerCase()}…</div>}
+            {homeErr && <p class="error-text">Couldn’t load {title.toLowerCase()}: {homeErr}</p>}
+            {home && !home.loading && !home.rows.length && !home.categories.length && !cont.length && (
+              <Empty icon={kind === 'movies' ? 'movie' : 'shows'} title={`No English ${title.toLowerCase()} found`}>
+                <p>Your provider’s other categories are below.</p>
+              </Empty>
+            )}
+            {home && !home.loading && home.categories.length > 0 && <CategoryRow id="cats" title="Browse categories" cats={home.categories} onPick={(cat) => setView({ mode: 'category', cat })} autofocus={!cont.length && !home.rows.length} />}
+            {home && !home.loading && home.otherLanguages.length > 0 && <CategoryRow id="other" title="Other languages" cats={home.otherLanguages} onPick={(cat) => setView({ mode: 'category', cat })} />}
           </>
         )}
       </div>
       {open?.kind === 'movie' && <MovieDetail playlistId={open.playlistId} m={open.m} onClose={() => setOpen(null)} />}
       {open?.kind === 'series' && <SeriesDetail playlistId={open.playlistId} s={open.s} onClose={() => setOpen(null)} />}
     </section>
+  );
+}
+
+function ItemCard({ it, onOpen, autofocus }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean }) {
+  const poster = it.kind === 'movie' ? it.m.poster : it.s.poster;
+  const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  const rating = it.kind === 'movie' ? it.m.rating : it.s.rating;
+  const name = itemName(it);
+  return (
+    <button type="button" class="f vod-card" key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(it)}>
+      <Poster src={poster} name={name} />
+      <div class="vod-name">{name}</div>
+      <div class="vod-meta muted">{[year, rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ')}</div>
+    </button>
+  );
+}
+
+function CategoryRow({ id, title, cats, onPick, autofocus }: { id: string; title: string; cats: VodCat[]; onPick: (c: VodCat) => void; autofocus?: boolean }) {
+  return (
+    <section class="vod-row">
+      <h2 class="vod-row-title">{title}</h2>
+      <div class="vod-strip vod-cat-strip" data-group={`vod-row-${id}`} data-hlock>
+        {cats.map((c, i) => (
+          <button type="button" class="f vod-cat-card" key={c.key} data-autofocus={autofocus && i === 0 ? '' : undefined} onClick={() => onPick(c)}>{c.name}</button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpen: (it: VodItem) => void }) {
+  const [items, setItems] = useState<VodItem[] | null>(null);
+  const [err, setErr] = useState('');
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    setShown(PAGE);
+    loadCategoryItems(kind, cat).then((l) => alive && setItems(l)).catch((e) => alive && (setErr((e as Error).message), setItems([])));
+    return () => {
+      alive = false;
+    };
+  }, [cat.key]);
+  if (!items) return <div class="muted row gap"><span class="spinner" /> Loading…</div>;
+  if (!items.length) return <Empty icon="search" title={err ? 'This category didn’t load' : 'Nothing here'}>{err && <p>{err}</p>}</Empty>;
+  return (
+    <>
+      <div class="vod-grid" data-group="vod-grid" data-hlock>
+        {items.slice(0, shown).map((it, i) => <ItemCard it={it} autofocus={i === 0} onOpen={onOpen} />)}
+      </div>
+      {items.length > shown && (
+        <div class="row vod-more">
+          <Button icon="add" onClick={() => setShown((n) => n + PAGE)}>Show more ({(items.length - shown).toLocaleString()} left)</Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Search across everything — the text field (and the TV keyboard) only opens when you choose Search. */
+function VodSearch({ kind, onOpen }: { kind: VodKind; onOpen: (it: VodItem) => void }) {
+  const [q, setQ] = useState('');
+  const [all, setAll] = useState<VodItem[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const job = kind === 'movies'
+      ? loadAllMovies().then((l) => l.map((m): VodItem => ({ kind: 'movie', playlistId: m.playlistId, m })))
+      : loadAllSeries().then((l) => l.map((s): VodItem => ({ kind: 'series', playlistId: s.playlistId, s })));
+    job.then((l) => alive && setAll(l)).catch(() => alive && setAll([]));
+    return () => {
+      alive = false;
+    };
+  }, [kind]);
+  const query = q.trim().toLowerCase();
+  const hits = useMemo(() => {
+    if (query.length < 2 || !all) return [];
+    const words = query.split(/\s+/);
+    const found = all.filter((it) => {
+      const n = itemName(it).toLowerCase();
+      return words.every((w) => n.includes(w));
+    });
+    // English titles first.
+    return found.sort((a, b) => Number(isEnglishCategory(itemName(b))) - Number(isEnglishCategory(itemName(a)))).slice(0, 120);
+  }, [all, query]);
+  return (
+    <>
+      <div class="vod-search" data-group="vod-search">
+        <Icon name="search" size="1.6rem" />
+        <input class="f input big" type="search" data-autofocus placeholder={`Search ${kind === 'movies' ? 'movies' : 'shows'}`} value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} aria-label="Search" />
+      </div>
+      {!all ? (
+        <div class="muted row gap"><span class="spinner" /> Getting the full list…</div>
+      ) : query.length < 2 ? (
+        <p class="muted">Type at least 2 letters.</p>
+      ) : !hits.length ? (
+        <Empty icon="search" title="Nothing matches" />
+      ) : (
+        <div class="vod-grid" data-group="vod-grid" data-hlock>
+          {hits.map((it) => <ItemCard it={it} onOpen={onOpen} />)}
+        </div>
+      )}
+    </>
   );
 }
 

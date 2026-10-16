@@ -106,9 +106,10 @@ export function gameForTeam(league: LiveLeague, teamId: string): LiveGame | unde
   return id ? games.get(id) : undefined;
 }
 
-export function fantasyTotal(): number {
+export function fantasyTotal(league?: LiveLeague): number {
   let t = 0;
   for (const p of saved.roster) {
+    if (league && p.league !== league) continue;
     const g = gameForTeam(p.league, p.teamId);
     const s = g?.players.get(p.athleteId)?.stats;
     if (s) t += fantasyPoints(s, liveLeague(p.league)!.sport, saved.scoring);

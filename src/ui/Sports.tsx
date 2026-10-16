@@ -11,6 +11,7 @@ import { Button, Chip, ChannelLogo, Empty, Icon, Modal, Progress, Toggle } from 
 import { clock, when, range, progress, remaining } from './fmt';
 import { LeagueGames, TeamLogo } from './Games';
 import { BetsScreen, FantasyScreen } from './Fantasy';
+import { liveLeague } from '../core/livestats';
 import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams } from '../app/schedule';
 import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
 
@@ -100,7 +101,8 @@ export type SportsView = 'home' | 'teams' | 'fantasy' | 'bets' | ScheduleLeagueI
 export function SportsScreen() {
   const [view, setViewState] = useState<SportsView>(() => {
     try {
-      return (sessionStorage.getItem('sportsView') as SportsView) || 'home';
+      const v = sessionStorage.getItem('sportsView') as SportsView;
+      return v && v !== 'fantasy' && v !== 'bets' ? v : 'home';
     } catch {
       return 'home';
     }
@@ -113,28 +115,53 @@ export function SportsScreen() {
       /* ignore */
     }
   };
+  // Games / Fantasy / Bets inside a league (football and basketball leagues).
+  const [tab, setTabState] = useState<'games' | 'fantasy' | 'bets'>(() => {
+    try {
+      return (sessionStorage.getItem('sportsTab') as 'games' | 'fantasy' | 'bets') || 'games';
+    } catch {
+      return 'games';
+    }
+  });
+  const setTab = (t: 'games' | 'fantasy' | 'bets') => {
+    setTabState(t);
+    try {
+      sessionStorage.setItem('sportsTab', t);
+    } catch {
+      /* ignore */
+    }
+  };
   // Back goes up a level (league -> league picker) before leaving Sports.
   useEffect(() => {
     if (view === 'home') return;
     return onBack(() => {
+      if (tab !== 'games') setTab('games');
       setView('home');
       return true;
     });
-  }, [view]);
+  }, [view, tab]);
   useLayoutEffect(() => {
     requestAnimationFrame(() => focusFirst(document.querySelector<HTMLElement>('[data-group="content"]')));
   }, [view]);
 
-  if (view === 'home') return <LeaguePicker onPick={setView} />;
-  const league = view === 'teams' || view === 'fantasy' || view === 'bets' ? undefined : scheduleLeague(view);
+  if (view === 'home' || view === 'fantasy' || view === 'bets') return <LeaguePicker onPick={setView} />;
+  const league = view === 'teams' ? undefined : scheduleLeague(view);
+  const live = league ? liveLeague(league.id) : undefined;
   return (
     <section class="screen sports">
       <div class="row gap sports-crumbs" data-group="sports-crumbs">
         <Button small icon="back" onClick={() => setView('home')}>Sports</Button>
         {league && leagueLogo(league.id) && <img class="league-logo-sm" src={leagueLogo(league.id)} alt="" />}
-        <h1>{league ? league.name : view === 'fantasy' ? 'Fantasy' : view === 'bets' ? 'Bets · prop tracker' : 'My Teams'}</h1>
+        <h1>{league ? league.name : 'My Teams'}</h1>
+        {live && (
+          <div class="chips compact league-tabs" data-group="league-tabs" role="tablist">
+            {(['games', 'fantasy', 'bets'] as const).map((t) => (
+              <Chip active={tab === t} onClick={() => setTab(t)}>{t === 'games' ? 'Games' : t === 'fantasy' ? 'Fantasy' : 'Bets'}</Chip>
+            ))}
+          </div>
+        )}
       </div>
-      {view === 'teams' ? <MyTeams /> : view === 'fantasy' ? <FantasyScreen /> : view === 'bets' ? <BetsScreen /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
+      {view === 'teams' ? <MyTeams /> : live && tab === 'fantasy' ? <FantasyScreen key={`f-${live.id}`} league={live.id} /> : live && tab === 'bets' ? <BetsScreen key={`b-${live.id}`} league={live.id} /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
     </section>
   );
 }
@@ -161,20 +188,6 @@ export function LeagueGrid({ onPick, teams: withTeams = true }: { onPick: (v: Sp
   const sums = useLeagueSummaries(scheduleDay(now, tz));
   return (
     <div class="league-grid" data-group="leagues">
-      {withTeams && (
-        <button type="button" class="f league-card league-card-special" onClick={() => onPick('fantasy')}>
-          <Icon name="star" size="3rem" class="league-card-icon" />
-          <span class="league-card-name">Fantasy</span>
-          <small class="muted">Your lineup, live points and scoring pop-ups</small>
-        </button>
-      )}
-      {withTeams && (
-        <button type="button" class="f league-card league-card-special" onClick={() => onPick('bets')}>
-          <Icon name="check" size="3rem" class="league-card-icon" />
-          <span class="league-card-name">Bets</span>
-          <small class="muted">Track player and team props against your lines</small>
-        </button>
-      )}
       {withTeams && (
         <button type="button" class="f league-card" data-autofocus onClick={() => onPick('teams')}>
           <Icon name="star" size="3rem" class="league-card-icon" />

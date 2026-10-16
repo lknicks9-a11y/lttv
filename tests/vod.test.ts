@@ -73,3 +73,46 @@ test('plain M3U playlists: movies and episodes are told apart and shows are grou
   assert.equal(v.series[0].episodes[1].ext, 'mkv');
   assert.deepEqual(m3uVod([]), { movies: [], series: [], categories: [], seriesCategories: [] });
 });
+
+import { genreOf, isEnglishCategory, isTrendingCategory, normTitle, parseItunesChart } from '../src/core/vod';
+import { groupRoster, parseLine, propsForPosition } from '../src/core/livestats';
+
+test('home page: English categories, genres and trending lists', () => {
+  for (const n of ['EN | Action', 'US: Comedy', 'UK - Drama', 'ENGLISH MOVIES', 'Netflix Movies', 'Kids | Disney', 'TOP 10 Movies', '4K | Movies']) assert.equal(isEnglishCategory(n), true, n);
+  for (const n of ['AR | أفلام', 'FR | Films', 'DE - Filme', 'ES: Peliculas', 'EN | Arabic Movies', 'Bollywood', 'Latino Movies', 'TR | Diziler']) assert.equal(isEnglishCategory(n), false, n);
+  assert.equal(genreOf('EN | ACTION MOVIES'), 'action');
+  assert.equal(genreOf('EN | Sci-Fi'), 'scifi');
+  assert.equal(genreOf('EN | NETFLIX SERIES'), 'netflix');
+  assert.equal(genreOf('EN | 2024 Releases'), undefined);
+  assert.equal(isTrendingCategory('EN | Trending Now'), true);
+  assert.equal(isTrendingCategory('EN | Netflix Top 10'), true);
+  assert.equal(isTrendingCategory('EN | Action'), false);
+  assert.equal(normTitle('EN - The Batman (2022) 4K'), 'the batman');
+  assert.equal(normTitle('The Bear, Season 3'), 'the bear');
+  assert.equal(normTitle('Fast & Furious'), 'fast and furious');
+  assert.deepEqual(parseItunesChart({ feed: { entry: [{ 'im:name': { label: 'The Batman' } }, { 'im:name': { label: 'Dune' } }] } }), ['The Batman', 'Dune']);
+  assert.deepEqual(parseItunesChart({}), []);
+});
+
+test('players are grouped by position, only positions with props', () => {
+  const roster = [
+    { name: 'WR One', position: 'WR' }, { name: 'QB One', position: 'QB' }, { name: 'Tackle', position: 'OT' },
+    { name: 'Punter', position: 'P' }, { name: 'Kicker', position: 'K' }, { name: 'LB One', position: 'LB' }, { name: 'TE One', position: 'TE' },
+  ];
+  assert.deepEqual(groupRoster('football', roster, 'bets').map((g) => `${g.group.label}:${g.players.map((p) => p.name).join('+')}`), ['Quarterbacks:QB One', 'Wide receivers:WR One', 'Tight ends:TE One', 'Kickers:Kicker', 'Defense:LB One']);
+  assert.deepEqual(groupRoster('football', roster, 'fantasy').map((g) => g.group.id), ['qb', 'wr', 'te', 'k']);
+  assert.deepEqual(groupRoster('basketball', [{ name: 'A', position: 'C' }, { name: 'B', position: 'PG' }], 'bets').map((g) => g.group.label), ['Guards', 'Centers']);
+  const wr = propsForPosition('football', 'WR').map((p) => p.id);
+  assert.ok(wr.includes('recYds') && !wr.includes('passYds') && !wr.includes('fgMade'));
+  assert.deepEqual(propsForPosition('football', 'K').map((p) => p.id), ['fgMade', 'kickPts']);
+});
+
+test('lines typed on a TV keyboard', () => {
+  assert.equal(parseLine('74.5'), 74.5);
+  assert.equal(parseLine('74,5'), 74.5);
+  assert.equal(parseLine('-3.5'), -3.5);
+  assert.equal(parseLine('.5'), 0.5);
+  assert.equal(parseLine(''), undefined);
+  assert.equal(parseLine('abc'), undefined);
+  assert.equal(parseLine('7.4.5'), undefined);
+});
