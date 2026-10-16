@@ -136,6 +136,11 @@ export function rematch(settings: Settings) {
   return start<MatchSummary>({ job: 'match', settings }, null);
 }
 
+/** Match only channels that have no match yet (startup). */
+export function matchMissingChannels(settings: Settings) {
+  return start<{ matched: number }>({ job: 'matchMissing', settings } as never, null);
+}
+
 export function pruneGuide(before: number) {
   return start<{ removed: number }>({ job: 'prune', before }, null);
 }

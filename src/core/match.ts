@@ -252,12 +252,13 @@ export function matchChannels(
     }
 
     // 4. fuzzy
+    // Candidates from the rarest words first (common words like "tv" or "hd" add hundreds of useless
+    // comparisons); at most ~160 are compared, which keeps big lineups fast on a TV.
     const candidateRefs = new Set<string>(ambiguous ?? []);
-    for (const n of names) {
-      for (const t of normalizeForMatch(n).split(' ')) {
-        const s = idx.byToken.get(t);
-        if (s && s.size < 400) for (const r of s) candidateRefs.add(r);
-      }
+    const tokenSets = names.flatMap((n) => normalizeForMatch(n).split(' ')).map((t) => idx.byToken.get(t)).filter((s): s is Set<string> => !!s && s.size < 250).sort((a, b) => a.size - b.size);
+    for (const s of tokenSets) {
+      if (candidateRefs.size >= 160) break;
+      for (const r of s) candidateRefs.add(r);
     }
     const scored: { id: string; score: number; name: string }[] = [];
     for (const ref of candidateRefs) {

@@ -9,7 +9,7 @@ import { loadMatches, loadSources, type LoadedData } from '../core/pipeline';
 import { buildLineup, setProviderOrder, sortLineup } from '../core/organize';
 import { GuideIndex } from '../core/guide';
 import { isUsableMatch } from '../core/match';
-import { importEpg, importPlaylist, pruneGuide, rematch, type InputSource, type JobProgress } from './importer';
+import { importEpg, importPlaylist, pruneGuide, rematch, matchMissingChannels, type InputSource, type JobProgress } from './importer';
 import { PlayerController } from './player';
 import { redactUrl, uid } from '../core/util';
 import { CLIENT_IDENTITIES, isClientRejection, xtreamUrls, type XtreamLogin } from '../core/xtream';
@@ -383,6 +383,7 @@ export async function reloadAll() {
     await repo.setKv('a7Introduced', true).catch(() => undefined);
   }
   setHqLogos(settings.hqLogos !== false);
+  applyTheme(settings); // your theme from the first moment, not after everything has loaded
   setState({ loadingPhase: 'Reading your playlists and guide channels' });
   const data = await loadSources(repo);
   lastData = data;
@@ -392,7 +393,7 @@ export async function reloadAll() {
   // Matches may be missing/stale if channels were imported but matching didn't finish.
   // Never block startup on it: show the lineup now and match in the background.
   const known = data.channels.every((c) => matches.has(c.key));
-  if (!known && data.epgChannels.length) setTimeout(() => void rematchAndReload(true), 500);
+  if (!known && data.epgChannels.length) setTimeout(() => void matchMissingAndReload(), 1500);
   setState({ loadingPhase: 'Organizing channels' });
   const customizations = await repo.getCustomizations();
   // Remember what each customized channel is, so changes can follow it to another provider.
@@ -474,6 +475,28 @@ export function applyTheme(s: Settings) {
   root.style.setProperty('--accent-soft', t.soft);
   root.style.setProperty('--accent-ink', t.ink);
   root.dataset.theme = s.theme;
+  // Remembered for the next start, so the app opens in your theme instead of flashing the default one.
+  try {
+    localStorage.setItem('lttvTheme', JSON.stringify({ theme: s.theme, accent: t.accent, accent2: root.style.getPropertyValue('--accent-2'), soft: t.soft, ink: t.ink }));
+  } catch {
+    /* not remembered */
+  }
+}
+
+/** Apply the last theme right away at startup (before settings are read). */
+export function applySavedTheme() {
+  try {
+    const v = JSON.parse(localStorage.getItem('lttvTheme') || 'null') as { theme: string; accent: string; accent2: string; soft: string; ink: string } | null;
+    if (!v) return;
+    const root = document.documentElement;
+    root.dataset.theme = v.theme;
+    root.style.setProperty('--accent', v.accent);
+    if (v.accent2) root.style.setProperty('--accent-2', v.accent2);
+    root.style.setProperty('--accent-soft', v.soft);
+    root.style.setProperty('--accent-ink', v.ink);
+  } catch {
+    /* default look */
+  }
 }
 
 /** Derive the accent palette from one color: a hue-shifted partner for gradients, a soft tint and readable ink. */
@@ -552,6 +575,25 @@ export async function approveMatches(items: { key: string; epgChannelId: string 
 export async function clearDecision(key: string) {
   await repo.deleteDecision(key);
   await rematchAndReload(false);
+}
+
+/** Startup: quietly match only the channels that don't have a match yet, then refresh the lineup. */
+let matchingMissing = false;
+async function matchMissingAndReload() {
+  if (matchingMissing) return;
+  matchingMissing = true;
+  try {
+    const { matched } = await matchMissingChannels(state.settings);
+    if (matched) {
+      rawMatches = await loadMatches(repo);
+      refreshLineupLocal();
+      await loadGuide();
+    }
+  } catch (e) {
+    console.warn('Guide matching will continue next time:', (e as Error).message);
+  } finally {
+    matchingMissing = false;
+  }
 }
 
 export async function rematchAndReload(showTask = true) {
@@ -799,7 +841,8 @@ export async function refreshAll(opts: { onlyStale?: boolean } = {}) {
       changed = (await refreshEpg(s, undefined, { quiet })) || changed;
     }
     if (changed) {
-      await rematch(state.settings);
+      // A full re-match can be too much for a TV stick with a huge lineup: then match what's missing.
+      await rematch(state.settings).catch(() => matchMissingChannels(state.settings).catch(() => undefined));
       await reloadAll();
     } else if (!opts.onlyStale) {
       await reloadAll();

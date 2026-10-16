@@ -248,6 +248,28 @@ export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuz
   return { matches, summary: { total: matches.size, byMethod, pending, unmatched } };
 }
 
+/**
+ * Match only the channels that have no match yet (new or never finished) and keep the rest —
+ * much faster than a full re-match on every start, and a big lineup no longer has to be matched in one go.
+ */
+export async function matchMissing(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>): Promise<{ matched: number }> {
+  const d = await loadSources(repo);
+  const existing = await loadMatches(repo);
+  const missing = d.channels.filter((c) => !existing.has(c.key));
+  if (!missing.length) return { matched: 0 };
+  const decisions = await repo.getDecisions();
+  const displayNames = cleanChannelNames(missing);
+  const present = new Set(d.channels.map((c) => c.key));
+  const merged = new Map([...existing].filter(([k]) => present.has(k)));
+  // In slices, saving as it goes: if the device stops the work halfway, the next start continues from there.
+  for (let i = 0; i < missing.length; i += 3000) {
+    const part = matchChannels(missing.slice(i, i + 3000), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
+    for (const [k, v] of part) merged.set(k, v);
+    await repo.setKv('matches', [...merged.values()]);
+  }
+  return { matched: missing.length };
+}
+
 export async function loadMatches(repo: Repo): Promise<Map<string, MatchResult>> {
   const list = (await repo.getKv<MatchResult[]>('matches')) ?? [];
   return new Map(list.map((m) => [m.key, m]));

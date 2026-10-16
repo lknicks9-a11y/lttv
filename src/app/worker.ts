@@ -3,7 +3,7 @@
 // them to IndexedDB so the UI thread never freezes, even with huge files.
 import { IdbBackend } from '../core/idb';
 import { Repo } from '../core/storage';
-import { ingestEpg, ingestPlaylist, recomputeMatches } from '../core/pipeline';
+import { ingestEpg, ingestPlaylist, matchMissing, recomputeMatches } from '../core/pipeline';
 import type { EpgSource, PlaylistSource, Settings } from '../core/types';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -17,6 +17,7 @@ type Start =
   | { type: 'start'; job: 'playlist'; id: string; playlist: PlaylistSource; skipVod: boolean }
   | { type: 'start'; job: 'epg'; id: string; source: EpgSource; settings: Settings }
   | { type: 'start'; job: 'match'; id: string; settings: Settings }
+  | { type: 'start'; job: 'matchMissing'; id: string; settings: Settings }
   | { type: 'start'; job: 'prune'; id: string; before: number };
 type Msg = Start | { type: 'chunk'; id: string; buf: ArrayBuffer } | { type: 'end'; id: string } | { type: 'abort'; id: string };
 
@@ -81,6 +82,10 @@ async function run(m: Start) {
     if (m.job === 'match') {
       const { summary } = await recomputeMatches(repo, m.settings);
       post({ type: 'done', id: m.id, result: summary });
+      return;
+    }
+    if (m.job === 'matchMissing') {
+      post({ type: 'done', id: m.id, result: await matchMissing(repo, m.settings) });
       return;
     }
     if (m.job === 'prune') {
