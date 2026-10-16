@@ -173,7 +173,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Position the native video surface under the page's video slot (CSS px -> device px). */
-    fun setVideoRect(x: Int, y: Int, w: Int, h: Int, visible: Boolean) = placeView({ player.view }, x, y, w, h, visible)
+    fun setVideoRect(x: Int, y: Int, w: Int, h: Int, visible: Boolean) {
+        placeView({ player.view }, x, y, w, h, visible)
+        player.setVideoVisible(visible && w > 0 && h > 0)
+    }
 
     private fun tile(i: Int): PlayerController {
         tiles[i]?.let { return it }

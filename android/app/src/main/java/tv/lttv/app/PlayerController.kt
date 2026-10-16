@@ -96,10 +96,33 @@ class PlayerController(
         applyTrackPrefs()
     }
 
+    /** The picture isn't on screen (menus, Sports…): stop decoding video so the remote stays fast; sound keeps playing. */
+    private var videoOff = false
+    private val hideVideo = Runnable {
+        if (!videoOff) {
+            videoOff = true
+            applyTrackPrefs()
+        }
+    }
+
+    fun setVideoVisible(on: Boolean) = main.post {
+        main.removeCallbacks(hideVideo)
+        if (on) {
+            if (videoOff) {
+                videoOff = false
+                applyTrackPrefs()
+            }
+        } else if (!videoOff) {
+            // Wait a moment: switching screens hides the video briefly before the next screen shows it again.
+            main.postDelayed(hideVideo, 2500)
+        }
+    }
+
     /** Captions on/off (English first), and movies / episodes at the best quality the stream offers. */
     private fun applyTrackPrefs() {
         val p = exo ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, videoOff)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !captions)
             .setPreferredTextLanguage("en")
             .setSelectUndeterminedTextLanguage(true)
@@ -121,7 +144,8 @@ class PlayerController(
     private val liveTicker = object : Runnable {
         override fun run() {
             emitLive()
-            main.postDelayed(this, 1000)
+            // Position updates only matter while the picture is on screen.
+            main.postDelayed(this, if (videoOff || view.visibility != View.VISIBLE) 5000 else 1000)
         }
     }
 
