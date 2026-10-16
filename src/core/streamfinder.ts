@@ -52,6 +52,32 @@ export function buildGameIndex(lineup: LineupChannel[], guide: GuideIndex, from:
   return out;
 }
 
+const yieldNow = () => new Promise<void>((r) => setTimeout(r, 0));
+const asyncCache = new WeakMap<object, Map<string, Promise<GameIndexEntry[]>>>();
+
+/**
+ * buildGameIndex in small slices (a few hundred channels at a time, yielding in between) so a big
+ * lineup doesn't freeze a TV; results are reused for the same lineup, guide version and time window.
+ */
+export function buildGameIndexAsync(lineup: LineupChannel[], guide: GuideIndex, from: number, to: number, version: number | string = 0): Promise<GameIndexEntry[]> {
+  const per = asyncCache.get(lineup) ?? new Map<string, Promise<GameIndexEntry[]>>();
+  asyncCache.set(lineup, per);
+  const key = `${Math.floor(from / 600_000)}|${Math.ceil(to / 600_000)}|${version}`;
+  const hit = per.get(key);
+  if (hit) return hit;
+  const job = (async () => {
+    const out: GameIndexEntry[] = [];
+    for (let i = 0; i < lineup.length; i += 250) {
+      out.push(...buildGameIndex(lineup.slice(i, i + 250), guide, from, to));
+      await yieldNow();
+    }
+    return out;
+  })();
+  per.set(key, job);
+  if (per.size > 6) per.delete(per.keys().next().value!);
+  return job;
+}
+
 /** The game's local TV broadcasts by side (for the "which broadcast?" question). */
 export function localBroadcasts(game: Game): { home: Broadcast[]; away: Broadcast[]; national: Broadcast[] } {
   const tv = game.broadcasts;

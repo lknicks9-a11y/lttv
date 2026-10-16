@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { useGames, logoFor } from '../app/schedule';
 import { scheduleDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
-import { buildGameIndex, broadcastSummary, findStreams, localBroadcasts, needsFeedChoice, type FeedChoice, type StreamPick } from '../core/streamfinder';
+import { buildGameIndexAsync, broadcastSummary, findStreams, type GameIndexEntry, localBroadcasts, needsFeedChoice, type FeedChoice, type StreamPick } from '../core/streamfinder';
 import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
 import { clock } from './fmt';
@@ -48,7 +48,8 @@ export type StreamPickHandler = (key: string, game: Game) => void;
 
 export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; onPick?: StreamPickHandler }) {
   const tz = useApp((s) => s.settings.timeZone);
-  const now = useApp((s) => s.now);
+  // Minute resolution: the list doesn't need to redraw on every 15-second clock tick.
+  const now = useApp((s) => Math.floor(s.now / 60_000) * 60_000);
   const lineup = useApp((s) => s.lineup);
   const guide = useApp((s) => s.guide);
   const guideVersion = useApp((s) => s.guideVersion);
@@ -59,18 +60,37 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   const league = scheduleLeague(leagueId)!;
   const { games, loading, error, reload } = useGames(leagueId, day, today);
 
-  const index = useMemo(() => {
-    if (!games.length) return [];
-    const from = Math.min(...games.map((g) => g.start)) - 3600_000;
-    const to = Math.max(...games.map((g) => g.start)) + 5 * 3600_000;
-    return buildGameIndex(lineup, guide, from, to);
-  }, [games, lineup, guide, guideVersion]);
-
-  const best = useMemo(() => {
-    const m = new Map<string, StreamPick | undefined>();
-    for (const g of games) m.set(g.id, findStreams(g, lineup, { sport: league.sport, index, feed: feedMemory.get(g.id) })[0]);
-    return m;
-  }, [games, lineup, index, league.sport]);
+  // Channels for each game are worked out in the background, a few games at a time (big college
+  // slates and big lineups used to freeze the TV); rows fill in as they're found.
+  const [index, setIndex] = useState<GameIndexEntry[] | null>(null);
+  const [best, setBest] = useState<Map<string, StreamPick | undefined>>(new Map());
+  useEffect(() => {
+    let alive = true;
+    setBest(new Map());
+    setIndex(null);
+    if (!games.length) return;
+    void (async () => {
+      const from = Math.min(...games.map((g) => g.start)) - 3600_000;
+      const to = Math.max(...games.map((g) => g.start)) + 5 * 3600_000;
+      const idx = await buildGameIndexAsync(lineup, guide, from, to, guideVersion);
+      if (!alive) return;
+      setIndex(idx);
+      const m = new Map<string, StreamPick | undefined>();
+      for (let i = 0; i < games.length; i++) {
+        const g = games[i];
+        m.set(g.id, findStreams(g, lineup, { sport: league.sport, index: idx, feed: feedMemory.get(g.id) })[0]);
+        if (i % 6 === 5) {
+          setBest(new Map(m));
+          await new Promise((r) => setTimeout(r, 0));
+          if (!alive) return;
+        }
+      }
+      setBest(m);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [games, lineup, guide, guideVersion, league.sport]);
 
   const live = games.filter((g) => g.state === 'in').length;
 
@@ -113,6 +133,8 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
                   {tv ? <span class="game-tv-list">{tv}</span> : <span class="muted">TV not listed</span>}
                   {pick ? (
                     <span class="game-best"><Icon name="play" size="0.9em" /> {pick.ch.number} {pick.ch.name}</span>
+                  ) : !best.has(g.id) ? (
+                    <span class="muted game-best">Finding channels…</span>
                   ) : (
                     <span class="muted game-best">No channel found in your lineup</span>
                   )}
@@ -129,14 +151,14 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 }
 
 /** Pick a broadcast (when both teams have their own) and a channel to watch. */
-export function WatchGame({ game, index, onClose, onPick }: { game: Game; index: ReturnType<typeof buildGameIndex>; onClose: () => void; onPick?: StreamPickHandler }) {
+export function WatchGame({ game, index, onClose, onPick }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler }) {
   const lineup = useApp((s) => s.lineup);
   const favs = useApp((s) => s.settings.favoriteTeams);
   const custom = useApp((s) => s.settings.customTeams);
   const league = scheduleLeague(game.league)!;
   const ask = needsFeedChoice(game);
   const [feed, setFeed] = useState<FeedChoice | undefined>(() => feedMemory.get(game.id));
-  const picks = useMemo(() => findStreams(game, lineup, { sport: league.sport, index, feed }), [game, lineup, index, feed]);
+  const picks = useMemo(() => (index ? findStreams(game, lineup, { sport: league.sport, index, feed }) : []), [game, lineup, index, feed]);
   const locals = localBroadcasts(game);
   useEffect(() => {
     if (feed) feedMemory.set(game.id, feed);
@@ -206,7 +228,9 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
               <Button small icon="refresh" onClick={() => setFeed(undefined)}>Change broadcast</Button>
             </div>
           )}
-          {picks.length ? (
+          {!index ? (
+            <p class="muted row gap"><span class="spinner" /> Finding channels for this game…</p>
+          ) : picks.length ? (
             <div class="stream-picks" data-group="picks">
               {picks.slice(0, 10).map((p, i) => (
                 <div class={`stream-pick ${i === 0 ? 'best' : ''}`}>
