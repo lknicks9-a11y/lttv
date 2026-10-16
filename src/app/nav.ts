@@ -83,7 +83,7 @@ export function moveFocus(dir: Dir, from?: HTMLElement): boolean {
     return focusEl(list[0]);
   }
   const fr = active.getBoundingClientRect();
-  let best: HTMLElement | null = null;
+  let best = null as HTMLElement | null;
   let bestScore = Infinity;
   // Up/down stay inside the current zone (sidebar vs. screen content) when possible;
   // only left/right cross between zones, which is how TV menus behave.
@@ -103,14 +103,20 @@ export function moveFocus(dir: Dir, from?: HTMLElement): boolean {
       pool = inDir.filter((el) => Math.max(0, gap(el.getBoundingClientRect())) <= nearest + tol);
     }
   }
-  for (const el of pool) {
-    if (el === active || el.contains(active)) continue;
-    const s = score(fr, el.getBoundingClientRect(), dir);
-    if (s < bestScore) {
-      bestScore = s;
-      best = el;
+  const pick = (cands: HTMLElement[]) => {
+    for (const el of cands) {
+      if (el === active || el.contains(active)) continue;
+      const s = score(fr, el.getBoundingClientRect(), dir);
+      if (s < bestScore) {
+        bestScore = s;
+        best = el;
+      }
     }
-  }
+  };
+  pick(pool);
+  // Left at the start of a locked row still reaches the menu (sidebar).
+  if (!best && hlock && dir === 'left') pick(list.filter((el) => el.closest('[data-group="sidebar"]')));
+  best = best as HTMLElement | null;
   if (!best) return !!hlock;
   // Restore the remembered element when entering a group from outside.
   const group = best.closest<HTMLElement>('[data-group]');

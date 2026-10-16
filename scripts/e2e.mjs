@@ -933,6 +933,11 @@ try {
   check('Movies: the provider\'s "Trending" list leads the Trending row', vodHome.trending === 'Galaxy Quest Redux (2024)', String(vodHome.trending));
   check('Movies: rows and Browse are English; other languages are kept separate', /EN \| Action/.test(vodHome.browse) && !/أفلام/.test(vodHome.browse) && /أفلام/.test(vodHome.other) && !/فيلم/.test(vodHome.rowText), vodHome.other);
   await shot('40-movies');
+  await page.evaluate(() => document.querySelector('.vod-row .vod-card')?.focus());
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(200);
+  check('Left from the first poster reaches the menu (sidebar)', await page.evaluate(() => !!document.activeElement?.closest('.sidebar')));
+  await page.evaluate(() => document.querySelector('.vod-row .vod-card')?.focus());
   await page.evaluate(() => document.querySelector('.vod-search-btn')?.click());
   await page.waitForTimeout(400);
   check('Search opens only when chosen', await page.evaluate(() => document.activeElement?.matches('.vod-search input') === true));

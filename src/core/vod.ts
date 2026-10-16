@@ -453,8 +453,9 @@ export function continueList(all: ResumeEntry[]): ResumeEntry[] {
   const seen = new Set<string>();
   const out: ResumeEntry[] = [];
   for (const e of [...all].sort((a, b) => b.at - a.at)) {
-    if (e.series) {
-      const k = `${e.playlistId}:${e.series.id}`;
+    if (e.series || e.key.startsWith('e:')) {
+      // Older entries have no show id: the show's name groups them.
+      const k = e.series ? `${e.playlistId}:${e.series.id}` : `${e.playlistId}:name:${normTitle(cleanTitle(e.title))}`;
       if (seen.has(k)) continue;
       seen.add(k);
       if (e.done && !e.hasNext) continue; // finished the last episode

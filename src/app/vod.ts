@@ -346,16 +346,33 @@ async function catItems(kind: VodKind, cat: VodCat): Promise<VodItem[]> {
     : (await loadSeries(cat)).map((s): VodItem => ({ kind: 'series', playlistId: cat.playlistId, s }));
 }
 
-function dedupe(list: VodItem[]): VodItem[] {
-  const seen = new Set<string>();
+/** Which copy of a title to show: the English one first, then the best quality (1080p first). */
+function preference(it: VodItem): number {
+  const n = itemName(it);
+  return (isEnglishCategory(n) ? 20 : 0) + (/\b(multi|dub(bed)?|vost|vostfr|subbed|latino)\b/i.test(n) ? 0 : 5) + qualityOf(n).rank;
+}
+
+/** One card per title: copies of the same movie / show (4K, FHD, other languages) collapse into the preferred one. */
+export function dedupe(list: VodItem[]): VodItem[] {
+  const at = new Map<string, number>();
   const out: VodItem[] = [];
   for (const it of list) {
-    const k = normTitle(itemName(it)) || itemId(it);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(it);
+    const k = normTitle(cleanTitle(itemName(it))) || itemId(it);
+    const i = at.get(k);
+    if (i === undefined) {
+      at.set(k, out.length);
+      out.push(it);
+    } else if (preference(it) > preference(out[i])) out[i] = it;
   }
   return out;
+}
+
+/** A show by its name (for Continue watching entries saved by older versions). */
+export async function findSeriesByName(playlistId: string, name: string): Promise<VodSeries | undefined> {
+  const want = normTitle(cleanTitle(name));
+  const list = await loadAllSeries().catch(() => []);
+  const same = list.filter((x) => normTitle(cleanTitle(x.name)) === want);
+  return (same.find((x) => x.playlistId === playlistId) ?? same[0]);
 }
 
 /**

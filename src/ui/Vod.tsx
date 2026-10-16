@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import { player, setState, useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
-  continueList, episodeName, episodePlay, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
+  continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
   moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching,
   type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
@@ -76,9 +76,17 @@ export function VodScreen({ kind }: { kind: VodKind }) {
     };
   }, [kind]);
 
-  // Back leaves search / a category before leaving the screen.
+  // Back leaves search / a category before leaving the screen; on the home rows it goes to the menu.
   useEffect(() => {
-    if (view.mode === 'home') return;
+    if (view.mode === 'home') {
+      return onBack(() => {
+        const a = document.activeElement;
+        if (!rootRef.current?.contains(a)) return false;
+        const item = document.querySelector<HTMLElement>('.sidebar .nav-item.active') ?? document.querySelector<HTMLElement>('.sidebar .nav-item');
+        item?.focus();
+        return !!item;
+      });
+    }
     return onBack(() => {
       setView({ mode: 'home' });
       return true;
@@ -124,12 +132,16 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                       key={e.key}
                       data-autofocus={i === 0 ? '' : undefined}
                       // Shows open their page with the episode selected; movies continue right away.
-                      onClick={() => (e.series ? setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } }) : playVod(resumePlay(e)))}
+                      onClick={() => {
+                        if (e.series) setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } });
+                        else if (e.key.startsWith('e:')) void findSeriesByName(e.playlistId, e.title).then((sr) => (sr ? setOpen({ kind: 'series', playlistId: e.playlistId, s: sr }) : playVod(resumePlay(e))));
+                        else playVod(resumePlay(e));
+                      }}
                     >
-                      <ArtPoster kind={e.series ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? e.poster} />
+                      <ArtPoster kind={e.key.startsWith('e:') ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? (e.key.startsWith('e:') ? undefined : e.poster)} />
                       <div class="vod-progress"><div style={{ width: `${e.done ? 100 : Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
                       <div class="vod-name">{e.series?.name ?? e.title}</div>
-                      <div class="vod-meta muted">{e.series ? (e.done ? `Up next after S${e.series.season} E${e.series.episode}` : `S${e.series.season} E${e.series.episode} · ${fmtClock(Math.max(0, e.dur - e.pos))} left`) : `${fmtClock(Math.max(0, e.dur - e.pos))} left`}</div>
+                      <div class="vod-meta muted">{!e.series && e.key.startsWith('e:') ? `${(e.subtitle ?? '').split(' · ')[0]} · ${fmtClock(Math.max(0, e.dur - e.pos))} left` : e.series ? (e.done ? `Up next after S${e.series.season} E${e.series.episode}` : `S${e.series.season} E${e.series.episode} · ${fmtClock(Math.max(0, e.dur - e.pos))} left`) : `${fmtClock(Math.max(0, e.dur - e.pos))} left`}</div>
                     </button>
                   ))}
                 </div>
@@ -196,7 +208,7 @@ function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpe
     let alive = true;
     setItems(null);
     setShown(PAGE);
-    loadCategoryItems(kind, cat).then((l) => alive && setItems(l)).catch((e) => alive && (setErr((e as Error).message), setItems([])));
+    loadCategoryItems(kind, cat).then((l) => alive && setItems(dedupe(l))).catch((e) => alive && (setErr((e as Error).message), setItems([])));
     return () => {
       alive = false;
     };
@@ -240,7 +252,7 @@ function VodSearch({ kind, onOpen }: { kind: VodKind; onOpen: (it: VodItem) => v
       return words.every((w) => n.includes(w));
     });
     // English titles first.
-    return found.sort((a, b) => Number(isEnglishCategory(itemName(b))) - Number(isEnglishCategory(itemName(a)))).slice(0, 120);
+    return dedupe(found.sort((a, b) => Number(isEnglishCategory(itemName(b))) - Number(isEnglishCategory(itemName(a))))).slice(0, 120);
   }, [all, query]);
   return (
     <>
@@ -363,9 +375,10 @@ type SeriesInfo = Awaited<ReturnType<typeof loadSeriesDetails>>;
 function targetEpisode(info: SeriesInfo | null, r: ResumeEntry | undefined): VodEpisode | undefined {
   if (!info) return undefined;
   const flat = info.seasons.flatMap((x) => x.episodes);
-  if (!r?.series) return flat[0];
-  const i = flat.findIndex((e) => e.id === r.series!.episodeId);
-  if (i < 0) return flat.find((e) => e.season === r.series!.season && e.episode === r.series!.episode) ?? flat[0];
+  if (!r) return flat[0];
+  const id = r.series?.episodeId ?? r.key.split(':').pop();
+  const i = flat.findIndex((e) => e.id === id);
+  if (i < 0) return (r.series && flat.find((e) => e.season === r.series!.season && e.episode === r.series!.episode)) || flat[0];
   return r.done && flat[i + 1] ? flat[i + 1] : flat[i];
 }
 
@@ -403,7 +416,11 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
     });
   }, [cur.s.id]);
 
-  const last = lastWatched(all, cur.playlistId, cur.s.id);
+  // The episode watched last: by show id, or (older entries) by any of this show's episodes.
+  const last = useMemo(() => {
+    const keys = new Set((info?.seasons ?? []).flatMap((x) => x.episodes.map((e) => `e:${cur.playlistId}:${e.id}`)));
+    return all.filter((r) => keys.has(r.key) || (r.series?.id === cur.s.id && r.playlistId === cur.playlistId)).sort((a, b) => b.at - a.at)[0] ?? lastWatched(all, cur.playlistId, cur.s.id);
+  }, [all, info, cur.s.id]);
   const target = targetEpisode(info, last);
   const shownSeason = season ?? target?.season ?? info?.seasons[0]?.season ?? null;
   const seasonEps = info?.seasons.find((x) => x.season === shownSeason)?.episodes ?? [];

@@ -156,3 +156,12 @@ test('Continue watching: one card per show (last watched), finished movies and f
   ];
   assert.deepEqual(continueList(list).map((e) => e.key), ['m:p:1', 'e:p:e2']);
 });
+
+test('Continue watching groups older show entries (no show id) by the show name', () => {
+  const base = { dur: 100, url: 'u', playlistId: 'p' };
+  const list: ResumeEntry[] = [
+    { ...base, key: 'e:p:1', title: 'EN - Harbor', subtitle: 'S1 E1', pos: 30, at: 1 },
+    { ...base, key: 'e:p:2', title: 'EN - Harbor', subtitle: 'S1 E2', pos: 40, at: 2 },
+  ];
+  assert.deepEqual(continueList(list).map((e) => e.key), ['e:p:2']);
+});
