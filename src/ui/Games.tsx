@@ -144,7 +144,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
                   ) : !best.has(g.id) ? (
                     <span class="muted game-best">Finding channels…</span>
                   ) : (
-                    <span class="muted game-best">No channel found in your lineup</span>
+                    <span class="muted game-best">{g.state === 'pre' && g.start - now > 6 * 3600_000 ? 'Channel usually listed on game day' : 'No channel found in your lineup'}</span>
                   )}
                 </span>
               </button>
@@ -259,6 +259,9 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
               <p><b>No channel in your lineup carries this game.</b></p>
               <p class="muted">
                 {game.broadcasts.length ? `It’s on ${game.broadcasts.map((b) => b.name).join(', ')}. ` : ''}
+                {game.state === 'pre' && game.start - Date.now() > 6 * 3600_000
+                  ? 'Providers usually add the event channel for a game on game day, and guides often don’t list games that far ahead yet — check back closer to kickoff. '
+                  : ''}
                 LTTV looks for event channels and guide listings naming both teams, and for those networks in your playlists. If your provider adds an event channel for it later, it will show up here after the next playlist refresh.
               </p>
             </div>

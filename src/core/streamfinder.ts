@@ -161,8 +161,35 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
       }
     }
   }
+  // 4. Streaming-only games (ESPN+, B1G+, Peacock…): providers name the exact event channel on game day,
+  //    so before that offer their channels for that service.
+  if (![...picks.values()].some((p) => p.kind === 'event' || p.kind === 'guide' || p.kind === 'national' || p.kind === 'local')) {
+    for (const b of game.broadcasts) {
+      const svc = STREAMING_SERVICES.find((x) => x.re.test(b.name));
+      if (!svc) continue;
+      const chans = lineup.filter((c) => !c.hidden && svc.re.test(`${c.originalName} ${c.name}`)).sort((a, z) => a.number - z.number).slice(0, 3);
+      for (const ch of chans) add({ ch, score: 40, kind: 'national', broadcast: b.name, reason: game.state === 'pre' ? `${svc.label} channel · the game's own channel usually appears on game day` : `${svc.label} channel` });
+    }
+  }
   return [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
 }
+
+/** Streaming services ESPN lists as a game's "broadcast", and how providers name their channels. */
+export const STREAMING_SERVICES: { label: string; re: RegExp }[] = [
+  { label: 'ESPN+', re: /\bespn\s*\+|\bespn\s*plus\b/i },
+  { label: 'B1G+', re: /\b(b1g|btn|big\s*ten)\s*\+|\bbig ten plus\b/i },
+  { label: 'ACC Network Extra', re: /\baccn\s*x\b|\bacc\s*(network)?\s*extra\b/i },
+  { label: 'SEC Network+', re: /\bsec\s*(n|network)\s*\+/i },
+  { label: 'Peacock', re: /\bpeacock\b/i },
+  { label: 'Paramount+', re: /\bparamount\s*\+|\bparamount plus\b/i },
+  { label: 'Prime Video', re: /\bprime\s*video\b|\bamazon\s*prime\b/i },
+  { label: 'Apple TV', re: /\bapple\s*tv\b|\bmls\s*season\s*pass\b/i },
+  { label: 'Netflix', re: /\bnetflix\b/i },
+  { label: 'Max', re: /\b(hbo\s*)?max\b/i },
+  { label: 'FloSports', re: /\bflo\s*(sports|football|hoops|college)\b/i },
+  { label: 'DAZN', re: /\bdazn\b/i },
+  { label: 'Fubo', re: /\bfubo\b/i },
+];
 
 /** One-line summary of where a game is on TV ("ESPN · YES (NYY) · NESN (BOS)"). */
 export function broadcastSummary(game: Game): string {

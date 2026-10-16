@@ -128,3 +128,14 @@ test('a game listing must be the same schools and sport', () => {
   assert.equal(textMatchesGame('Penn State at Michigan State', g, 'football'), false);
   assert.equal(textMatchesGame('College Basketball: Penn State at Michigan', g, 'football'), false);
 });
+
+import { findStreams } from '../src/core/streamfinder';
+
+test('streaming-only games offer the provider\'s channels for that service until game day', () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const game = { id: '9', league: 'cfb', start: Date.now() + 86400_000, state: 'pre', detail: '', name: '', home: t('Rutgers Scarlet Knights', 'Scarlet Knights', 'Rutgers', 'RUTG'), away: t('Purdue Boilermakers', 'Boilermakers', 'Purdue', 'PUR'), broadcasts: [{ name: 'B1G+', market: 'national', kind: 'tv' }] } as never;
+  const ch = (key: string, name: string, number: number) => ({ key, name, originalName: name, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
+  const picks = findStreams(game, [ch('a', '(US) (BTN+ 066)', 13236), ch('b', 'US: CBS HD', 3430)], { sport: 'football', index: [] });
+  assert.equal(picks[0]?.ch.key, 'a');
+  assert.match(picks[0]?.reason ?? '', /game day/);
+});
