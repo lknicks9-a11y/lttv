@@ -1,4 +1,4 @@
-import { h, Fragment } from 'preact';
+import { h, Fragment, Component, type ComponentChildren } from 'preact';
 import { dismissUpdate, installUpdate, useAvailableUpdate } from '../app/updates';
 import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
@@ -132,6 +132,31 @@ function Toasts() {
   );
 }
 
+/** If a screen fails to draw, say so (with a way out) instead of leaving a blank or stuck screen. */
+class ScreenGuard extends Component<{ screen: string; children: ComponentChildren }, { error?: string }> {
+  state: { error?: string } = {};
+  componentDidCatch(e: Error) {
+    console.error(e);
+    this.setState({ error: e.message });
+  }
+  componentDidUpdate(prev: { screen: string }) {
+    if (prev.screen !== this.props.screen && this.state.error) this.setState({ error: undefined });
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div class="screen">
+        <h1>Something went wrong here</h1>
+        <p class="muted">{this.state.error}</p>
+        <div class="row gap">
+          <button type="button" class="f btn" data-autofocus onClick={() => { try { sessionStorage.clear(); } catch { /* ignore */ } this.setState({ error: undefined }); }}>Try again</button>
+          <button type="button" class="f btn" onClick={() => location.reload()}>Reload</button>
+        </div>
+      </div>
+    );
+  }
+}
+
 function Screens() {
   const screen = useApp((s) => s.screen);
   const ref = useRef<HTMLDivElement>(null);
@@ -144,9 +169,9 @@ function Screens() {
   return (
     <main class="content" ref={ref} data-group="content" data-zone>
       {(screen === 'home' || screen === 'guide') && <GuideScreen />}
-      {screen === 'sports' && <SportsScreen />}
-      {screen === 'movies' && <VodScreen kind="movies" />}
-      {screen === 'shows' && <VodScreen kind="shows" />}
+      {screen === 'sports' && <ScreenGuard screen={screen}><SportsScreen /></ScreenGuard>}
+      {screen === 'movies' && <ScreenGuard screen={screen}><VodScreen kind="movies" /></ScreenGuard>}
+      {screen === 'shows' && <ScreenGuard screen={screen}><VodScreen kind="shows" /></ScreenGuard>}
       {screen === 'channels' && <ChannelsScreen />}
       {screen === 'search' && <SearchScreen />}
       {screen === 'sources' && <SourcesScreen />}

@@ -1043,3 +1043,20 @@ small, .small { font-size: 1.15rem; }
 @keyframes a7-breathe { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
 :root:not(.tv)[data-theme='a7'] .backdrop { animation: a7-breathe 7s ease-in-out infinite; }
 :root:not(.tv)[data-theme='a7'] .brand .logo-mark .logo-dot { animation: a7-breathe 2.4s ease-in-out infinite; }
+/* A7 on TVs: big blurred shadows, layered gradients and masks are very slow on a Fire TV Stick's GPU —
+   keep the look with flat fills and a lighter background. */
+:root.tv[data-theme='a7'] .backdrop::after { display: none; }
+:root.tv[data-theme='a7'] .backdrop {
+  background:
+    radial-gradient(34rem 34rem at 78% 42%, transparent 55%, rgba(255, 106, 43, 0.32) 60%, rgba(255, 79, 154, 0.16) 65%, transparent 71%),
+    radial-gradient(22rem 18rem at 76% 44%, rgba(255, 79, 154, 0.16), rgba(127, 243, 230, 0.07) 55%, transparent 72%),
+    #050409;
+}
+:root.tv[data-theme='a7'] .card, :root.tv[data-theme='a7'] .modal, :root.tv[data-theme='a7'] .guide-grid, :root.tv[data-theme='a7'] .league-card,
+:root.tv[data-theme='a7'] .game-row, :root.tv[data-theme='a7'] .fx-row, :root.tv[data-theme='a7'] .toast, :root.tv[data-theme='a7'] .team-option,
+:root.tv[data-theme='a7'] .stream-pick-main, :root.tv[data-theme='a7'] .feed-option { background-image: none; background-color: #120d1a; box-shadow: none; }
+:root.tv[data-theme='a7'] { --panel: #120d1a; --panel-2: #1c1426; --panel-3: #2a1d36; --focus: 0 0 0 0.16rem #fff6ee, 0 0 0 0.42rem #ff7a33; }
+:root.tv[data-theme='a7'] h1, :root.tv[data-theme='a7'] h2, :root.tv[data-theme='a7'] .vod-row-title, :root.tv[data-theme='a7'] .osd-title, :root.tv[data-theme='a7'] .modal-title { text-shadow: none; }
+:root.tv[data-theme='a7'] .btn-primary, :root.tv[data-theme='a7'] .chip.chip-active, :root.tv[data-theme='a7'] .live-notice, :root.tv[data-theme='a7'] .vod-hero { box-shadow: none; }
+:root.tv[data-theme='a7'] .brand .logo-mark, :root.tv[data-theme='a7'] .nav-item.active .icon { filter: none; }
+:root.tv[data-theme='a7'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #ff7a33; }

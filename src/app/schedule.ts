@@ -237,7 +237,7 @@ export function useLiveGames(leagues: ScheduleLeagueId[], tz?: string): (Game[] 
       out.failed = new Set();
       for (const id of key.split(',') as ScheduleLeagueId[]) {
         try {
-          out.push(...(await loadGames(id, day, day, true)).filter((g) => g.state === 'in'));
+          out.push(...(await loadGames(id, day, day)).filter((g) => g.state === 'in'));
         } catch {
           out.failed.add(id); // scoreboard unavailable: the guide decides
         }
