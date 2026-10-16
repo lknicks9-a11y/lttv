@@ -212,14 +212,37 @@ export function teamNames(t: GameTeam, sport: ScheduleLeague['sport']): string[]
   return [...names].sort((a, b) => b.length - a.length);
 }
 
+/** Words that make a different school out of a name: "Michigan" ≠ "Michigan State", "Texas" ≠ "Texas Tech". */
+const SCHOOL_SUFFIX = /^(state|st|tech|a m|am|southern|northern|eastern|western|central|christian|international|atlantic|poly|wesleyan)\b/;
+
 function mentions(text: string, names: string[]): boolean {
   const f = ` ${fold(text)} `;
-  return names.some((n) => f.includes(` ${n} `));
+  return names.some((n) => {
+    let i = f.indexOf(` ${n} `);
+    while (i >= 0) {
+      const after = f.slice(i + n.length + 2);
+      if (!SCHOOL_SUFFIX.test(after) || SCHOOL_SUFFIX.test(n.split(' ').slice(-1)[0])) return true;
+      i = f.indexOf(` ${n} `, i + 1);
+    }
+    return false;
+  });
 }
 
-/** Does this text (channel name, programme title/subtitle) describe this game? Needs both teams. */
+const SPORT_WORDS: Record<string, RegExp> = {
+  football: /\b(football|nfl|ncaaf|cfb)\b/i,
+  basketball: /\b(basketball|nba|wnba|ncaab|cbb|hoops)\b/i,
+  baseball: /\b(baseball|mlb)\b/i,
+  hockey: /\b(hockey|nhl)\b/i,
+  soccer: /\b(soccer|futbol|football club|mls|premier league)\b/i,
+};
+/** Other sports a listing can name ("Volleyball (W): Penn State at Michigan" isn't the football game). */
+const OTHER_SPORTS = /\b(volleyball|softball|wrestling|lacrosse|field hockey|swimming|gymnastics|tennis|golf|rugby|cricket|track|cross country|rowing|bowling|water polo)\b|\((w|women'?s?)\)/i;
+
+/** Does this text (channel name, programme title/subtitle) describe this game? Needs both teams, and no other sport. */
 export function textMatchesGame(text: string, game: Game, sport: ScheduleLeague['sport']): boolean {
   if (!text) return false;
+  if (OTHER_SPORTS.test(text)) return false;
+  for (const [sp, re] of Object.entries(SPORT_WORDS)) if (sp !== sport && re.test(text) && !SPORT_WORDS[sport]?.test(text)) return false;
   return mentions(text, teamNames(game.home, sport)) && mentions(text, teamNames(game.away, sport));
 }
 

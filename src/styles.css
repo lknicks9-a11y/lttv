@@ -1082,3 +1082,9 @@ small, .small { font-size: 1.15rem; }
 /* Room for the glow inside the scrolling lists so it isn't cut off. */
 .league-grid, .fx-screen, .stream-picks, .fx-prop-grid, .team-picker .team-grid, .fx-grid { padding: 1.2rem !important; }
 .sports { padding-left: 1.2rem; margin-left: -1.2rem; }
+/* TVs: the focus glow is a crisp double ring plus a small soft edge (a big blur repainted on every move was laggy). */
+:root.tv .sports .f:focus, :root.tv .fx-picker .f:focus, :root.tv .fx-props .f:focus, :root.tv .team-picker .f:focus, :root.tv .watch-game .f:focus, :root.tv .line-pad .f:focus {
+  box-shadow: 0 0 0 0.16rem var(--bg), 0 0 0 0.42rem var(--accent), 0 0 0.5rem 0.5rem var(--glow) !important;
+}
+:root.tv .modal-backdrop { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+:root.tv .stream-pick-main { transition: none; }

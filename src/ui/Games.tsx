@@ -1,5 +1,5 @@
 import { h, Fragment } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { useGames, logoFor } from '../app/schedule';
 import { scheduleDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
@@ -64,6 +64,13 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   // slates and big lineups used to freeze the TV); rows fill in as they're found.
   const [index, setIndex] = useState<GameIndexEntry[] | null>(null);
   const [best, setBest] = useState<Map<string, StreamPick | undefined>>(new Map());
+  // While a game's pop-up is open the list behind it isn't redrawn (that made moving up/down in it laggy).
+  const openRef = useRef<Game | null>(null);
+  openRef.current = open;
+  const latest = useRef<Map<string, StreamPick | undefined>>(new Map());
+  useEffect(() => {
+    if (!open) setBest(new Map(latest.current));
+  }, [open]);
   useEffect(() => {
     let alive = true;
     setBest(new Map());
@@ -79,13 +86,15 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
       for (let i = 0; i < games.length; i++) {
         const g = games[i];
         m.set(g.id, findStreams(g, lineup, { sport: league.sport, index: idx, feed: feedMemory.get(g.id) })[0]);
+        latest.current = m;
         if (i % 6 === 5) {
-          setBest(new Map(m));
+          if (!openRef.current) setBest(new Map(m));
           await new Promise((r) => setTimeout(r, 0));
           if (!alive) return;
         }
       }
-      setBest(m);
+      latest.current = m;
+      if (!openRef.current) setBest(new Map(m));
     })();
     return () => {
       alive = false;

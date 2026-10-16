@@ -117,3 +117,14 @@ test('college teams come from division standings (FBS/FCS only), with logo fallb
   assert.equal(teams[1].logo, 'https://a.espncdn.com/i/teamlogos/ncaa/500/2.png');
   assert.equal(fallbackTeamLogo('nfl', '19', 'NYG'), 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png');
 });
+
+import { textMatchesGame } from '../src/core/schedule';
+
+test('a game listing must be the same schools and sport', () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const g = { id: '1', league: 'cfb', start: 0, state: 'pre', detail: '', name: '', home: t('Michigan Wolverines', 'Wolverines', 'Michigan', 'MICH'), away: t('Penn State Nittany Lions', 'Nittany Lions', 'Penn State', 'PSU'), broadcasts: [] } as never;
+  assert.equal(textMatchesGame('College Football: Penn State at Michigan', g, 'football'), true);
+  assert.equal(textMatchesGame('Volleyball (W): Penn State at Michigan State', g, 'football'), false);
+  assert.equal(textMatchesGame('Penn State at Michigan State', g, 'football'), false);
+  assert.equal(textMatchesGame('College Basketball: Penn State at Michigan', g, 'football'), false);
+});
