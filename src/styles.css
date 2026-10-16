@@ -1060,3 +1060,25 @@ small, .small { font-size: 1.15rem; }
 :root.tv[data-theme='a7'] .btn-primary, :root.tv[data-theme='a7'] .chip.chip-active, :root.tv[data-theme='a7'] .live-notice, :root.tv[data-theme='a7'] .vod-hero { box-shadow: none; }
 :root.tv[data-theme='a7'] .brand .logo-mark, :root.tv[data-theme='a7'] .nav-item.active .icon { filter: none; }
 :root.tv[data-theme='a7'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #ff7a33; }
+/* Focus glow always wins over theme card styles (themes reset box-shadow on cards, which hid the glow
+   on Sports' league cards, games, teams and stream choices). */
+:root .f:focus { box-shadow: var(--focus) !important; z-index: 3; }
+:root .league-card.f:focus, :root .game-row.f:focus, :root .team-option.f:focus, :root .stream-pick-main.f:focus, :root .feed-option.f:focus,
+:root .fx-row .f:focus, :root .team-card.f:focus { border-color: var(--accent) !important; background-color: var(--panel-3); }
+.league-grid { padding: 0.8rem; }
+
+/* ---------- Sports: a clearly visible focus glow in every theme (one element at a time, so cheap on TV) ---------- */
+:root { --glow: color-mix(in srgb, var(--accent) 70%, transparent); }
+:root[data-theme='a7'] { --glow: rgba(255, 122, 51, 0.8); }
+:root[data-theme='luxury'] { --glow: rgba(233, 211, 162, 0.7); }
+:root[data-theme='aero'] { --glow: rgba(140, 235, 255, 0.85); }
+.sports .f:focus, .fx-picker .f:focus, .fx-props .f:focus, .team-picker .f:focus, .watch-game .f:focus, .line-pad .f:focus {
+  box-shadow: 0 0 0 0.16rem var(--bg), 0 0 0 0.42rem var(--accent), 0 0 1.1rem 0.35rem var(--glow) !important;
+  border-color: var(--accent) !important;
+  position: relative; z-index: 3;
+}
+.sports .league-card:focus, .sports .game-row:focus, .team-option:focus { background-color: color-mix(in srgb, var(--accent) 16%, var(--panel)) !important; }
+:root[data-theme='a7'] .sports .league-card:focus { background-image: linear-gradient(160deg, rgba(255, 122, 51, 0.28), rgba(255, 79, 154, 0.14)) !important; }
+/* Room for the glow inside the scrolling lists so it isn't cut off. */
+.league-grid, .fx-screen, .stream-picks, .fx-prop-grid, .team-picker .team-grid, .fx-grid { padding: 1.2rem !important; }
+.sports { padding-left: 1.2rem; margin-left: -1.2rem; }
