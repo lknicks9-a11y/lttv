@@ -99,6 +99,25 @@ function fixtureServer() {
         resp.writeHead(884);
         return resp.end();
       }
+      // Movies and shows (on demand) on the mock provider.
+      const vodAction = u.pathname === '/player_api.php' ? u.searchParams.get('action') ?? '' : '';
+      if (/^get_(vod|series)/.test(vodAction)) {
+        const img = `http://127.0.0.1:${srv.address().port}/nologo/poster.png`;
+        const out = {
+          get_vod_categories: [{ category_id: '1', category_name: 'Action' }, { category_id: '2', category_name: 'Comedy' }],
+          get_vod_streams: [
+            { stream_id: 500, name: 'Night Run (2021)', stream_icon: img, category_id: '1', rating_5based: 4, added: '1700000500', container_extension: 'mp4' },
+            { stream_id: 501, name: 'Harbor Lights (2019)', stream_icon: '', category_id: '1', added: '1700000100', container_extension: 'mkv' },
+            { stream_id: 502, name: 'Laugh Track', category_id: '2', container_extension: 'mp4' },
+          ].filter((m) => !u.searchParams.get('category_id') || m.category_id === u.searchParams.get('category_id')),
+          get_vod_info: { info: { plot: 'A courier races across the city overnight.', cast: 'Test Actor', duration: '01:42:10', releasedate: '2021-05-01' } },
+          get_series_categories: [{ category_id: '9', category_name: 'Drama' }],
+          get_series: [{ series_id: 77, name: 'Harbor', cover: img, category_id: '9', releaseDate: '2019-01-01', plot: 'Boats and secrets.' }],
+          get_series_info: { info: { plot: 'Boats and secrets.' }, episodes: { 1: [{ id: '7701', episode_num: 1, title: 'Harbor S01E01', season: 1, container_extension: 'mp4' }, { id: '7702', episode_num: 2, title: 'Harbor S01E02', season: 1, container_extension: 'mp4' }], 2: [{ id: '7703', episode_num: 1, title: 'Harbor S02E01', season: 2, container_extension: 'mp4' }] } },
+        }[vodAction] ?? [];
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify(out));
+      }
       if (u.pathname === '/player_api.php' && u.searchParams.get('action')) {
         const lines = fx.playlist.split('\n');
         const streams = [];
@@ -863,6 +882,34 @@ try {
   check('Pop-ups carry the player picture and team logo', await page.evaluate(() => !!document.querySelector('.live-notice .headshot') && !!document.querySelector('.live-notice .live-notice-logo')));
   await shot('33-prop-hit-notice');
   check('The bet row shows HIT with 83 / 74.5', await page.evaluate(() => /83 \/ 74\.5/.test(document.querySelector('.fx-list')?.textContent ?? '') && !!document.querySelector('.bet-badge-hit')));
+
+  // ---- Movies and Shows from the provider ----
+  const vodNav = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.sidebar .nav-label')].map((x) => x.textContent); return t.includes('Movies') && t.includes('Shows') ? t : null; }), 15000);
+  check('Movies and Shows appear in the menu when the provider has them', !!vodNav, JSON.stringify(vodNav));
+  await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
+  const movieCards = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-card .vod-name')].map((x) => x.textContent); return t.length ? t : null; }), 10000);
+  check('Movies: categories from the provider and the newest movies first', !!movieCards && movieCards[0] === 'Night Run (2021)' && movieCards.length === 2 && await page.evaluate(() => /Action/.test(document.querySelector('.vod .chips')?.textContent ?? '') && /Comedy/.test(document.querySelector('.vod .chips')?.textContent ?? '')), JSON.stringify(movieCards));
+  await shot('40-movies');
+  await page.evaluate(() => document.querySelector('.vod-card')?.click());
+  const movieInfo = await waitFor(() => page.evaluate(() => { const t = document.querySelector('.vod-detail')?.textContent ?? ''; return /courier/.test(t) ? t : null; }), 8000);
+  check('Movie details: plot, runtime and Play', !!movieInfo && /1 h 42 min/.test(movieInfo) && /Play/.test(movieInfo), String(movieInfo).slice(0, 200));
+  await page.evaluate(() => [...document.querySelectorAll('.vod-detail button')].find((b) => /^Play$/.test(b.textContent.trim()))?.click());
+  const vodReq = await waitFor(() => page.evaluate(() => { const v = window.__lttv.getState().vodPlaying; return v && document.querySelector('.vod-player') && /^m:/.test(window.__lttv.player.currentKey ?? '') ? { url: v.url, key: window.__lttv.player.currentKey } : null; }), 5000) ?? await page.evaluate(() => ({ url: window.__lttv.getState().vodPlaying?.url ?? '', key: window.__lttv.player.currentKey }));
+  check('Play opens the movie full screen from the provider\'s movie address', !!vodReq && /\/movie\/demo\/[^/]+\/500\.mp4$/.test(vodReq.url) && /^m:/.test(vodReq.key), JSON.stringify(vodReq).replace(/secret123/g, '…'));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check('Back closes the movie player', await page.evaluate(() => !document.querySelector('.vod-player') && !window.__lttv.getState().vodPlaying));
+  await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Shows/.test(b.textContent))?.click());
+  await waitFor(() => page.evaluate(() => document.querySelector('.vod-card') ? true : null), 10000);
+  await page.evaluate(() => document.querySelector('.vod-card')?.click());
+  const eps = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-episode .vod-ep-title')].map((x) => x.textContent); return t.length ? { eps: t, seasons: [...document.querySelectorAll('.vod-detail .chip')].map((c) => c.textContent) } : null; }), 8000);
+  check('Shows: seasons and episodes from the provider', !!eps && eps.eps.length === 2 && eps.seasons.length === 2, JSON.stringify(eps));
+  await page.evaluate(() => document.querySelector('.vod-episode')?.click());
+  const epReq = await waitFor(() => page.evaluate(() => { const v = window.__lttv.getState().vodPlaying; return v ? { url: v.url, queue: v.queue?.length ?? 0, sub: v.subtitle } : null; }), 5000);
+  check('An episode plays with the next episodes queued', !!epReq && /\/series\/demo\/[^/]+\/7701\.mp4$/.test(epReq.url) && epReq.queue === 2 && /S1 E1/.test(epReq.sub), JSON.stringify(epReq).replace(/secret123/g, '…'));
+  await shot('41-episode-player');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   try { rmSync(xtProfile, { recursive: true, force: true }); } catch { /* browser still closing */ }
 
   // ---------------- Fire TV host contract (simulated native bridge) ----------------

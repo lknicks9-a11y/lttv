@@ -56,7 +56,7 @@ export function SearchScreen() {
       </div>
       {!q.trim() ? (
         <Empty icon="search" title="Find channels and programs">
-          <p>Program search covers what’s on now and upcoming in your guide. LTTV plays live TV only; it doesn’t record or play programs on demand.</p>
+          <p>Program search covers what’s on now and upcoming in your guide. Movies and shows from your provider (if it has them) have their own search in Movies and Shows.</p>
         </Empty>
       ) : (
         <div class="search-results">

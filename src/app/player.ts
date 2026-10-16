@@ -11,7 +11,7 @@ import type { MpegtsPlayer } from 'mpegts.js';
 import type { Settings } from '../core/types';
 import { native, proxiedUrl, serverCaps } from './platform';
 
-export type PlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'retrying' | 'error';
+export type PlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'retrying' | 'error' | 'ended';
 
 export interface PlayerStatus {
   state: PlayerState;
@@ -36,6 +36,10 @@ export interface PlayRequest {
   alternates?: string[];
   /** Called with the URL that actually played (to prefer that format next time). */
   onWorking?: (url: string) => void;
+  /** A movie or episode (not live): seekable, ends, no live rewind recording. */
+  vod?: boolean;
+  /** Start here (seconds) — resume where it was left. */
+  startSec?: number;
 }
 
 type Listener = (s: PlayerStatus) => void;
@@ -48,6 +52,8 @@ export interface LiveInfo {
   behind: number;
   /** Seconds that can be rewound in total. */
   window: number;
+  /** Live channel (false for movies / episodes: then window = length, behind = time left). */
+  live?: boolean;
 }
 
 export interface Rect {
@@ -131,7 +137,12 @@ export class WebBackend implements Backend {
       const msg = code === 4 ? 'This stream format is not supported by the browser.' : code === 2 ? 'Network error while playing.' : 'Playback failed.';
       this.emit({ state: 'error', error: msg });
     });
-    v.addEventListener('ended', () => this.emit({ state: 'error', error: 'The stream ended.' }));
+    v.addEventListener('ended', () => this.emit(this.current?.vod ? { state: 'ended' } : { state: 'error', error: 'The stream ended.' }));
+    // Resume a movie where it was left.
+    v.addEventListener('loadedmetadata', () => {
+      const start = this.current?.startSec;
+      if (start && start > 5 && Number.isFinite(v.duration) && start < v.duration - 10) v.currentTime = start;
+    });
     // Stay near the live edge unless the viewer rewound or paused (we chase it ourselves so rewinding works).
     window.setInterval(() => this.chaseLive(), 2000);
   }
@@ -168,7 +179,8 @@ export class WebBackend implements Backend {
     if (!sp) return null;
     const t = this.video.currentTime;
     const behind = Math.max(0, sp.edge - t);
-    return { seekable: sp.edge - sp.start > 3, behind: behind < 1.5 && !this.video.paused ? 0 : behind, window: Math.max(0, sp.edge - sp.start) };
+    if (!sp.live) return { seekable: true, behind: Math.max(0, sp.edge - t), window: sp.edge, live: false };
+    return { seekable: sp.edge - sp.start > 3, behind: behind < 1.5 && !this.video.paused ? 0 : behind, window: Math.max(0, sp.edge - sp.start), live: true };
   }
 
   seekBy(sec: number) {
@@ -487,9 +499,9 @@ class NativeBackend implements Backend {
     window.lttvHost = window.lttvHost ?? ({} as NonNullable<Window['lttvHost']>);
     const handle = (json: string) => {
       try {
-        const ev = JSON.parse(json) as { type?: string; state: PlayerState; error?: string; width?: number; height?: number; fatal?: boolean; behind?: number; window?: number; seekable?: boolean };
+        const ev = JSON.parse(json) as { type?: string; state: PlayerState; error?: string; width?: number; height?: number; fatal?: boolean; behind?: number; window?: number; seekable?: boolean; live?: boolean };
         if (ev.type === 'live') {
-          this.live = { seekable: !!ev.seekable, behind: Math.max(0, (ev.behind ?? 0) / 1000), window: Math.max(0, (ev.window ?? 0) / 1000) };
+          this.live = { seekable: !!ev.seekable, behind: Math.max(0, (ev.behind ?? 0) / 1000), window: Math.max(0, (ev.window ?? 0) / 1000), live: ev.live !== false };
           return;
         }
         this.emit({ state: ev.state, error: ev.error, videoWidth: ev.width, videoHeight: ev.height, via: 'native', noRetry: ev.fatal });
@@ -523,7 +535,7 @@ class NativeBackend implements Backend {
   }
   load(req: PlayRequest) {
     this.live = null;
-    const json = JSON.stringify({ url: req.url, headers: req.headers ?? {}, key: req.key });
+    const json = JSON.stringify({ url: req.url, headers: req.headers ?? {}, key: req.key, vod: !!req.vod, startMs: Math.round((req.startSec ?? 0) * 1000) });
     if (this.slot === undefined) native!.play(json);
     else native!.mvPlay(this.slot, json);
   }
@@ -678,7 +690,7 @@ export class PlayerController {
   }
 
   private checkStall() {
-    if (!this.req || this.status.state === 'paused' || this.status.state === 'error' || this.status.state === 'retrying') return;
+    if (!this.req || this.status.state === 'paused' || this.status.state === 'error' || this.status.state === 'retrying' || this.status.state === 'ended') return;
     const pos = this.backend.position();
     if (pos === null) return; // native handles its own stalls
     if (pos !== this.lastPos) {

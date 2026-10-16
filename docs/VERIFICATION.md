@@ -33,6 +33,10 @@ The end‑to‑end test serves a 5,004‑channel playlist and an 80,000‑progra
 | UI responsive during import (background worker) | ✅ Verified (e2e: worst frame gap ~100 ms during an 80k‑programme import) |
 | Wizard: name → source → guide → validate → parse → match → summary → review → saved | ✅ Verified (e2e) |
 | VOD entries skipped (optional) | ✅ Verified (e2e) |
+| Movies / Shows shown only when the provider has them; categories, newest first, details | ✅ Verified (e2e, mock Xtream provider) |
+| Movie plays from `/movie/…`, episode from `/series/…` with next episodes queued; Back closes | ✅ Verified (e2e) |
+| Xtream VOD / series parsing, M3U movie vs episode grouping | ✅ Verified (unit tests) |
+| Movie/episode playback, resume and seeking on a real Fire TV with a real provider | ⚠️ Not verified here (needs your provider on the device) |
 
 ### Organization
 | Requirement | Status |
@@ -133,7 +137,7 @@ The end‑to‑end test serves a 5,004‑channel playlist and an 80,000‑progra
 
 - **APK not built here** (see above). The Kotlin code compiles against the real Android framework; AndroidX/Media3 usage was checked against hand‑written signature stubs, so a real Gradle build is the remaining check.
 - **Vega OS** Fire TV devices (Fire TV Stick 4K Select and future sticks) cannot run Android apps.
-- Live TV only: no recording, catch‑up or VOD playback (live rewind covers what was kept since tuning in). No DRM.
+- No recording or catch‑up (live rewind covers what was kept since tuning in). Movies and shows only from your own provider. No DRM.
 - Desktop browser codec support varies (H.264 needs Chrome/Edge/Safari; HEVC/AC‑3 often unsupported). Raw MPEG‑TS requires ffmpeg on desktop.
 - Fire TV file pickers are often missing; use the LAN setup page to send files.
 - XMLTV files in non‑UTF‑8 encodings are supported only when uncompressed (the encoding is read from the XML declaration).

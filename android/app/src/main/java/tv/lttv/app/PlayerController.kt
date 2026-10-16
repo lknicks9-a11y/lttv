@@ -83,6 +83,9 @@ class PlayerController(
     private var liveLagMs = -1L
     private var hlsGapMs = -1L
     private var lastLive = ""
+    /** Playing a movie / episode (seekable, ends, no live recording). */
+    private var vod = false
+    private var startMs = 0L
 
     fun configure(bufferSec: Int, timeoutSec: Int, rewindMin: Int = this.rewindMin) {
         main.post {
@@ -141,7 +144,7 @@ class PlayerController(
             when (state) {
                 Player.STATE_BUFFERING -> send(if (hasRendered) "buffering" else "loading")
                 Player.STATE_READY -> send(if (exo?.playWhenReady == true) "playing" else "paused")
-                Player.STATE_ENDED -> send("error", "The stream ended.")
+                Player.STATE_ENDED -> if (vod) send("ended") else send("error", "The stream ended.")
                 else -> Unit
             }
         }
@@ -213,10 +216,12 @@ class PlayerController(
         emit(o.toString())
     }
 
-    fun play(url: String, headers: Map<String, String>) {
+    fun play(url: String, headers: Map<String, String>, vod: Boolean = false, startMs: Long = 0L) {
         main.post {
             val gen = ++generation
             currentUrl = url
+            this.vod = vod
+            this.startMs = startMs
             hasRendered = false
             liveLagMs = -1L
             hlsGapMs = -1L
@@ -251,7 +256,8 @@ class PlayerController(
         // IPTV MPEG-TS often starts without an IDR frame or lacks access-unit markers;
         // these flags let ExoPlayer start such streams instead of failing or showing black.
         val tsFlags = DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
-        if (mime == MimeTypes.VIDEO_MP2T && audioFocus && rewindMin > 0 && (url.startsWith("http://") || url.startsWith("https://"))) {
+        p.repeatMode = if (vod) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE
+        if (!vod && mime == MimeTypes.VIDEO_MP2T && audioFocus && rewindMin > 0 && (url.startsWith("http://") || url.startsWith("https://"))) {
             // Raw MPEG-TS can't be rewound by the player itself: record it on the device and play the recording.
             startTimeshift(url, headers, tsFlags)
             return
@@ -268,6 +274,8 @@ class PlayerController(
             DefaultMediaSourceFactory(dataSource, extractors).createMediaSource(item)
         }
         p.setMediaSource(source)
+        // Movies: resume where they were left.
+        if (vod && startMs > 5000) p.seekTo(startMs)
         p.prepare()
         p.playWhenReady = true
     }
@@ -397,9 +405,15 @@ class PlayerController(
             } else {
                 val dur = p.duration
                 val seekable = p.isCurrentMediaItemSeekable && dur != C.TIME_UNSET && dur > 5000
-                val gap = hlsGapMs.coerceAtLeast(0L)
-                val behind = if (seekable && p.isCurrentMediaItemLive) (dur - p.currentPosition - gap).coerceAtLeast(0L) else 0L
-                o.put("seekable", seekable).put("behind", if (behind < 2500 && p.playWhenReady) 0 else behind).put("window", if (seekable) dur else 0)
+                val live = p.isCurrentMediaItemLive || !vod
+                if (!live && seekable) {
+                    // Movie / episode: window = length, behind = time left.
+                    o.put("seekable", true).put("behind", (dur - p.currentPosition).coerceAtLeast(0L)).put("window", dur).put("live", false)
+                } else {
+                    val gap = hlsGapMs.coerceAtLeast(0L)
+                    val behind = if (seekable && p.isCurrentMediaItemLive) (dur - p.currentPosition - gap).coerceAtLeast(0L) else 0L
+                    o.put("seekable", seekable).put("behind", if (behind < 2500 && p.playWhenReady) 0 else behind).put("window", if (seekable) dur else 0)
+                }
             }
         }
         val s = o.toString()

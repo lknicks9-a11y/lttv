@@ -47,7 +47,7 @@ class NativeBridge(private val activity: MainActivity) {
         val headers = mutableMapOf<String, String>()
         val h = o.optJSONObject("headers")
         if (h != null) for (k in h.keys()) headers[k] = h.optString(k)
-        activity.player.play(o.getString("url"), headers)
+        activity.player.play(o.getString("url"), headers, o.optBoolean("vod", false), o.optLong("startMs", 0L))
         activity.keepScreenOn(true)
     }
 

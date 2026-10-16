@@ -864,3 +864,44 @@ small, .small { font-size: 1.15rem; }
 :root.tv *, :root.tv *::before, :root.tv *::after { transition: none !important; animation: none !important; }
 :root.tv .spinner { animation: spin 0.8s linear infinite !important; }
 :root.tv .btn:focus, :root.tv .chip:focus, :root.tv .swatch:focus { transform: none; }
+
+/* ---- Movies and Shows ---- */
+.vod-search { display: flex; align-items: center; gap: 0.6rem; min-width: min(28rem, 100%); }
+.vod-search .input { flex: 1; }
+.vod-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0.5rem 0.6rem 2rem; margin: 0 -0.6rem; }
+.vod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: 1.2rem; }
+.vod-card { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.5rem; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--text); text-align: left; cursor: pointer; min-width: 0; }
+.vod-card:focus, .vod-card:hover { background: var(--panel-2); border-color: var(--accent); }
+.vod-poster { position: relative; width: 100%; aspect-ratio: 2 / 3; border-radius: calc(var(--radius) * 0.8); overflow: hidden; background: var(--panel-2); flex: none; }
+.vod-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vod-poster-fallback { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.4rem; font-weight: 700; color: var(--text-2); background: linear-gradient(135deg, var(--panel-2), color-mix(in srgb, var(--accent) 25%, var(--panel))); }
+.vod-name { font-size: 1.15rem; font-weight: 600; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.vod-meta { font-size: 0.95rem; }
+.vod-progress, .vod-ep-bar { height: 0.3rem; border-radius: 1rem; background: rgba(255,255,255,0.15); overflow: hidden; }
+.vod-progress > div, .vod-ep-bar > span { display: block; height: 100%; background: var(--accent); }
+.vod-more { justify-content: center; margin-top: 1.4rem; }
+.vod-detail .vod-detail-body { display: flex; gap: 1.6rem; align-items: flex-start; }
+.vod-detail .vod-poster { width: 13rem; }
+.vod-detail-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.vod-plot { line-height: 1.45; margin: 0; }
+.vod-cast { margin: 0; font-size: 1rem; }
+.vod-facts { font-size: 1.05rem; }
+.vod-episodes { display: flex; flex-direction: column; gap: 0.4rem; max-height: 26rem; overflow-y: auto; padding: 0.3rem; }
+.vod-episode { position: relative; display: flex; gap: 1rem; align-items: flex-start; padding: 0.8rem 1rem; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel-2); color: var(--text); text-align: left; cursor: pointer; }
+.vod-ep-num { flex: none; width: 2.2rem; font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+.vod-ep-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.vod-ep-title { font-weight: 600; }
+.vod-ep-meta { font-size: 0.95rem; }
+.vod-ep-plot { font-size: 0.95rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.vod-ep-bar { position: absolute; left: 1rem; right: 1rem; bottom: 0.3rem; }
+.vod-osd { gap: 1rem; }
+.vod-osd-title .osd-title { font-size: 2rem; }
+.vod-player.osd-off .osd { opacity: 0; transform: translateY(1rem); pointer-events: none; }
+.vod-hint { margin-left: auto; font-size: 0.95rem; }
+:root.tv .vod-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  .vod-grid { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.8rem; }
+  .vod-detail .vod-detail-body { flex-direction: column; }
+  .vod-detail .vod-poster { width: 9rem; }
+  .vod-hint { display: none; }
+}

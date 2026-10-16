@@ -19,10 +19,13 @@ import { SettingsScreen } from './Settings';
 import { PlayerOverlay } from './Player';
 import { ProgrammeDetail } from './Detail';
 import { SportsScreen, ReminderPrompt } from './Sports';
+import { VodScreen, VodPlayer, useVodNav } from './Vod';
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'home', label: 'Live TV', icon: 'guide' },
   { id: 'sports', label: 'Sports', icon: 'sports' },
+  { id: 'movies', label: 'Movies', icon: 'movie' },
+  { id: 'shows', label: 'Shows', icon: 'shows' },
   { id: 'channels', label: 'Channels', icon: 'channels' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'sources', label: 'Sources', icon: 'sources' },
@@ -32,6 +35,8 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
 function Sidebar() {
   const screen = useApp((s) => s.screen);
   const now = useApp((s) => s.now);
+  const vod = useVodNav();
+  const items = NAV.filter((n) => (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true));
   const active = screen === 'matches' || screen === 'wizard' ? 'sources' : screen === 'guide' ? 'home' : screen;
   return (
     <nav class="sidebar" data-group="sidebar" data-zone aria-label="Main">
@@ -40,7 +45,7 @@ function Sidebar() {
         <Wordmark class="brand-text" />
       </div>
       <div class="nav-items">
-        {NAV.map((n) => (
+        {items.map((n) => (
           <button
             type="button"
             class={`f nav-item ${active === n.id ? 'active' : ''}`}
@@ -84,7 +89,7 @@ function LoadingScreen() {
 /** "A new LTTV build is available" — installs over the current app (no uninstalling). */
 function UpdatePrompt() {
   const u = useAvailableUpdate();
-  const fullscreen = useApp((s) => s.fullscreen);
+  const fullscreen = useApp((s) => s.fullscreen || !!s.vodPlaying);
   if (!u || fullscreen) return null;
   return (
     <Modal title="Update available" onClose={dismissUpdate}>
@@ -140,6 +145,8 @@ function Screens() {
     <main class="content" ref={ref} data-group="content" data-zone>
       {(screen === 'home' || screen === 'guide') && <GuideScreen />}
       {screen === 'sports' && <SportsScreen />}
+      {screen === 'movies' && <VodScreen kind="movies" />}
+      {screen === 'shows' && <VodScreen kind="shows" />}
       {screen === 'channels' && <ChannelsScreen />}
       {screen === 'search' && <SearchScreen />}
       {screen === 'sources' && <SourcesScreen />}
@@ -155,6 +162,8 @@ export function App() {
   const detail = useApp((s) => s.detail);
   const menuKey = useApp((s) => s.channelMenu);
   const ready = useApp((s) => s.ready);
+  const vodPlaying = useApp((s) => !!s.vodPlaying);
+  const covered = fullscreen || vodPlaying;
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -191,13 +200,13 @@ export function App() {
   }, []);
 
   return (
-    <div class={`app ${fullscreen ? 'is-fullscreen' : ''} ${isNative ? 'native' : ''}`}>
+    <div class={`app ${covered ? 'is-fullscreen' : ''} ${isNative ? 'native' : ''}`}>
       <div class="backdrop" />
-      <div class="shell" aria-hidden={fullscreen ? 'true' : undefined} data-nav-skip={fullscreen ? '' : undefined}>
+      <div class="shell" aria-hidden={covered ? 'true' : undefined} data-nav-skip={covered ? '' : undefined}>
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
-      {fullscreen && <PlayerOverlay />}
+      {vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}

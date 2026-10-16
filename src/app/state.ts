@@ -34,7 +34,7 @@ export interface MultiviewGame {
   day: string;
 }
 
-export type Screen = 'home' | 'guide' | 'sports' | 'channels' | 'search' | 'sources' | 'settings' | 'matches' | 'wizard';
+export type Screen = 'home' | 'guide' | 'sports' | 'movies' | 'shows' | 'channels' | 'search' | 'sources' | 'settings' | 'matches' | 'wizard';
 
 export interface Toast {
   id: number;
@@ -66,6 +66,10 @@ export interface AppState {
   screenStack: Screen[];
   currentKey?: string;
   fullscreen: boolean;
+  /** Which on-demand screens exist (the playlists have movies / shows). */
+  vodAvail?: { movies: boolean; shows: boolean };
+  /** The movie / episode playing full screen. */
+  vodPlaying?: import('./vod').VodPlay;
   /** Multiview: up to 4 channel keys and which tile has the sound. */
   multiview?: {
     keys: string[];
@@ -119,6 +123,14 @@ export function setState(patch: Partial<AppState> | ((s: AppState) => Partial<Ap
   const p = typeof patch === 'function' ? patch(state) : patch;
   state = { ...state, ...p };
   for (const l of listeners) l();
+}
+
+/** Called after every state change (outside components). */
+export function subscribe(l: Listener): () => void {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
 }
 
 /** Subscribe a component to a slice of state. Re-renders only when the slice changes (===). */

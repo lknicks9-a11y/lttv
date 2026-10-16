@@ -47,9 +47,16 @@ export async function ingestPlaylist(repo: Repo, playlist: PlaylistSource, text:
   }
   const warnings = res.warnings.slice(0, 200);
   if (res.warnings.length > 200) warnings.push({ message: `…and ${res.warnings.length - 200} more warnings.` });
-  if (skippedVod) warnings.unshift({ message: `${skippedVod} on-demand movie/series entries were skipped (live TV only).` });
+  if (skippedVod) warnings.unshift({ message: `${skippedVod} movie/series entries are in Movies and Shows (not the channel list).` });
 
   await repo.saveChannels({ playlistId: playlist.id, channels, warnings, importedAt: Date.now() });
+  // Movies and shows in the playlist go to the Movies / Shows screens instead of the channel list.
+  if (skippedVod) {
+    const vod = res.channels.filter((c) => VOD_URL.test(c.url)).slice(0, 60_000).map((c) => ({ name: c.originalName, url: c.url, logo: c.tvgLogo, group: c.groupTitle }));
+    await repo.setKv(`m3uVod:${playlist.id}`, vod).catch(() => undefined);
+  } else {
+    await repo.setKv(`m3uVod:${playlist.id}`, []).catch(() => undefined);
+  }
   const groups = new Map<string, number>();
   for (const c of channels) groups.set(c.groupTitle || '(no group)', (groups.get(c.groupTitle || '(no group)') ?? 0) + 1);
   await repo.savePlaylist({
