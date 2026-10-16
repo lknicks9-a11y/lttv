@@ -18,12 +18,24 @@ export function keyDir(e: KeyboardEvent): Dir | undefined {
   return KEY_DIR[e.key];
 }
 
+// Element boxes for the current key press: measured once per element (each measurement after a DOM change
+// costs a layout on a TV stick), and cleared as soon as the key has been handled.
+let rectCache: Map<Element, DOMRect> | null = null;
+function rectOf(el: Element): DOMRect {
+  if (!rectCache) return el.getBoundingClientRect();
+  let r = rectCache.get(el);
+  if (!r) rectCache.set(el, (r = el.getBoundingClientRect()));
+  return r;
+}
+
 function isVisible(el: HTMLElement): boolean {
   if (!el.isConnected) return false;
-  const r = el.getBoundingClientRect();
+  const r = rectOf(el);
+  // A zero box means display:none (on it or a parent). Hidden-by-visibility elements are rare here and are
+  // checked only when the browser can do it cheaply (no per-element getComputedStyle on every key press).
   if (r.width === 0 && r.height === 0) return false;
-  const st = getComputedStyle(el);
-  return st.visibility !== 'hidden' && st.display !== 'none';
+  const cv = (el as HTMLElement & { checkVisibility?: (o?: object) => boolean }).checkVisibility;
+  return cv ? cv.call(el, { visibilityProperty: true }) : true;
 }
 
 export function currentScope(): HTMLElement {
@@ -73,6 +85,15 @@ export function focusEl(el: HTMLElement | null | undefined, opts: { scroll?: boo
 }
 
 export function moveFocus(dir: Dir, from?: HTMLElement): boolean {
+  rectCache = new Map();
+  try {
+    return moveFocusInner(dir, from);
+  } finally {
+    rectCache = null;
+  }
+}
+
+function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
   const scope = currentScope();
   const active = from ?? (document.activeElement as HTMLElement | null);
   const list = focusables(scope);
@@ -82,7 +103,7 @@ export function moveFocus(dir: Dir, from?: HTMLElement): boolean {
     if (content && focusFirst(content)) return true;
     return focusEl(list[0]);
   }
-  const fr = active.getBoundingClientRect();
+  const fr = rectOf(active);
   let best = null as HTMLElement | null;
   let bestScore = Infinity;
   // Up/down stay inside the current zone (sidebar vs. screen content) when possible;
@@ -96,17 +117,17 @@ export function moveFocus(dir: Dir, from?: HTMLElement): boolean {
   // Up/down: only consider the nearest "row" in that direction, then pick the best-aligned element in it.
   if (dir === 'up' || dir === 'down') {
     const gap = (r: DOMRect) => (dir === 'down' ? r.top - fr.bottom : fr.top - r.bottom);
-    const inDir = pool.filter((el) => el !== active && !el.contains(active) && score(fr, el.getBoundingClientRect(), dir) < Infinity);
+    const inDir = pool.filter((el) => el !== active && !el.contains(active) && score(fr, rectOf(el), dir) < Infinity);
     if (inDir.length) {
-      const nearest = Math.min(...inDir.map((el) => Math.max(0, gap(el.getBoundingClientRect()))));
+      const nearest = Math.min(...inDir.map((el) => Math.max(0, gap(rectOf(el)))));
       const tol = Math.max(24, fr.height * 0.6);
-      pool = inDir.filter((el) => Math.max(0, gap(el.getBoundingClientRect())) <= nearest + tol);
+      pool = inDir.filter((el) => Math.max(0, gap(rectOf(el))) <= nearest + tol);
     }
   }
   const pick = (cands: HTMLElement[]) => {
     for (const el of cands) {
       if (el === active || el.contains(active)) continue;
-      const s = score(fr, el.getBoundingClientRect(), dir);
+      const s = score(fr, rectOf(el), dir);
       if (s < bestScore) {
         bestScore = s;
         best = el;

@@ -49,7 +49,7 @@ function persist() {
       if (++n >= 2500) break;
     }
     void repo.setKv(KV, out).catch(() => undefined);
-  }, 2500);
+  }, 10000);
 }
 
 async function getJson(url: string): Promise<unknown> {
