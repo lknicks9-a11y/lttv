@@ -77,7 +77,7 @@ export function SettingsScreen() {
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
-          <Choice label="Theme" value={s.theme} options={[{ value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }]} onChange={(v) => set({ theme: v })} />
+          <Choice label="Theme" value={s.theme} options={[{ value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }]} onChange={(v) => set({ theme: v })} />
         </div>
 
         <div class="card settings-section" data-group="set-display">

@@ -651,8 +651,11 @@ try {
   await shot('25-home-team-banner');
 
   // --- Colors: pick an accent swatch with the remote (Luxury always uses gold, so switch to Aero) ---
-  check('The Luxury theme (black & gold, owl logo) is switched on', await page.evaluate(() => document.documentElement.dataset.theme === 'luxury' && getComputedStyle(document.querySelector('.brand .logo-owl')).display !== 'none'));
-  await shot('25b-luxury');
+  check('The A7 theme (cosmic orb TV logo, flame colours) is switched on', await page.evaluate(() => document.documentElement.dataset.theme === 'a7' && getComputedStyle(document.querySelector('.brand .logo-a7')).display !== 'none' && getComputedStyle(document.querySelector('.brand .logo-owl')).display === 'none' && getComputedStyle(document.documentElement).getPropertyValue('--a7-orange').trim() !== ''), await page.evaluate(() => `${document.documentElement.dataset.theme} accent=${getComputedStyle(document.documentElement).getPropertyValue('--accent')}`));
+  await shot('25b-a7');
+  await page.evaluate(() => window.__lttv.updateSettings({ theme: 'luxury' }));
+  await page.waitForTimeout(200);
+  check('The Luxury theme (black & gold, owl logo) still works', await page.evaluate(() => document.documentElement.dataset.theme === 'luxury' && getComputedStyle(document.querySelector('.brand .logo-owl')).display !== 'none'));
   await page.evaluate(() => window.__lttv.updateSettings({ theme: 'aero' }));
   await page.waitForTimeout(300);
   await gotoNav('Settings');

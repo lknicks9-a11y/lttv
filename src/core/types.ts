@@ -191,7 +191,7 @@ export interface Settings {
   /** Auto-approve fuzzy matches at or above this confidence. 0 = never (default). */
   fuzzyAutoApprove: number;
   accent: string;
-  theme: 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast';
+  theme: 'a7' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast';
   /** The Frutiger Aero look was introduced (switched on once for existing setups). */
   aeroIntroduced?: boolean;
   startupScreen: StartupScreen;

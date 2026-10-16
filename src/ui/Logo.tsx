@@ -11,6 +11,7 @@ export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?:
     <>
       <AeroMark size={size} class={cls} />
       <OwlMark size={size} class={cls} />
+      <A7Mark size={size} class={cls} />
     </>
   );
 }
@@ -42,6 +43,69 @@ export function OwlMark({ size = '3rem', class: cls }: { size?: string; class?: 
         <circle class="logo-dot" cx="24.5" cy="29" r="2.8" /><circle cx="39.5" cy="29" r="2.8" />
         <path d="M32 33.5 34.6 36.6 32 39.6 29.4 36.6Z" />
       </g>
+    </svg>
+  );
+}
+
+/**
+ * A7 theme mark: the TV screen is a glowing cosmic orb — flame-orange rim, pink / teal / gold
+ * nebula inside, glitch streaks — with a small white winged figure and halo floating in front.
+ */
+export function A7Mark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+  const n = ++gid;
+  const id = (k: string) => `lttv-a7${k}${n}`;
+  return (
+    <svg class={'logo-mark logo-a7 ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <defs>
+        <radialGradient id={id('orb')} cx=".5" cy=".46" r=".52">
+          <stop offset="0" stop-color="#2a1240" />
+          <stop offset=".32" stop-color="#9b2f7a" />
+          <stop offset=".5" stop-color="#ff4f9a" />
+          <stop offset=".64" stop-color="#ffcf4a" />
+          <stop offset=".8" stop-color="#ff6a2b" />
+          <stop offset="1" stop-color="#ff6a2b" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id={id('teal')} cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="#7ff3e6" stop-opacity=".85" /><stop offset="1" stop-color="#7ff3e6" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id={id('rim')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffb066" /><stop offset=".5" stop-color="#ff4f9a" /><stop offset="1" stop-color="#ffd84d" />
+        </linearGradient>
+        <radialGradient id={id('glow')} cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="#fff" /><stop offset=".6" stop-color="#fff" stop-opacity=".55" /><stop offset="1" stop-color="#fff" stop-opacity="0" />
+        </radialGradient>
+        <clipPath id={id('scr')}><rect x="5" y="10" width="54" height="39" rx="12" /></clipPath>
+      </defs>
+      {/* antennas with little stars */}
+      <path d="M26 10 20 3M38 10 44 3" stroke={`url(#${id('rim')})`} stroke-width="1.8" stroke-linecap="round" />
+      <circle cx="20" cy="3" r="1.6" fill="#fff4e6" /><circle cx="44" cy="3" r="1.6" fill="#ffd84d" />
+      {/* screen: deep space with stars */}
+      <rect x="5" y="10" width="54" height="39" rx="12" fill="#07060c" />
+      <g clip-path={`url(#${id('scr')})`}>
+        <circle cx="12" cy="16" r=".7" fill="#fff" opacity=".8" /><circle cx="52" cy="15" r=".6" fill="#fff" opacity=".7" />
+        <circle cx="54" cy="42" r=".7" fill="#fff" opacity=".6" /><circle cx="10" cy="41" r=".5" fill="#fff" opacity=".6" />
+        <circle cx="32" cy="29.5" r="17" fill={`url(#${id('orb')})`} />
+        <circle cx="32" cy="29.5" r="15.6" fill="none" stroke="#ff7a33" stroke-width="2.2" opacity=".85" />
+        {/* glitch streaks across the orb */}
+        <rect x="14" y="20" width="16" height="1.1" fill="#ff7a33" opacity=".7" />
+        <rect x="36" y="25" width="13" height=".9" fill="#7ff3e6" opacity=".55" />
+        <rect x="17" y="36" width="11" height="1" fill="#ffd84d" opacity=".6" />
+        <rect x="35" y="39" width="14" height=".9" fill="#ff4f9a" opacity=".6" />
+        {/* clouds at the bottom of the orb */}
+        <ellipse cx="22" cy="44" rx="7" ry="2.6" fill="#fff" opacity=".55" />
+        <ellipse cx="42" cy="44.5" rx="8" ry="2.4" fill="#fff" opacity=".45" />
+        <ellipse cx="38" cy="31" rx="7" ry="5" fill={`url(#${id('teal')})`} />
+        {/* winged figure with halo */}
+        <circle cx="32" cy="29" r="6.5" fill={`url(#${id('glow')})`} opacity=".35" />
+        <ellipse cx="32" cy="20.4" rx="2.7" ry=".95" fill="none" stroke="#fff" stroke-width=".85" />
+        <circle cx="32" cy="22.9" r="1.45" fill="#fff" />
+        <path d="M30.7 25h2.6l-.5 6.2.6 6.4h-1.1l-.3-5.2-.3 5.2h-1.1l.6-6.4z" fill="#fff" />
+        <path d="M30.6 25.6C27.4 22.6 23.2 20.2 18.6 20c2.6 1.5 4.6 3.6 5.8 6-1.6-.5-3.2-.5-4.6 0 3.4.8 6 2.3 8.2 4.2.6-1.6 1.4-3.2 2.6-4.6ZM33.4 25.6c3.2-3 7.4-5.4 12-5.6-2.6 1.5-4.6 3.6-5.8 6 1.6-.5 3.2-.5 4.6 0-3.4.8-6 2.3-8.2 4.2-.6-1.6-1.4-3.2-2.6-4.6Z" fill="#fff" opacity=".96" />
+      </g>
+      <rect x="5" y="10" width="54" height="39" rx="12" fill="none" stroke={`url(#${id('rim')})`} stroke-width="1.8" />
+      {/* stand */}
+      <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('rim')})`} stroke-width="1.8" stroke-linecap="round" />
+      <circle class="logo-dot" cx="52.5" cy="44" r="1.6" fill="#ff7a33" />
     </svg>
   );
 }

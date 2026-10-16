@@ -374,6 +374,12 @@ export async function reloadAll() {
     await repo.saveSettings(settings);
     await repo.setKv('luxuryIntroduced', true).catch(() => undefined);
   }
+  // The A7 look (cosmic orb logo) is switched on once when it arrives; Settings → Theme switches back.
+  if (!(await repo.getKv<boolean>('a7Introduced').catch(() => true))) {
+    settings = { ...settings, theme: 'a7' };
+    await repo.saveSettings(settings);
+    await repo.setKv('a7Introduced', true).catch(() => undefined);
+  }
   setHqLogos(settings.hqLogos !== false);
   setState({ loadingPhase: 'Reading your playlists and guide channels' });
   const data = await loadSources(repo);
@@ -459,9 +465,10 @@ export async function updateSettings(patch: Partial<Settings>) {
 export function applyTheme(s: Settings) {
   const root = document.documentElement;
   // Luxury always uses its champagne gold; other themes use the chosen accent.
-  const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.accent);
+  // Luxury and A7 have their own fixed accents (champagne gold; flame orange with nebula pink).
+  const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.theme === 'a7' ? '#ff7a33' : s.accent);
   root.style.setProperty('--accent', t.accent);
-  root.style.setProperty('--accent-2', s.theme === 'luxury' ? '#e9d3a2' : t.accent2);
+  root.style.setProperty('--accent-2', s.theme === 'luxury' ? '#e9d3a2' : s.theme === 'a7' ? '#ff4f9a' : t.accent2);
   root.style.setProperty('--accent-soft', t.soft);
   root.style.setProperty('--accent-ink', t.ink);
   root.dataset.theme = s.theme;
