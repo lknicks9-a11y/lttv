@@ -58,7 +58,12 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   const today = scheduleDay(now, tz);
   const day = scheduleDay(dayOffset(now, offset), tz);
   const league = scheduleLeague(leagueId)!;
-  const { games, loading, error, reload } = useGames(leagueId, day, today);
+  const { games: raw, loading, error, reload } = useGames(leagueId, day, today);
+  // Live games first, then upcoming (by start time), then finished.
+  const games = useMemo(() => {
+    const rank = (g: Game) => (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
+    return [...raw].sort((a, b) => rank(a) - rank(b) || a.start - b.start);
+  }, [raw]);
 
   // Channels for each game are worked out in the background, a few games at a time (big college
   // slates and big lineups used to freeze the TV); rows fill in as they're found.
