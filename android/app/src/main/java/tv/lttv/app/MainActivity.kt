@@ -92,7 +92,11 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             cacheMode = WebSettings.LOAD_DEFAULT
             textZoom = 100
+            // Draw the parts of the page just off screen ahead of time, so moving through lists doesn't wait on drawing.
+            offscreenPreRaster = true
         }
+        // Keep the page's renderer at full priority (it's the whole app).
+        if (android.os.Build.VERSION.SDK_INT >= 26) webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
 
         api = ApiHandler(this)
         val assets = WebViewAssetLoader.Builder()

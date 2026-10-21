@@ -214,6 +214,7 @@ function isTextField(el: Element | null): boolean {
 }
 
 let installed = false;
+let lastMoveAt = 0;
 export let lastInputWasPointer = false;
 
 export function installNavigation(): void {
@@ -251,6 +252,11 @@ export function installNavigation(): void {
       }
       if (active?.tagName === 'SELECT' && (dir === 'up' || dir === 'down')) return;
       e.preventDefault();
+      // Holding a direction on a TV remote fires repeats faster than a TV stick can draw: drop repeats that
+      // arrive before the last move has been drawn, so focus never lags behind with a queue of presses.
+      const t = performance.now();
+      if (e.repeat && t - lastMoveAt < 110) return;
+      lastMoveAt = t;
       moveFocus(dir);
       return;
     }

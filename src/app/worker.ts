@@ -8,7 +8,8 @@ import type { EpgSource, PlaylistSource, Settings } from '../core/types';
 
 declare const self: DedicatedWorkerGlobalScope;
 
-const repo = new Repo(new IdbBackend());
+// Each account has its own database (see accounts.ts); the page passes its name.
+const repo = new Repo(new IdbBackend(new URLSearchParams(self.location.search).get('db') || 'lttv'));
 
 // Heartbeat so the page can tell a busy worker from a dead one (e.g. killed for using too much memory).
 setInterval(() => self.postMessage({ type: 'alive' }), 5000);

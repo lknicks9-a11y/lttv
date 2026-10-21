@@ -5,7 +5,7 @@ import { pollLive, startLiveSports, addBet, addParlay, watchingSports } from './
 import { render } from 'preact';
 import { App } from './ui/App';
 import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/nav';
-import { reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings } from './app/state';
+import { addPlaylist, addEpgSource, reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings } from './app/state';
 import { isTV, isNative } from './app/platform';
 import { describeProgramme } from './app/describe';
 import './styles.css';
@@ -26,7 +26,7 @@ async function boot() {
   };
 
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
-  (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports };
+  (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports, addPlaylist, addEpgSource };
   applySavedTheme();
   render(<App />, document.getElementById('app')!);
 

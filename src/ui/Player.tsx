@@ -1,3 +1,4 @@
+import { watchingSports } from '../app/livesports';
 import { ChannelName } from './ChannelName';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -7,6 +8,7 @@ import { isUsableMatch } from '../core/match';
 import { onBack, onAppKey, focusFirst } from '../app/nav';
 import { ChannelLogo, Progress, Icon, Button, VirtualList, useRemPx } from './common';
 import { VideoSlot } from './VideoSlot';
+import { openMultiview } from '../app/multiview';
 import { usePlayerStatus, PlayerBadge, ChannelRowBody } from './Home';
 import type { LiveInfo } from '../app/player';
 import { ProgDesc } from './ProgDesc';
@@ -258,6 +260,7 @@ export function PlayerOverlay() {
             <Button small icon="rewind" onClick={() => skip(-1)} aria-label="Rewind 10 seconds">10s</Button>
             <Button small data-autofocus icon={status.state === 'paused' ? 'play' : 'pause'} onClick={() => { player.togglePause(); poke(); }} aria-label="Play/pause" />
             <Button small icon="ffwd" onClick={() => skip(1)} aria-label="Fast forward 10 seconds">10s</Button>
+            {watchingSports() && <Button small icon="multiview" class="mv-btn" onClick={() => openMultiview()}>Multiview</Button>}
             {status.textTracks ? (
               <Button small class={`cc-btn ${settings.captions ? 'cc-on' : ''}`} aria-pressed={!!settings.captions} onClick={() => { const on = !settings.captions; void updateSettings({ captions: on }); player.setCaptions(on); poke(); }}>CC {settings.captions ? 'On' : 'Off'}</Button>
             ) : null}

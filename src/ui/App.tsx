@@ -20,6 +20,9 @@ import { PlayerOverlay } from './Player';
 import { ProgrammeDetail } from './Detail';
 import { SportsScreen, ReminderPrompt } from './Sports';
 import { VodScreen, VodPlayer, useVodNav } from './Vod';
+import { MultiviewScreen } from './Multiview';
+import { Avatar, WhoIsWatching } from './Accounts';
+import { currentAccount, listAccounts, needsAccountPick } from '../app/accounts';
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'home', label: 'Live TV', icon: 'guide' },
@@ -58,6 +61,12 @@ function Sidebar() {
           </button>
         ))}
       </div>
+      {listAccounts().length > 1 && (
+        <button type="button" class="f nav-item account-chip" onClick={() => setState({ accountPicker: true })} aria-label={`Account: ${currentAccount().name}. Switch account`}>
+          <Avatar acc={currentAccount()} size="1.9rem" />
+          <span class="nav-label">{currentAccount().name}</span>
+        </button>
+      )}
       <div class="sidebar-clock">{clock(now)}</div>
     </nav>
   );
@@ -89,7 +98,7 @@ function LoadingScreen() {
 /** "A new LTTV build is available" — installs over the current app (no uninstalling). */
 function UpdatePrompt() {
   const u = useAvailableUpdate();
-  const fullscreen = useApp((s) => s.fullscreen || !!s.vodPlaying);
+  const fullscreen = useApp((s) => s.fullscreen || !!s.vodPlaying || !!s.multiview);
   if (!u || fullscreen) return null;
   return (
     <Modal title="Update available" onClose={dismissUpdate}>
@@ -188,7 +197,12 @@ export function App() {
   const menuKey = useApp((s) => s.channelMenu);
   const ready = useApp((s) => s.ready);
   const vodPlaying = useApp((s) => !!s.vodPlaying);
-  const covered = fullscreen || vodPlaying;
+  const multiview = useApp((s) => !!s.multiview);
+  const picker = useApp((s) => !!s.accountPicker);
+  const covered = fullscreen || vodPlaying || multiview || picker;
+  useLayoutEffect(() => {
+    if (needsAccountPick()) setState({ accountPicker: true });
+  }, []);
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -231,7 +245,8 @@ export function App() {
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
-      {vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
+      {picker && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ accountPicker: false })} /></div>}
+      {picker ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}

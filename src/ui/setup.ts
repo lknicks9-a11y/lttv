@@ -1,3 +1,5 @@
+import { currentAccount, renameAccount } from '../app/accounts';
+import { notifyAccountsChanged } from './Accounts';
 import { addEpgSource, addPlaylist, rematchAndReload, reloadAll, repo, toast, withClientFallback } from '../app/state';
 import { checkXtreamLogin, loadXtreamPlaylist } from '../app/xtream-login';
 import { chooseOutput, normalizeServer, xtreamUrls, type XtreamLogin } from '../core/xtream';
@@ -7,7 +9,11 @@ import { chooseOutput, normalizeServer, xtreamUrls, type XtreamLogin } from '../
  * Uploaded files are held by the native host and fetched from api/upload/<id>.
  */
 interface Submission {
-  type: 'playlist' | 'epg' | 'settings' | 'xtream';
+  type: 'playlist' | 'epg' | 'settings' | 'xtream' | 'account';
+  /** Name for the account open on the TV. */
+  account?: string;
+  /** Guide URL sent with a playlist URL. */
+  epg?: string;
   server?: string;
   username?: string;
   password?: string;
@@ -31,6 +37,15 @@ export async function handleSetupSubmission(json: string) {
   } catch {
     return;
   }
+  if (s.account?.trim()) {
+    const acc = currentAccount();
+    if (acc.name !== s.account.trim()) {
+      renameAccount(acc.id, s.account);
+      notifyAccountsChanged();
+      if (s.type === 'account') toast(`Account renamed to ${s.account.trim()}`, 'success');
+    }
+  }
+  if (s.type === 'account') return;
   try {
     if (s.type === 'settings' && s.uploadId) {
       const f = await uploadedFile(s.uploadId, s.fileName ?? 'settings.json');
@@ -70,6 +85,14 @@ export async function handleSetupSubmission(json: string) {
     } else {
       const { summary } = await addPlaylist({ name: s.name ?? '', input, skipVod: s.skipVod !== false });
       toast(`Playlist added: ${summary.channels.toLocaleString()} channels`, 'success');
+      if (s.epg && /^https?:\/\//i.test(s.epg.trim())) {
+        try {
+          const { summary: g } = await addEpgSource({ name: '', input: { url: s.epg.trim() } });
+          toast(`Guide added: ${g.programmes.toLocaleString()} programs`, 'success');
+        } catch (e) {
+          toast('Playlist added, but the guide could not be loaded: ' + (e as Error).message, 'error', 10000);
+        }
+      }
     }
     await rematchAndReload(false);
     await reloadAll();

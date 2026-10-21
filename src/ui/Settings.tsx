@@ -1,3 +1,5 @@
+import { AccountsSection } from './Accounts';
+import { SetupServerModal } from './PhoneSetup';
 import { h, Fragment } from 'preact';
 import { canUpdateInApp, checkForUpdate, currentBuild, versionOf, installUpdate } from '../app/updates';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -25,6 +27,7 @@ export function SettingsScreen() {
   const set = (p: Partial<Settings>) => void updateSettings(p);
   const [diag, setDiag] = useState<string>('');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [phoneSetup, setPhoneSetup] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -72,6 +75,7 @@ export function SettingsScreen() {
 
   return (
     <section class="screen settings">
+      {phoneSetup && <SetupServerModal onClose={() => setPhoneSetup(false)} />}
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
         <div class="card settings-section" data-group="set-colors">
@@ -79,6 +83,8 @@ export function SettingsScreen() {
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
           <Choice label="Theme" value={s.theme} options={[{ value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }]} onChange={(v) => set({ theme: v })} />
         </div>
+
+        <AccountsSection onPhoneSetup={() => setPhoneSetup(true)} />
 
         <div class="card settings-section" data-group="set-display">
           <h3>Display</h3>
@@ -145,7 +151,7 @@ export function SettingsScreen() {
             }} />
             <Button icon="add" onClick={() => fileRef.current?.click()}>Import settings</Button>
           </div>
-          {native && <p class="hint">To copy your setup from the desktop app, export it there and send the file with Sources → Phone/computer setup.</p>}
+          {native && <p class="hint">To copy your setup from the desktop app, export it there and send the file with Settings → Accounts → Set up from phone or computer.</p>}
           <p class="hint">Exports with source URLs contain your playlist addresses (and any credentials in them). Keep that file private.</p>
           <div class="row gap wrap">
             <Button icon="refresh" onClick={async () => { const n = await pruneExpired(); toast(`Removed ${n.toLocaleString()} expired programs`, 'success'); }}>Remove expired programs</Button>

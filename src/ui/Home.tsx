@@ -12,6 +12,9 @@ import { clock, range, remaining, progress, UNAVAILABLE, when } from './fmt';
 import { loadDemo } from './demo';
 import { LogoMark, Wordmark } from './Logo';
 import { LiveTeamBanner } from './Sports';
+import { SetupServerModal } from './PhoneSetup';
+import { native } from '../app/platform';
+import { currentAccount, listAccounts } from '../app/accounts';
 
 /** Tabs: one per country in the playlists (most channels first, United States first), then "Other". */
 export function useCategoryChips(lineup: LineupChannel[]) {
@@ -97,11 +100,12 @@ export function NowInfo({ ch, compact }: { ch: LineupChannel; compact?: boolean 
 export function Welcome() {
   return (
     <section class="screen home-empty">
-      <Empty title="Welcome to LTTV" art={<div class="welcome-logo"><LogoMark size="9rem" /><Wordmark /></div>}>
+      <Empty title={listAccounts().length > 1 ? `Welcome, ${currentAccount().name}` : 'Welcome to LTTV'} art={<div class="welcome-logo"><LogoMark size="9rem" /><Wordmark /></div>}>
         <p>Add your own IPTV playlist (M3U) and, optionally, an XMLTV program guide. LTTV organizes the channels, matches them to the guide and plays them.</p>
         <div class="row gap">
           <Button variant="primary" icon="add" data-autofocus onClick={() => navigate('wizard')}>Add playlist</Button>
-          <Button icon="tv" onClick={() => void loadDemo()}>Try the demo</Button>
+          {native && <PhoneSetupButton />}
+            <Button icon="tv" onClick={() => void loadDemo()}>Try the demo</Button>
         </div>
         <p class="hint">The demo uses clearly labeled test streams and a generated test guide. You can delete it anytime in Sources.</p>
       </Empty>
@@ -135,10 +139,11 @@ export function HomeScreen() {
   if (!playlists.length) {
     return (
       <section class="screen home-empty">
-        <Empty title="Welcome to LTTV" art={<div class="welcome-logo"><LogoMark size="9rem" /><Wordmark /></div>}>
+        <Empty title={listAccounts().length > 1 ? `Welcome, ${currentAccount().name}` : 'Welcome to LTTV'} art={<div class="welcome-logo"><LogoMark size="9rem" /><Wordmark /></div>}>
           <p>Add your own IPTV playlist (M3U) and, optionally, an XMLTV program guide. LTTV organizes the channels, matches them to the guide and plays them.</p>
           <div class="row gap">
             <Button variant="primary" icon="add" data-autofocus onClick={() => navigate('wizard')}>Add playlist</Button>
+            {native && <PhoneSetupButton />}
             <Button icon="tv" onClick={() => void loadDemo()}>Try the demo</Button>
           </div>
           <p class="hint">The demo uses clearly labeled test streams and a generated test guide. You can delete it anytime in Sources.</p>
@@ -334,4 +339,15 @@ export function PlayerBadge({ status }: { status: ReturnType<typeof usePlayerSta
     );
   }
   return null;
+}
+
+/** Opens the phone/computer setup page (Fire TV). */
+function PhoneSetupButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button icon="phone" onClick={() => setOpen(true)}>Set up from phone or computer</Button>
+      {open && <SetupServerModal onClose={() => setOpen(false)} />}
+    </>
+  );
 }

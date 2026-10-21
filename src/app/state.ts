@@ -1,3 +1,4 @@
+import { accountKey, currentDbName } from './accounts';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type {
   ChannelCustomization, EpgSource, LineupChannel, MatchResult, PlaylistSource, Programme, RecentEntry, Reminder, Settings,
@@ -66,17 +67,14 @@ export interface AppState {
   screenStack: Screen[];
   currentKey?: string;
   fullscreen: boolean;
+  /** Sports Multiview (up to four games at once). */
+  multiview?: import('./multiview').MultiviewState;
+  /** "Who's watching?" account picker is showing. */
+  accountPicker?: boolean;
   /** Which on-demand screens exist (the playlists have movies / shows). */
   vodAvail?: { movies: boolean; shows: boolean };
   /** The movie / episode playing full screen. */
   vodPlaying?: import('./vod').VodPlay;
-  /** Multiview: up to 4 channel keys and which tile has the sound. */
-  multiview?: {
-    keys: string[];
-    audio: number;
-    /** The game each tile was picked for (for its score card), by tile. */
-    games?: (MultiviewGame | undefined)[];
-  };
   toasts: Toast[];
   tasks: Task[];
   detail?: { channelKey: string; programme?: Programme };
@@ -151,7 +149,7 @@ export function useApp<T>(sel: (s: AppState) => T): T {
 
 // ---------------------------------------------------------------------------
 
-export const repo = new Repo(new IdbBackend());
+export const repo = new Repo(new IdbBackend(currentDbName()));
 export const player = new PlayerController(() => state.settings);
 let lastData: LoadedData | null = null;
 /** Matches as stored (user decisions + automatic matching), before guide extras. */
@@ -477,7 +475,7 @@ export function applyTheme(s: Settings) {
   root.dataset.theme = s.theme;
   // Remembered for the next start, so the app opens in your theme instead of flashing the default one.
   try {
-    localStorage.setItem('lttvTheme', JSON.stringify({ theme: s.theme, accent: t.accent, accent2: root.style.getPropertyValue('--accent-2'), soft: t.soft, ink: t.ink }));
+    localStorage.setItem(accountKey('lttvTheme'), JSON.stringify({ theme: s.theme, accent: t.accent, accent2: root.style.getPropertyValue('--accent-2'), soft: t.soft, ink: t.ink }));
   } catch {
     /* not remembered */
   }
@@ -486,7 +484,7 @@ export function applyTheme(s: Settings) {
 /** Apply the last theme right away at startup (before settings are read). */
 export function applySavedTheme() {
   try {
-    const v = JSON.parse(localStorage.getItem('lttvTheme') || 'null') as { theme: string; accent: string; accent2: string; soft: string; ink: string } | null;
+    const v = JSON.parse(localStorage.getItem(accountKey('lttvTheme')) || 'null') as { theme: string; accent: string; accent2: string; soft: string; ink: string } | null;
     if (!v) return;
     const root = document.documentElement;
     root.dataset.theme = v.theme;

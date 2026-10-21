@@ -542,8 +542,10 @@ try {
   let linear = false;
   if (geo.starts.length >= 2 && geo.ticks.length >= 2) {
     const pxPerMs = (geo.ticks[1].x - geo.ticks[0].x) / 1800_000;
-    const pred = geo.lefts[0] + (geo.starts[1] - geo.starts[0]) * pxPerMs;
-    linear = Math.abs(pred - geo.lefts[1]) < 2.5;
+    // The first block may start before the visible window (clamped to 0), so compare later blocks.
+    const a = geo.starts.length >= 3 ? 1 : 0;
+    const pred = geo.lefts[a] + (geo.starts[a + 1] - geo.starts[a]) * pxPerMs;
+    linear = Math.abs(pred - geo.lefts[a + 1]) < 2.5;
   }
   check('Guide blocks are positioned by actual start/end time', linear, JSON.stringify({ n: geo.n, lefts: geo.lefts.slice(0, 3) }));
   check('Opening the guide puts focus on the current program', await page.evaluate(() => !!document.activeElement?.getAttribute('data-start')), await focused());
@@ -848,7 +850,7 @@ try {
   await page.evaluate((b) => localStorage.setItem('lttvScheduleBase', b + '/espn'), fxBase);
   await page.evaluate(() => sessionStorage.setItem('sportsView', 'home'));
   await page.evaluate(() => { const n = [...document.querySelectorAll('.nav-item')].find((b) => /Sports/.test(b.textContent)); n.click(); });
-  const leagueCards = await waitFor(() => page.evaluate(() => { const c = [...document.querySelectorAll('.league-card')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()); return c.some((t) => /2 games today/.test(t)) ? c : null; }), 15000);
+  const leagueCards = await waitFor(() => page.evaluate(() => { const c = [...document.querySelectorAll('.league-card')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()); return c.some((t) => /MLB/.test(t) && /2 games today/.test(t)) ? c : null; }), 15000);
   const names = await page.evaluate(() => [...document.querySelectorAll('.league-card-name')].map((c) => c.textContent).join(','));
   check('League picker: NBA NFL MLB NHL UCL EPL Bundesliga Serie A Ligue 1 LaLiga MLS CBB CFB', names === 'My Teams,NBA,NFL,MLB,NHL,UEFA Champions League,Premier League,Bundesliga,Serie A,Ligue 1,LaLiga,MLS,College Basketball,College Football', names);
   check('Each league shows how many games are on today', !!leagueCards && leagueCards.some((t) => /MLB/.test(t) && /2 games today/.test(t) && /1 LIVE/.test(t)), (leagueCards ?? []).join(' | '));
@@ -882,7 +884,34 @@ try {
   await key('Escape');
   await page.waitForTimeout(400);
 
-  check('Multiview is removed (no Multiview buttons on the Sports screen or in the player)', await page.evaluate(() => ![...document.querySelectorAll('button')].some((b) => /Multiview/.test(b.textContent))));
+  // ---- Sports Multiview ----
+  await page.evaluate(() => [...document.querySelectorAll('.sports-crumbs button')].find((b) => /Sports/.test(b.textContent))?.click());
+  await page.waitForTimeout(400);
+  await page.evaluate(() => [...document.querySelectorAll('.content button')].find((b) => /^Multiview$/.test(b.textContent.trim()))?.click());
+  const mvOpen = await waitFor(() => page.evaluate(() => { const m = window.__lttv.getState().multiview; return document.querySelector('.multiview') && m ? m : null; }), 5000);
+  check('Multiview opens from Sports with the game that was playing in the first tile', !!mvOpen && !!mvOpen.tiles[0], JSON.stringify(mvOpen));
+  await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.click());
+  await waitFor(() => page.evaluate(() => document.querySelectorAll('.mv-picker .league-card').length > 0 || null), 5000);
+  await page.evaluate(() => [...document.querySelectorAll('.mv-picker .league-card')].find((c) => /MLB/.test(c.textContent))?.click());
+  await waitFor(() => page.evaluate(() => document.querySelector('.mv-picker .game-row') || null), 8000);
+  await page.evaluate(() => document.querySelector('.mv-picker .game-row')?.click());
+  await page.waitForTimeout(600);
+  await page.evaluate(() => [...document.querySelectorAll('.feed-option')].find((b) => /Yankees broadcast/.test(b.textContent))?.click());
+  await page.waitForTimeout(300);
+  await waitFor(() => page.evaluate(() => document.querySelector('.watch-game .stream-pick-main') || null), 8000);
+  await page.evaluate(() => document.querySelector('.watch-game .stream-pick-main')?.click());
+  const mv2 = await waitFor(() => page.evaluate(() => { const m = window.__lttv.getState().multiview; return m?.tiles[1] ? m : null; }), 5000);
+  check('Multiview: add a second game (league → game → stream)', !!mv2 && /at/.test(mv2.tiles[1].title), JSON.stringify(mv2));
+  check('Multiview: each game has its own player', await page.evaluate(() => document.querySelectorAll('.multiview video').length >= 2));
+  await shot('26-multiview');
+  await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.click());
+  await page.waitForTimeout(200);
+  check('Multiview: OK on a tile gives it the sound', await page.evaluate(() => window.__lttv.getState().multiview?.active === 1 && !!document.querySelectorAll('.mv-tile')[1]?.classList.contains('mv-active')));
+  await key('Escape');
+  const mvBack = await waitFor(() => page.evaluate(() => { const s = window.__lttv.getState(); return !s.multiview && s.fullscreen ? s.currentKey : null; }), 5000);
+  check('Back leaves Multiview full screen on the game with sound', !!mvBack, String(mvBack));
+  await key('Escape');
+  await page.waitForTimeout(400);
 
   // ---- Fantasy and Bets (mock NFL feed) ----
   const clickText = (sel, re) => page.evaluate(([sel, src]) => { const el = [...document.querySelectorAll(sel)].find((b) => new RegExp(src).test(b.textContent)); el?.click(); return !!el; }, [sel, re.source]);
@@ -1047,6 +1076,36 @@ try {
   await page.waitForTimeout(300);
   try { rmSync(xtProfile, { recursive: true, force: true }); } catch { /* browser still closing */ }
 
+  // ---- Accounts: each has its own setup on this device ----
+  {
+    const chBefore = await page.evaluate(() => window.__lttv.getState().lineup.length);
+    await gotoNav('Settings');
+    await page.evaluate(() => [...document.querySelectorAll('.accounts-section button')].find((b) => /Add account/.test(b.textContent))?.click());
+    await page.waitForTimeout(300);
+    await page.fill('.modal input', 'Guest');
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle' }), page.evaluate(() => [...document.querySelectorAll('.modal button')].find((b) => /Create/.test(b.textContent))?.click())]);
+    await page.waitForTimeout(800);
+    const fresh = await page.evaluate(async () => ({ welcome: document.querySelector('.home-empty h3')?.textContent, playlists: window.__lttv.getState().playlists.length, dbs: (await indexedDB.databases()).map((d) => d.name), chip: document.querySelector('.account-chip')?.textContent }));
+    check('Accounts: a new account starts empty with its own data on the device', fresh.playlists === 0 && fresh.dbs.length === 2 && /Guest/.test(fresh.chip ?? ''), JSON.stringify(fresh));
+    check('Accounts: the welcome screen greets the account', /Welcome, Guest/.test(fresh.welcome ?? ''), String(fresh.welcome));
+    await shot('27-account-new');
+    await page.evaluate(() => [...document.querySelectorAll('.nav-item')].find((b) => b.classList.contains('account-chip'))?.click());
+    await waitFor(() => page.evaluate(() => document.querySelectorAll('.who-card').length >= 3 || null), 5000);
+    await shot('28-whos-watching');
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle' }), page.evaluate(() => [...document.querySelectorAll('.who-card')].find((c) => /Me/.test(c.textContent))?.click())]);
+    const back = await waitFor(() => page.evaluate(() => { const s = window.__lttv.getState(); return s.ready && s.lineup.length ? s.lineup.length : null; }), 20000);
+    check('Accounts: switching back brings the first account’s channels back', back === chBefore, `${back} vs ${chBefore}`);
+    await gotoNav('Settings');
+    await page.evaluate(() => [...document.querySelectorAll('.account-row')].find((r) => /Guest/.test(r.textContent))?.querySelector('button:last-child')?.click());
+    await page.waitForTimeout(300);
+    await page.evaluate(() => [...document.querySelectorAll('.modal button')].find((b) => /Remove account/.test(b.textContent))?.click());
+    await page.waitForTimeout(200);
+    await page.evaluate(() => [...document.querySelectorAll('.modal button')].find((b) => /^Remove$/.test(b.textContent.trim()))?.click());
+    await page.waitForTimeout(800);
+    const after = await page.evaluate(async () => ({ rows: document.querySelectorAll('.account-row').length, dbs: (await indexedDB.databases()).map((d) => d.name) }));
+    check('Accounts: removing an account deletes its data', after.rows === 1 && after.dbs.length === 1, JSON.stringify(after));
+  }
+
   // ---------------- Fire TV host contract (simulated native bridge) ----------------
   // Runs the same UI with a fake LTTVNative object, as the Android WebView would, and
   // checks the calls the Kotlin host receives (play, video rectangle, exit) and key routing.
@@ -1062,7 +1121,7 @@ try {
       platform: () => 'Fire TV', deviceInfo: () => 'Test AFT', appVersion: () => '1.0.0',
       play: (j) => calls.push(['play', JSON.parse(j)]), stop: () => calls.push(['stop']), pause: () => calls.push(['pause']), resume: () => calls.push(['resume']),
       setVideoRect: (x, y, w, h, v) => calls.push(['rect', x, y, w, h, v]), setPlayerConfig: (j) => calls.push(['config', j]),
-      startSetupServer: () => JSON.stringify({ url: 'http://192.168.1.50:8787', pin: '1234' }), stopSetupServer: () => calls.push(['stopSetup']),
+      startSetupServer: () => JSON.stringify({ url: 'http://192.168.1.50:8787', qr: 'http://192.168.1.50:8787/?pin=1234', pin: '1234' }), stopSetupServer: () => calls.push(['stopSetup']),
       exitApp: () => calls.push(['exit']), keepScreenOn: () => {},
       mvPlay: (i, j) => calls.push(['mvPlay', i, JSON.parse(j)]), mvStop: (i) => calls.push(['mvStop', i]),
       mvRect: (i, x, y, w, h, v) => calls.push(['mvRect', i, x, y, w, h, v]), mvMute: (i, m) => calls.push(['mvMute', i, m]),
@@ -1072,7 +1131,17 @@ try {
   await page.goto(appUrl.replace('?tv', ''), { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
   check('TV host: UI scales to a 960x540 CSS viewport (1080p @2x)', await page.evaluate(() => document.documentElement.classList.contains('native') && parseFloat(getComputedStyle(document.documentElement).fontSize) === 8));
-  await key('ArrowRight');
+  check('TV host: the welcome screen offers setup from a phone or computer', await page.evaluate(() => [...document.querySelectorAll('.home-empty button')].some((b) => /phone or computer/.test(b.textContent))));
+  await page.evaluate(() => [...document.querySelectorAll('.home-empty button')].find((b) => /phone or computer/.test(b.textContent))?.click());
+  await page.waitForTimeout(300);
+  check('TV host: phone setup shows a QR code, the address and the PIN', await page.evaluate(() => !!document.querySelector('.modal .setup-qr path') && /192\.168\.1\.50:8787/.test(document.querySelector('.modal').textContent) && /1234/.test(document.querySelector('.setup-pin')?.textContent ?? '')));
+  await shot('29-tv-phone-setup');
+  await page.evaluate(async () => { window.lttvHost.onSetupSubmit(JSON.stringify({ type: 'account', account: 'Luke' })); await new Promise((r) => setTimeout(r, 100)); });
+  check('TV host: the name typed on the phone renames the account', await page.evaluate(() => JSON.parse(localStorage.getItem('lttvAccounts') || '{}').list?.[0]?.name === 'Luke'));
+  await key('Escape');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => [...document.querySelectorAll('.home-empty button')].find((b) => /Add playlist/.test(b.textContent))?.focus());
+  await key('ArrowRight', 2);
   await key('Enter'); // Try the demo
   await waitFor(() => page.evaluate(() => document.querySelectorAll('.guide-ch').length >= 4), 20000);
   await page.waitForTimeout(400);

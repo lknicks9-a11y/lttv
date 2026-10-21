@@ -71,6 +71,7 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
         val ip = lanAddress()
         return JSONObject()
             .put("url", if (ip != null) "http://$ip:$port" else "Connect the TV to Wi-Fi or Ethernet")
+            .put("qr", if (ip != null) "http://$ip:$port/?pin=$pin" else "")
             .put("pin", pin)
             .toString()
     }
@@ -177,14 +178,20 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
             val user = o.optString("username").trim()
             val pass = o.optString("password").trim()
             if (server.isEmpty() || user.isEmpty() || pass.isEmpty()) return sendJson(out, 400, JSONObject().put("error", "Enter server, username and password"))
-            onSubmit(JSONObject().put("type", "xtream").put("server", server).put("username", user).put("password", pass).put("name", o.optString("name")).toString())
+            onSubmit(JSONObject().put("type", "xtream").put("server", server).put("username", user).put("password", pass).put("name", o.optString("name")).put("epg", o.optString("epg")).put("account", o.optString("account")).toString())
+            return sendJson(out, 200, JSONObject().put("ok", true))
+        }
+        if (type == "account") {
+            val name = o.optString("account").trim()
+            if (name.isEmpty()) return sendJson(out, 400, JSONObject().put("error", "Enter a name"))
+            onSubmit(JSONObject().put("type", "account").put("account", name.take(24)).toString())
             return sendJson(out, 200, JSONObject().put("ok", true))
         }
         val url = o.optString("url").trim()
         if (type !in setOf("playlist", "epg") || !(url.startsWith("http://") || url.startsWith("https://"))) {
             return sendJson(out, 400, JSONObject().put("error", "Enter a full http(s) URL"))
         }
-        onSubmit(JSONObject().put("type", type).put("url", url).put("name", o.optString("name")).put("skipVod", o.optBoolean("skipVod", true)).toString())
+        onSubmit(JSONObject().put("type", type).put("url", url).put("name", o.optString("name")).put("skipVod", o.optBoolean("skipVod", true)).put("epg", o.optString("epg")).put("account", o.optString("account")).toString())
         sendJson(out, 200, JSONObject().put("ok", true))
     }
 
@@ -208,7 +215,7 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
                 remaining -= n
             }
         }
-        onSubmit(JSONObject().put("type", type).put("uploadId", id).put("fileName", req.query["name"] ?: "upload").put("name", req.query["label"] ?: "").toString())
+        onSubmit(JSONObject().put("type", type).put("uploadId", id).put("fileName", req.query["name"] ?: "upload").put("name", req.query["label"] ?: "").put("account", req.query["account"] ?: "").toString())
         sendJson(out, 200, JSONObject().put("ok", true))
     }
 
@@ -228,38 +235,63 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
 
         private val PAGE = """
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LTTV setup</title>
+<meta name="color-scheme" content="dark"><title>LTTV · Send to TV</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0a0d12;color:#eef2f7;margin:0;padding:24px;max-width:640px;margin:auto}
-h1{font-size:24px}h2{font-size:18px;margin-top:28px;color:#c4ccd8}label{display:block;margin:12px 0 4px;color:#c4ccd8}
-input,select,button{font:inherit;width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #273243;background:#141a23;color:#eef2f7}
-button{background:#4cc2ff;color:#04131d;font-weight:700;border:0;margin-top:12px;cursor:pointer}.msg{margin-top:10px;min-height:1.4em}.ok{color:#3ddc97}.err{color:#ff8a8a}
-small{color:#8a96a8}
-</style></head><body>
-<h1>LTTV · send to your TV</h1>
-<p><small>Only send playlists you are authorized to use. Everything stays on your local network and on the TV.</small></p>
-<label>PIN shown on the TV</label><input id="pin" inputmode="numeric" maxlength="4" autocomplete="off">
-<h2>Sign in with your provider</h2>
-<p><small>For services that give you a server, username and password.</small></p>
-<label>Server address</label><input id="xs" type="url" placeholder="http://line.example.com:8080" autocomplete="off">
-<label>Username</label><input id="xu" autocomplete="off" autocapitalize="off">
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(120% 60% at 50% 0%,#1b2433 0%,#0a0d12 60%);color:#eef2f7;margin:0;padding:20px 16px 48px;min-height:100vh}
+main{max-width:560px;margin:auto}h1{font-size:26px;margin:4px 0 2px}.sub{color:#8a96a8;margin:0 0 18px}
+.card{background:#121822cc;border:1px solid #243041;border-radius:16px;padding:16px;margin:14px 0}
+h2{font-size:17px;margin:0 0 4px}label{display:block;margin:12px 0 4px;color:#c4ccd8;font-size:14px}
+input,select,button{font:inherit;width:100%;padding:13px 12px;border-radius:11px;border:1px solid #2a3647;background:#0e141c;color:#eef2f7}
+input:focus,select:focus{outline:2px solid #4cc2ff;border-color:transparent}
+button{background:linear-gradient(180deg,#5fd0ff,#2fa8e8);color:#04131d;font-weight:700;border:0;margin-top:14px;cursor:pointer}
+button.sec{background:#1c2633;color:#eef2f7;border:1px solid #2a3647}
+.msg{margin-top:10px;min-height:1.3em;font-size:14px}.ok{color:#3ddc97}.err{color:#ff8a8a}
+small,.hint{color:#8a96a8;font-size:13px}.tabs{display:flex;gap:6px;margin:10px 0 0}.tabs button{margin:0;padding:10px;font-weight:600}
+.tabs button:not(.on){background:#1c2633;color:#c4ccd8;border:1px solid #2a3647}.hide{display:none}
+.pinrow{display:flex;gap:10px;align-items:end}.pinrow>div{flex:1}
+</style></head><body><main>
+<h1>LTTV · Send to your TV</h1>
+<p class="sub">Type your details here instead of with the remote. They go straight to the account that's open on your TV.</p>
+<div class="card">
+<div class="pinrow"><div><label>PIN shown on the TV</label><input id="pin" inputmode="numeric" maxlength="4" autocomplete="off"></div></div>
+<label>Account name (optional)</label><input id="acc" maxlength="24" placeholder="e.g. Luke" autocomplete="off">
+<small>Names the account on the TV, so each person in the house can have their own.</small>
+</div>
+<div class="card">
+<h2>Your TV provider</h2>
+<div class="tabs"><button id="tx" class="on">Username &amp; password</button><button id="tm">Playlist URL</button><button id="tf">File</button></div>
+<div id="px">
+<label>Server address</label><input id="xs" type="url" placeholder="http://line.example.com:8080" autocomplete="off" autocapitalize="off">
+<label>Username</label><input id="xu" autocomplete="off" autocapitalize="off" spellcheck="false">
 <label>Password</label><input id="xp" type="password" autocomplete="off">
-<button id="xsend">Send login to TV</button><div class="msg" id="m0"></div>
-<h2>Add from a URL</h2>
-<label>Type</label><select id="t"><option value="playlist">Playlist (M3U/M3U8)</option><option value="epg">Program guide (XMLTV)</option></select>
-<label>Name (optional)</label><input id="n">
-<label>URL</label><input id="u" type="url" placeholder="https://…" autocomplete="off">
+<button id="xsend">Send to TV</button><div class="msg" id="m0"></div>
+</div>
+<div id="pm" class="hide">
+<label>Playlist name (optional)</label><input id="n">
+<label>M3U / M3U8 playlist URL</label><input id="u" type="url" placeholder="https://…" autocomplete="off" autocapitalize="off">
+<label>TV guide (XMLTV) URL (optional)</label><input id="g" type="url" placeholder="https://…/guide.xml.gz" autocomplete="off" autocapitalize="off">
 <button id="send">Send to TV</button><div class="msg" id="m1"></div>
-<h2>Upload a file</h2>
+</div>
+<div id="pf" class="hide">
 <label>Type</label><select id="ft"><option value="playlist">Playlist (.m3u/.m3u8)</option><option value="epg">Program guide (.xml/.xml.gz)</option><option value="settings">LTTV settings export (.json)</option></select>
 <label>File</label><input id="f" type="file">
 <button id="up">Upload to TV</button><div class="msg" id="m2"></div>
+</div>
+</div>
+<div class="card"><button class="sec" id="accsend">Only rename the account</button><div class="msg" id="m3"></div></div>
+<p class="hint">Only use a provider you're authorized to use. Your details travel over your home Wi-Fi to the TV and are stored only on the TV. This page stops working when you close the setup window on the TV.</p>
+</main>
 <script>
 const ${'$'}=(id)=>document.getElementById(id);
+const q=new URLSearchParams(location.search);if(q.get('pin'))${'$'}('pin').value=q.get('pin');
 function show(el,ok,t){el.className='msg '+(ok?'ok':'err');el.textContent=t;}
-${'$'}('xsend').onclick=async()=>{const r=await fetch('/submit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pin:${'$'}('pin').value,type:'xtream',server:${'$'}('xs').value,username:${'$'}('xu').value,password:${'$'}('xp').value})});const j=await r.json().catch(()=>({}));show(${'$'}('m0'),r.ok,r.ok?'Sent! Your TV is signing in and loading channels.':(j.error||'Failed'));};
-${'$'}('send').onclick=async()=>{const r=await fetch('/submit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pin:${'$'}('pin').value,type:${'$'}('t').value,url:${'$'}('u').value,name:${'$'}('n').value})});const j=await r.json().catch(()=>({}));show(${'$'}('m1'),r.ok,r.ok?'Sent! Check your TV.':(j.error||'Failed'));};
-${'$'}('up').onclick=async()=>{const f=${'$'}('f').files[0];if(!f){show(${'$'}('m2'),false,'Choose a file first');return;}show(${'$'}('m2'),true,'Uploading…');const q=new URLSearchParams({pin:${'$'}('pin').value,type:${'$'}('ft').value,name:f.name});const r=await fetch('/upload?'+q,{method:'POST',body:f});const j=await r.json().catch(()=>({}));show(${'$'}('m2'),r.ok,r.ok?'Uploaded! Check your TV.':(j.error||'Failed'));};
+function tab(k){['x','m','f'].forEach(t=>{${'$'}('p'+t).className=t===k?'':'hide';${'$'}('t'+t).className=t===k?'on':'';});}
+${'$'}('tx').onclick=()=>tab('x');${'$'}('tm').onclick=()=>tab('m');${'$'}('tf').onclick=()=>tab('f');
+async function post(body,el,okText){show(el,true,'Sending…');try{const r=await fetch('/submit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({pin:${'$'}('pin').value,account:${'$'}('acc').value},body))});const j=await r.json().catch(()=>({}));show(el,r.ok,r.ok?okText:(j.error||'Failed'));}catch(e){show(el,false,'Could not reach the TV. Is the setup window still open?');}}
+${'$'}('xsend').onclick=()=>post({type:'xtream',server:${'$'}('xs').value,username:${'$'}('xu').value,password:${'$'}('xp').value},${'$'}('m0'),'Sent! Your TV is signing in and loading channels.');
+${'$'}('send').onclick=()=>post({type:'playlist',url:${'$'}('u').value,epg:${'$'}('g').value,name:${'$'}('n').value},${'$'}('m1'),'Sent! Check your TV.');
+${'$'}('accsend').onclick=()=>post({type:'account'},${'$'}('m3'),'Account renamed on the TV.');
+${'$'}('up').onclick=async()=>{const f=${'$'}('f').files[0];if(!f){show(${'$'}('m2'),false,'Choose a file first');return;}show(${'$'}('m2'),true,'Uploading…');const p=new URLSearchParams({pin:${'$'}('pin').value,type:${'$'}('ft').value,name:f.name,account:${'$'}('acc').value});try{const r=await fetch('/upload?'+p,{method:'POST',body:f});const j=await r.json().catch(()=>({}));show(${'$'}('m2'),r.ok,r.ok?'Uploaded! Check your TV.':(j.error||'Failed'));}catch(e){show(${'$'}('m2'),false,'Upload failed');}};
 </script></body></html>
 """.trimIndent()
     }

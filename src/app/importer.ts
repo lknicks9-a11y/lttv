@@ -1,3 +1,4 @@
+import { currentDbName } from './accounts';
 import type { EpgSource, PlaylistSource, Settings } from '../core/types';
 import type { EpgImportSummary, MatchSummary, PlaylistImportSummary } from '../core/pipeline';
 import { openFile, openRemote } from './platform';
@@ -44,7 +45,7 @@ let seq = 0;
 
 function getWorker(): Worker {
   if (worker) return worker;
-  worker = new Worker('worker.js');
+  worker = new Worker(`worker.js?db=${encodeURIComponent(currentDbName())}`);
   lastSeen = Date.now();
   worker.onmessage = (ev) => {
     lastSeen = Date.now();

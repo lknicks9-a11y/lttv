@@ -9,7 +9,7 @@ import { CLIENT_IDENTITIES } from '../core/xtream';
 import { Button, Icon, Modal } from './common';
 import { day, when } from './fmt';
 import { native } from '../app/platform';
-import { handleSetupSubmission } from './setup';
+import { SetupServerModal } from './PhoneSetup';
 
 function ago(t?: number) {
   if (!t) return 'never';
@@ -62,7 +62,7 @@ export function SourcesScreen() {
         <div class="row gap" data-group="sources-actions">
           <Button variant="primary" icon="add" onClick={() => navigate('wizard')}>Add playlist</Button>
           <Button icon="refresh" disabled={busy} onClick={() => void refreshAll()}>Refresh all</Button>
-          {native && <Button icon="link" onClick={() => setSetupOpen(true)}>Phone/computer setup</Button>}
+          {native && <Button icon="phone" onClick={() => setSetupOpen(true)}>Set up from phone or computer</Button>}
         </div>
       </header>
 
@@ -209,37 +209,3 @@ function AddGuideInline() {
   );
 }
 
-/** Fire TV: run a tiny LAN web page so a phone/computer can send URLs and files. */
-function SetupServerModal({ onClose }: { onClose: () => void }) {
-  const [info, setInfo] = useState<{ url?: string; pin?: string; error?: string } | null>(null);
-  useEffect(() => {
-    try {
-      setInfo(JSON.parse(native!.startSetupServer()));
-    } catch (e) {
-      setInfo({ error: (e as Error).message });
-    }
-    window.lttvHost = window.lttvHost ?? ({} as NonNullable<Window['lttvHost']>);
-    window.lttvHost.onSetupSubmit = (json: string) => void handleSetupSubmission(json);
-    return () => native?.stopSetupServer();
-  }, []);
-  return (
-    <Modal title="Set up from your phone or computer" onClose={onClose}>
-      {!info ? (
-        <p><span class="spinner" /> Starting…</p>
-      ) : info.error ? (
-        <p class="error-text">{info.error}</p>
-      ) : (
-        <div class="setup">
-          <p>On a phone or computer connected to the <b>same Wi-Fi network</b>, open:</p>
-          <p class="setup-url">{info.url}</p>
-          <p>and enter this PIN:</p>
-          <p class="setup-pin">{info.pin}</p>
-          <p class="muted">You can paste playlist and guide URLs or upload M3U/XMLTV files and settings exports. The page stops when you close this window.</p>
-        </div>
-      )}
-      <div class="row gap modal-actions">
-        <Button data-autofocus onClick={onClose}>Done</Button>
-      </div>
-    </Modal>
-  );
-}

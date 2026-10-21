@@ -154,6 +154,7 @@ export function onLiveNotice(l: (n: LiveNotice) => void): () => void {
 /** Pop-ups only while a sports channel / game is playing (not while browsing or watching other things). */
 export function watchingSports(): boolean {
   const s = getState();
+  if (s.multiview?.tiles.some(Boolean)) return true; // Multiview is sports
   if (s.vodPlaying || !s.currentKey || player.currentKey !== s.currentKey) return false;
   const ch = s.lineup.find((c) => c.key === s.currentKey);
   if (!ch) return false;
