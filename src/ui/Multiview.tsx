@@ -2,9 +2,9 @@
 // OK on a tile gives it the sound, OK again (or Menu) opens its options; Back goes full screen on the game with sound.
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { useApp } from '../app/state';
+import { toast, useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
-import { closeMultiview, connectionLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
+import { closeMultiview, connectionLimit, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
@@ -28,6 +28,13 @@ let soundTimer = 0;
 function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile | null; active: boolean; onAdd: () => void; onOptions: () => void }) {
   const ctl = tilePlayer(i);
   const st = useTileStatus(ctl);
+  // Refused a hardware video decoder: learn how many games this TV can play at once.
+  useEffect(() => {
+    if (st.state === 'error' && /video decoder/i.test(st.error ?? '')) {
+      const n = noteDecoderLimit();
+      toast(`This TV can play ${n} game${n === 1 ? '' : 's'} at once in Multiview (it has ${n === 1 ? 'one video decoder' : `${n} video decoders`} free).`, 'info', 9000);
+    }
+  }, [st.state, st.error]);
   // The name shows for a few seconds after the tile changes or is selected, then gets out of the way.
   const [label, setLabel] = useState(true);
   const timer = useRef<number>();
@@ -125,16 +132,27 @@ function LayoutIcon({ n }: { n: MvLayout }) {
 }
 
 function LayoutPicker({ current, onPick, onClose }: { current: MvLayout; onPick: (n: MvLayout) => void; onClose: () => void }) {
+  const [limit, setLimit] = useState(decoderLimit());
   return (
     <Modal title="How many games?" onClose={onClose} class="mv-layouts-modal">
       <div class="mv-layouts" data-group="mv-layouts">
-        {LAYOUTS.map((l) => (
-          <button type="button" class={`f mv-layout ${l.n === current ? 'on' : ''}`} data-autofocus={l.n === current ? '' : undefined} onClick={() => onPick(l.n)}>
-            <LayoutIcon n={l.n} />
-            <span>{l.label}</span>
-          </button>
-        ))}
+        {LAYOUTS.map((l) => {
+          const over = !!limit && l.n > limit;
+          return (
+            <button type="button" class={`f mv-layout ${l.n === current ? 'on' : ''} ${over ? 'mv-layout-over' : ''}`} data-autofocus={l.n === current ? '' : undefined} onClick={() => onPick(l.n)}>
+              <LayoutIcon n={l.n} />
+              <span>{l.label}</span>
+              {over && <small class="muted">More than this TV can play</small>}
+            </button>
+          );
+        })}
       </div>
+      {limit && (
+        <p class="muted mv-limit-note">
+          This TV played up to {limit} game{limit === 1 ? '' : 's'} at once.{' '}
+          <Button small variant="ghost" onClick={() => { resetDecoderLimit(); setLimit(undefined); }}>Test again</Button>
+        </p>
+      )}
     </Modal>
   );
 }

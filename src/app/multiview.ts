@@ -25,12 +25,45 @@ const LAYOUT_KEY = 'lttvMvLayout';
 export function lastLayout(): MvLayout {
   try {
     const n = Number(localStorage.getItem(LAYOUT_KEY));
-    return n === 2 || n === 3 || n === 4 ? n : 2;
+    const lim = decoderLimit();
+    const want = n === 2 || n === 3 || n === 4 ? n : 2;
+    return (lim && lim >= 2 && want > lim ? lim : want) as MvLayout;
   } catch {
     return 2;
   }
 }
 const players: PlayerController[] = [];
+
+// ---- How many games this TV can decode at once (learned the first time a game is refused a decoder) ----
+const LIMIT_KEY = 'lttvMvDecoderLimit';
+export function decoderLimit(): number | undefined {
+  try {
+    const n = Number(localStorage.getItem(LIMIT_KEY));
+    return n >= 1 && n <= 4 ? n : undefined;
+  } catch {
+    return undefined;
+  }
+}
+/** A game was refused a hardware decoder: the games playing right now are this TV's limit. */
+export function noteDecoderLimit(): number {
+  const mv = getState().multiview;
+  const playing = mv ? mv.tiles.filter((t, i) => t && players[i] && players[i].status.state !== 'error' && players[i].status.state !== 'idle').length : 1;
+  const n = Math.max(1, Math.min(playing, decoderLimit() ?? 4));
+  try {
+    localStorage.setItem(LIMIT_KEY, String(n));
+  } catch {
+    /* not remembered */
+  }
+  return n;
+}
+/** Forget the learned limit (e.g. after an app update that frees more decoders). */
+export function resetDecoderLimit() {
+  try {
+    localStorage.removeItem(LIMIT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function tilePlayer(i: number): PlayerController {
   return (players[i] ??= new PlayerController(() => getState().settings, { slot: i }));

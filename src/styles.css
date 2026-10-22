@@ -1268,3 +1268,6 @@ small, .small { font-size: 1.15rem; }
 
 /* Multiview open: the screens behind it aren't laid out or painted at all (less work for the TV while 2–4 games play). */
 .app.mv-open .shell { content-visibility: hidden; }
+.mv-layout-over { opacity: 0.55; }
+.mv-layout small { font-size: 0.9rem; font-weight: 400; }
+.mv-limit-note { text-align: center; margin-top: 0.4rem; }
