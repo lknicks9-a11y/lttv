@@ -34,6 +34,10 @@ class TimeshiftRecorder(
     override fun run() {
         var failures = 0
         val chunk = ByteArray(64 * 1024)
+        val out = ByteArray(chunk.size + TsOverlapFilter.PACKET)
+        // A reconnect makes the server send its last seconds again: skip them so the recording doesn't repeat.
+        val filter = TsOverlapFilter()
+        var connected = false
         while (!stopped) {
             try {
                 val c = Net.open(url, headers, timeoutMs)
@@ -43,11 +47,14 @@ class TimeshiftRecorder(
                     c.disconnect()
                     throw StreamHttpException(code)
                 }
+                if (connected) filter.reconnected()
+                connected = true
                 c.inputStream.use { input ->
                     while (!stopped) {
                         val n = input.read(chunk)
                         if (n < 0) break
-                        buffer.append(chunk, 0, n)
+                        val k = filter.process(chunk, 0, n, out)
+                        if (k > 0) buffer.append(out, 0, k)
                         failures = 0
                     }
                 }

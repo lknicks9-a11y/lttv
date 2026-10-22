@@ -164,6 +164,10 @@ class PlayerController(
     }
 
     private var playingHls = false
+    /** Where the live channel's clock was, so a restart of the same channel doesn't repeat the last seconds. */
+    private var tsFilter: TsOverlapFilter? = null
+    private var tsFilterUrl: String? = null
+    private var tsFilterAt = 0L
     private var tileMaxW = 1280
     private var tileMaxH = 720
 
@@ -407,6 +411,7 @@ class PlayerController(
     fun play(url: String, headers: Map<String, String>, vod: Boolean = false, startMs: Long = 0L) {
         main.post {
             val gen = ++generation
+            val currentUrlBefore = currentUrl ?: tsFilterUrl
             currentUrl = url
             this.vod = vod
             this.startMs = startMs
@@ -417,11 +422,14 @@ class PlayerController(
             lastError = ""
             liveLagMs = -1L
             hlsGapMs = -1L
+            if (currentUrlBefore != null) tsFilterAt = System.currentTimeMillis()
             // Close the previous stream first: many providers allow only one connection.
             exo?.stop()
             stopTimeshift()
             send("loading")
-            val known = inferMime(url)
+            // (A type learned from the same server earlier saves opening an extra connection to check it:
+            // with a 4-connection plan, that extra one could make the provider drop another game.)
+            val known = inferMime(url) ?: probeCache[probeKey(url)]
             if (known != null || url.startsWith("asset:") || url.startsWith("file:")) {
                 start(url, headers, known)
             } else {
@@ -457,7 +465,21 @@ class PlayerController(
             return
         }
         playingHls = mime == MimeTypes.APPLICATION_M3U8
-        val source = if (mime == MimeTypes.APPLICATION_M3U8) {
+        val liveTs = !vod && mime == MimeTypes.VIDEO_MP2T && (url.startsWith("http://") || url.startsWith("https://"))
+        val source = if (liveTs) {
+            // Live channel: reconnects by itself and skips what the server repeats (no jumping back).
+            // The same channel started again (a retry) keeps its place too.
+            val filter = if (url == tsFilterUrl && tsFilter != null && System.currentTimeMillis() - tsFilterAt < 120_000) tsFilter!! else TsOverlapFilter()
+            tsFilter = filter
+            tsFilterUrl = url
+            val extractors = DefaultExtractorsFactory()
+                .setTsExtractorFlags(tsFlags)
+                .setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 3)
+            // A live channel that sends nothing for 6 s has stalled: reconnect then, before the picture runs dry.
+            http.setReadTimeoutMs(minOf(timeoutSec * 1000, 6000))
+            ProgressiveMediaSource.Factory(LiveTsDataSource.Factory(http, filter, maxOf(20_000L, timeoutSec * 1000L)), extractors)
+                .createMediaSource(item)
+        } else if (mime == MimeTypes.APPLICATION_M3U8) {
             HlsMediaSource.Factory(dataSource)
                 .setExtractorFactory(DefaultHlsExtractorFactory(tsFlags, true))
                 .setAllowChunklessPreparation(true)
@@ -687,8 +709,14 @@ class PlayerController(
             }
         }
 
+        private val probeCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+        /** Channels from one provider share a type: server + folder of the address. */
+        private fun probeKey(url: String) = url.substringBefore('?').substringBeforeLast('/')
+
         /** Read the first bytes of a stream to decide its type; null = let ExoPlayer detect it. */
-        fun probe(url: String, headers: Map<String, String>): String? = try {
+        fun probe(url: String, headers: Map<String, String>): String? = probeOnce(url, headers)?.also { probeCache[probeKey(url)] = it }
+
+        private fun probeOnce(url: String, headers: Map<String, String>): String? = try {
             val c = Net.open(url, headers + mapOf("Range" to "bytes=0-1023"), 10000)
             try {
                 val buf = ByteArray(1024)
