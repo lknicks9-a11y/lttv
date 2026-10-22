@@ -1,6 +1,6 @@
 import { WatchmodeSettings } from './WatchmodeSettings';
-import { AccountsSection } from './Accounts';
-import { SetupServerModal } from './PhoneSetup';
+
+
 import { h, Fragment } from 'preact';
 import { currentBuild, versionOf } from '../app/updates';
 import { UpdateCenter } from './UpdateCenter';
@@ -29,7 +29,7 @@ export function SettingsScreen() {
   const set = (p: Partial<Settings>) => void updateSettings(p);
   const [diag, setDiag] = useState<string>('');
   const [confirmReset, setConfirmReset] = useState(false);
-  const [phoneSetup, setPhoneSetup] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,7 +77,6 @@ export function SettingsScreen() {
 
   return (
     <section class="screen settings">
-      {phoneSetup && <SetupServerModal onClose={() => setPhoneSetup(false)} />}
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
         <UpdateCenter />
@@ -86,8 +85,6 @@ export function SettingsScreen() {
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
           <Choice label="Theme" value={s.theme} options={[{ value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'autosix', label: 'AutoSix (neon Miami sunset)' }, { value: 'autumn', label: 'Autumn (fall road photo)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }]} onChange={(v) => set({ theme: v })} />
         </div>
-
-        <AccountsSection onPhoneSetup={() => setPhoneSetup(true)} />
 
         <WatchmodeSettings />
 

@@ -21,10 +21,9 @@ import { ProgrammeDetail } from './Detail';
 import { SportsScreen, ReminderPrompt } from './Sports';
 import { VodScreen, VodPlayer, useVodNav } from './Vod';
 import { MultiviewScreen } from './Multiview';
-import { Avatar, WhoIsWatching } from './Accounts';
 import { SignInScreen } from './SignIn';
 import { OnboardingScreen } from './Onboarding';
-import { currentAccount, listAccounts, needsAccountPick } from '../app/accounts';
+
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'home', label: 'Live TV', icon: 'guide' },
@@ -63,12 +62,6 @@ function Sidebar() {
           </button>
         ))}
       </div>
-      {listAccounts().length > 1 && (
-        <button type="button" class="f nav-item account-chip" onClick={() => setState({ accountPicker: true })} aria-label={`Account: ${currentAccount().name}. Switch account`}>
-          <Avatar acc={currentAccount()} size="1.9rem" />
-          <span class="nav-label">{currentAccount().name}</span>
-        </button>
-      )}
       <div class="sidebar-clock">{clock(now)}</div>
     </nav>
   );
@@ -202,13 +195,9 @@ export function App() {
   const ready = useApp((s) => s.ready);
   const vodPlaying = useApp((s) => !!s.vodPlaying);
   const multiview = useApp((s) => !!s.multiview);
-  const picker = useApp((s) => !!s.accountPicker);
   const signIn = useApp((s) => !!s.signIn);
   const onboarding = useApp((s) => !!s.onboarding);
-  const covered = fullscreen || vodPlaying || multiview || picker || signIn || onboarding;
-  useLayoutEffect(() => {
-    if (!onboarding && needsAccountPick()) setState({ accountPicker: true });
-  }, [onboarding]);
+  const covered = fullscreen || vodPlaying || multiview || signIn || onboarding;
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -251,8 +240,8 @@ export function App() {
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
-      {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn ? <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div> : picker && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ accountPicker: false })} /></div>}
-      {onboarding || picker || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
+      {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn && <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div>}
+      {onboarding || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}
