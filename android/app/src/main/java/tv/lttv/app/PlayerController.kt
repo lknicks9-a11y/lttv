@@ -20,6 +20,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -195,8 +196,16 @@ class PlayerController(
             .setBufferDurationsMs(minMs, maxMs, 2500, 6000.coerceAtMost(minMs))
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
-        // Fall back to another decoder (e.g. software) when the preferred one can't start.
-        val renderers = DefaultRenderersFactory(activity).setEnableDecoderFallback(true)
+        // Main player: fall back to another decoder (e.g. software) when the preferred one can't start.
+        // Multiview tiles: hardware video decoders only. When the TV ran out of hardware decoders, a tile
+        // quietly fell back to software decoding on the TV's small CPU, and every game (and the remote) lagged.
+        val renderers = DefaultRenderersFactory(activity).setEnableDecoderFallback(audioFocus)
+        if (!audioFocus) {
+            renderers.setMediaCodecSelector { mime, secure, tunneling ->
+                val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
+                if (MimeTypes.isVideo(mime)) all.filter { !it.softwareOnly } else all
+            }
+        }
         val p = ExoPlayer.Builder(activity, renderers)
             .setLoadControl(loadControl)
             .build()
@@ -205,6 +214,8 @@ class PlayerController(
             /* handleAudioFocus = */ audioFocus,
         )
         p.volume = volume
+        // Multiview tiles never ask the TV to switch its refresh rate (several games asking for 30 / 60 Hz judders).
+        if (!audioFocus) p.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
         p.repeatMode = Player.REPEAT_MODE_ONE // VOD-style test streams loop; live streams never end
         p.addListener(listener)
         view.player = p
@@ -286,8 +297,12 @@ class PlayerController(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> "This stream format is not supported." to true
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES -> "This device can't decode this channel's video/audio format." to true
-            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "The video decoder could not start. Try again or restart the device." to false
-            else -> "Playback failed (${e.errorCodeName})." to false
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FAILED ->
+                if (!audioFocus) "Your TV has no free video decoder for another game — remove a game or choose fewer games." to true
+                else "The video decoder could not start. Try again or restart the device." to false
+            else -> if (!audioFocus && e.errorCodeName.contains("RECLAIMED")) "Your TV needed this game's video decoder for another one — choose fewer games." to true
+                else "Playback failed (${e.errorCodeName})." to false
         }
     }
 

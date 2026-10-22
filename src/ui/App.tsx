@@ -243,7 +243,7 @@ export function App() {
   }, []);
 
   return (
-    <div class={`app ${covered ? 'is-fullscreen' : ''} ${isNative ? 'native' : ''}`}>
+    <div class={`app ${covered ? 'is-fullscreen' : ''} ${multiview ? 'mv-open' : ''} ${isNative ? 'native' : ''}`}>
       <div class="backdrop" />
       <div class="shell" aria-hidden={covered ? 'true' : undefined} data-nav-skip={covered ? '' : undefined}>
         <Sidebar />

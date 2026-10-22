@@ -1265,3 +1265,6 @@ small, .small { font-size: 1.15rem; }
 .uc-notes { margin: 0.4rem 0 0.8rem; }
 .uc-notes ul { margin: 0.4rem 0 0; padding-left: 1.3rem; color: var(--text-2); }
 .uc-notes li { margin: 0.25rem 0; }
+
+/* Multiview open: the screens behind it aren't laid out or painted at all (less work for the TV while 2–4 games play). */
+.app.mv-open .shell { content-visibility: hidden; }
