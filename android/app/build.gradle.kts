@@ -21,8 +21,8 @@ android {
         targetSdk = 34
         // Every GitHub build gets a higher number, so a new APK installs over the old one.
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        // Version numbers count from 1.0.0 = build 32 (numbering restarted); each pushed build adds 1.
-        versionName = "1.0.${((System.getenv("GITHUB_RUN_NUMBER") ?: "32").toInt() - 32).coerceAtLeast(0)}"
+        // Version numbers count from 1.0.0 = build 33 (numbering restarted); each pushed build adds 1.
+        versionName = "1.0.${((System.getenv("GITHUB_RUN_NUMBER") ?: "33").toInt() - 33).coerceAtLeast(0)}"
     }
 
     signingConfigs {

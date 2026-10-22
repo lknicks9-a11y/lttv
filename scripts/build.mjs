@@ -83,6 +83,8 @@ const appCtx = await esbuild.context({
   jsxFragment: 'Fragment',
   inject: [join(root, 'src/jsx-shim.ts')],
   loader: { '.svg': 'file' },
+  // Background photos are copied from public/ and loaded at runtime.
+  external: ['/bg/*'],
 });
 const workerCtx = await esbuild.context({
   ...common,

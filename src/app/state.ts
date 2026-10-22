@@ -458,7 +458,7 @@ export async function updateSettings(patch: Partial<Settings>) {
   if ('sortMode' in patch || 'myTvPins' in patch) refreshLineupLocal();
   else if ('preferEnglish' in patch) await loadGuide();
   else if ('liveEventNames' in patch || 'providerGuide' in patch || 'timeZone' in patch) refreshExtras();
-  if ('accent' in patch || 'theme' in patch) applyTheme(settings);
+  if ('accent' in patch || 'theme' in patch || 'background' in patch) applyTheme(settings);
   if ('hqLogos' in patch) setHqLogos(settings.hqLogos !== false);
   if ('fuzzyAutoApprove' in patch) await rematchAndReload();
 }
@@ -473,9 +473,10 @@ export function applyTheme(s: Settings) {
   root.style.setProperty('--accent-soft', t.soft);
   root.style.setProperty('--accent-ink', t.ink);
   root.dataset.theme = s.theme;
+  root.dataset.bg = s.background ?? 'autumn';
   // Remembered for the next start, so the app opens in your theme instead of flashing the default one.
   try {
-    localStorage.setItem(accountKey('lttvTheme'), JSON.stringify({ theme: s.theme, accent: t.accent, accent2: root.style.getPropertyValue('--accent-2'), soft: t.soft, ink: t.ink }));
+    localStorage.setItem(accountKey('lttvTheme'), JSON.stringify({ theme: s.theme, bg: root.dataset.bg, accent: t.accent, accent2: root.style.getPropertyValue('--accent-2'), soft: t.soft, ink: t.ink }));
   } catch {
     /* not remembered */
   }
@@ -484,9 +485,10 @@ export function applyTheme(s: Settings) {
 /** Apply the last theme right away at startup (before settings are read). */
 export function applySavedTheme() {
   try {
-    const v = JSON.parse(localStorage.getItem(accountKey('lttvTheme')) || 'null') as { theme: string; accent: string; accent2: string; soft: string; ink: string } | null;
-    if (!v) return;
+    const v = JSON.parse(localStorage.getItem(accountKey('lttvTheme')) || 'null') as { theme: string; bg?: string; accent: string; accent2: string; soft: string; ink: string } | null;
     const root = document.documentElement;
+    root.dataset.bg = v?.bg ?? 'autumn';
+    if (!v) return;
     root.dataset.theme = v.theme;
     root.style.setProperty('--accent', v.accent);
     if (v.accent2) root.style.setProperty('--accent-2', v.accent2);

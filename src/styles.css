@@ -1217,3 +1217,21 @@ small, .small { font-size: 1.15rem; }
     linear-gradient(-124deg, transparent 63.2%, rgba(255, 199, 44, 0.14) 63.2% 64.8%, transparent 64.8%),
     #081631;
 }
+
+/* ---------- Background photo (Settings → Colors → Background), behind every theme ---------- */
+/* Darkened toward the sidebar and the top so text stays readable over the bright leaves. */
+:root[data-bg='autumn'] .backdrop {
+  background:
+    linear-gradient(90deg, rgba(4, 3, 2, 0.82) 0%, rgba(4, 3, 2, 0.62) 38%, rgba(4, 3, 2, 0.42) 100%),
+    linear-gradient(180deg, rgba(4, 3, 2, 0.35) 0%, transparent 35%, rgba(4, 3, 2, 0.55) 100%),
+    url('/bg/autumn.jpg') center / cover no-repeat,
+    #140c05 !important;
+  animation: none !important;
+}
+:root.tv[data-bg='autumn'] .backdrop {
+  background:
+    linear-gradient(90deg, rgba(4, 3, 2, 0.82) 0%, rgba(4, 3, 2, 0.6) 40%, rgba(4, 3, 2, 0.45) 100%),
+    url('/bg/autumn-tv.jpg') center / cover no-repeat,
+    #140c05 !important;
+}
+:root[data-bg='autumn'] .backdrop::before, :root[data-bg='autumn'] .backdrop::after { display: none !important; }

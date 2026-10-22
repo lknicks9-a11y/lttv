@@ -223,6 +223,8 @@ export interface Settings {
   preferEnglish: boolean;
   /** Subtitles / captions on movies and shows that have them. */
   captions?: boolean;
+  /** Background picture behind every screen ('theme' = the theme's own background). */
+  background?: 'autumn' | 'theme';
   /** Streams you chose for My TV numbers (they win over the automatic pick, and follow you to other providers by name / call sign). */
   myTvPins: MyTvPin[];
 }
@@ -277,6 +279,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hqLogos: true,
   rewindMin: 30,
   preferEnglish: true,
+  background: 'autumn',
   myTvPins: [
     { n: 2, name: 'A3 NEW YORK 02 WCBS CBS NEW YORK ᶜᶦᵗʸ RAW', call: 'WCBS', streamId: '2353' },
     { n: 4, name: 'A3 NEW YORK 04 WNBC NBC NEW YORK ᶜᶦᵗʸ RAW', call: 'WNBC', streamId: '2354' },
