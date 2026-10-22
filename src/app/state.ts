@@ -476,9 +476,9 @@ export function applyTheme(s: Settings) {
   const root = document.documentElement;
   // Luxury always uses its champagne gold; other themes use the chosen accent.
   // Luxury and A7 have their own fixed accents (champagne gold; flame orange with nebula pink).
-  const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.theme === 'a7' ? '#ff7a33' : s.theme === 'autumn' ? '#ff8a1e' : s.accent);
+  const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.theme === 'a7' ? '#ff7a33' : s.theme === 'autumn' ? '#ff8a1e' : s.theme === 'autosix' ? '#ff3d8b' : s.accent);
   root.style.setProperty('--accent', t.accent);
-  root.style.setProperty('--accent-2', s.theme === 'luxury' ? '#e9d3a2' : s.theme === 'a7' ? '#ff4f9a' : s.theme === 'autumn' ? '#ffc24a' : t.accent2);
+  root.style.setProperty('--accent-2', s.theme === 'luxury' ? '#e9d3a2' : s.theme === 'a7' ? '#ff4f9a' : s.theme === 'autumn' ? '#ffc24a' : s.theme === 'autosix' ? '#19e3e3' : t.accent2);
   root.style.setProperty('--accent-soft', t.soft);
   root.style.setProperty('--accent-ink', t.ink);
   root.dataset.theme = s.theme;

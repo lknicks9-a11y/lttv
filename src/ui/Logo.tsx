@@ -13,6 +13,7 @@ export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?:
       <OwlMark size={size} class={cls} />
       <A7Mark size={size} class={cls} />
       <AutumnMark size={size} class={cls} />
+      <AutoSixMark size={size} class={cls} />
     </>
   );
 }
@@ -194,6 +195,46 @@ export function AutumnMark({ size = '3rem', class: cls }: { size?: string; class
       <rect x="5" y="10" width="54" height="39" rx="11" fill="none" stroke={`url(#${id('rim')})`} stroke-width="1.8" />
       {/* falling leaf */}
       <path class="logo-dot" d="M53 41c2.6-.2 4.2 1.4 4.4 4-2.6.2-4.2-1.4-4.4-4Zm.4.4 3.6 3.6" fill="#ffc24a" stroke="#c2410c" stroke-width=".5" />
+      <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('rim')})`} stroke-width="1.9" stroke-linecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * AutoSix theme mark: a TV whose screen is a neon sunset over the sea — a striped sun, a palm
+ * silhouette and a teal horizon line — with hot-pink and teal antennas.
+ */
+export function AutoSixMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+  const n = ++gid;
+  const id = (k: string) => `lttv-as${k}${n}`;
+  return (
+    <svg class={'logo-mark logo-autosix ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <defs>
+        <linearGradient id={id('sky')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#2a0b4f" /><stop offset=".55" stop-color="#c2257f" /><stop offset="1" stop-color="#ff8a5c" />
+        </linearGradient>
+        <linearGradient id={id('sun')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffe66b" /><stop offset="1" stop-color="#ff3d8b" />
+        </linearGradient>
+        <linearGradient id={id('rim')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff3d8b" /><stop offset="1" stop-color="#19e3e3" />
+        </linearGradient>
+        <clipPath id={id('clip')}><rect x="5" y="10" width="54" height="39" rx="11" /></clipPath>
+      </defs>
+      <path d="M26 10 20 3M38 10 44 3" stroke={`url(#${id('rim')})`} stroke-width="1.9" stroke-linecap="round" />
+      <circle cx="20" cy="3" r="1.7" fill="#ff3d8b" /><circle cx="44" cy="3" r="1.7" fill="#19e3e3" />
+      <rect x="5" y="10" width="54" height="39" rx="11" fill={`url(#${id('sky')})`} />
+      <g clip-path={`url(#${id('clip')})`}>
+        <circle cx="36" cy="37" r="11" fill={`url(#${id('sun')})`} />
+        <path d="M24 33h24M24 36h24M24 39h24" stroke="#c2257f" stroke-width="1.1" />
+        <rect x="5" y="38" width="54" height="11" fill="#0b6f8c" />
+        <path d="M5 38h54" stroke="#7ff9ff" stroke-width=".9" />
+        <path d="M31 41h10M32.5 43.5h7M34 46h4" stroke="#ffb070" stroke-width="1" stroke-linecap="round" opacity=".8" />
+        {/* palm */}
+        <path d="M15.5 49c.6-7 1.8-12.5 4.5-17.5l1 .4c-2.4 5-3.4 10.4-3.8 17.1Z" fill="#14061f" />
+        <path d="M20.5 31.5c-3-2.6-7-2.8-10-1 3.4-.2 6.4.6 10 1.6Zm0 0c-1-3.6-4-5.8-7.6-6 2.8 1.4 5 3.4 7.6 6Zm0 0c1.4-3.4 4.6-5 8-4.6-3 .8-5.6 2.4-8 4.6Zm0 0c3.6-1 7.2.4 9.2 3.2-2.8-1.4-6-2.2-9.2-3.2Zm0 0c-2.6.4-5 2.6-5.8 5.6 1.6-2.4 3.6-4.2 5.8-5.6Z" fill="#14061f" stroke="#14061f" stroke-width="1.2" stroke-linejoin="round" />
+      </g>
+      <rect x="5" y="10" width="54" height="39" rx="11" fill="none" stroke={`url(#${id('rim')})`} stroke-width="1.8" />
       <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('rim')})`} stroke-width="1.9" stroke-linecap="round" />
     </svg>
   );

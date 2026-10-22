@@ -1279,3 +1279,65 @@ small, .small { font-size: 1.15rem; }
 .vod-ep-fallback { position: relative; overflow: hidden; display: grid; place-items: center; background: var(--panel-3); }
 .vod-ep-fallback img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: brightness(0.55); }
 .vod-ep-fallback b { position: relative; font-size: 1.8rem; text-shadow: 0 0.1rem 0.4rem rgba(0, 0, 0, 0.8); }
+
+/* ---------- AutoSix theme: neon Miami sunset — hot pink, teal and sunset orange over a palm-lined sea ---------- */
+.logo-autosix { display: none; }
+[data-theme='autosix'] .logo-autosix { display: inline-block; }
+[data-theme='autosix'] .logo-aero, [data-theme='autosix'] .logo-owl, [data-theme='autosix'] .logo-a7, [data-theme='autosix'] .logo-autumn { display: none; }
+:root[data-theme='autosix'] {
+  --bg: #0d0620; --bg-2: #160a2e; --panel: rgba(22, 10, 42, 0.84); --panel-2: rgba(36, 16, 62, 0.9); --panel-3: rgba(58, 24, 88, 0.95);
+  --line: rgba(255, 61, 139, 0.28); --text: #fff4fb; --text-2: #f6d6ea; --muted: #c4a3c9;
+  --ok: #19e3e3; --warn: #ffd166; --danger: #ff4f6a; --radius: 0.9rem;
+  --as-pink: #ff3d8b; --as-teal: #19e3e3; --as-sun: #ff9f4a;
+  --as-neon: linear-gradient(100deg, #ff3d8b 0%, #ff8a5c 50%, #ffd166 100%);
+  --as-sea: linear-gradient(90deg, #ff3d8b, #b45cff, #19e3e3);
+  --focus: 0 0 0 0.16rem #fff4fb, 0 0 0 0.42rem var(--as-pink), 0 0 1.3rem 0.35rem rgba(25, 227, 227, 0.5);
+  --sidebar-open: rgba(13, 6, 32, 0.97);
+  --glow: rgba(255, 61, 139, 0.8);
+}
+/* The sunset, darkened toward the sidebar and the bottom so text stays readable. */
+[data-theme='autosix'] .backdrop {
+  background:
+    linear-gradient(90deg, rgba(8, 3, 20, 0.84) 0%, rgba(8, 3, 20, 0.6) 38%, rgba(8, 3, 20, 0.3) 100%),
+    linear-gradient(180deg, rgba(8, 3, 20, 0.25) 0%, transparent 40%, rgba(8, 3, 20, 0.55) 100%),
+    url('/bg/autosix.jpg') center / cover no-repeat,
+    #0d0620;
+}
+:root.tv[data-theme='autosix'] .backdrop {
+  background:
+    linear-gradient(90deg, rgba(8, 3, 20, 0.84) 0%, rgba(8, 3, 20, 0.58) 40%, rgba(8, 3, 20, 0.35) 100%),
+    url('/bg/autosix-tv.jpg') center / cover no-repeat,
+    #0d0620;
+}
+[data-theme='autosix'] .wordmark { font-style: italic; letter-spacing: 0.06em; }
+[data-theme='autosix'] .wordmark-tv { background: var(--as-neon); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-theme='autosix'] h1 { text-shadow: 0 0 0.9rem rgba(255, 61, 139, 0.55); }
+[data-theme='autosix'] .sidebar { background: linear-gradient(180deg, rgba(20, 8, 40, 0.92), rgba(10, 4, 24, 0.95)); border-right: 1px solid var(--line); }
+[data-theme='autosix'] .nav-item { color: var(--muted); }
+[data-theme='autosix'] .nav-item.active { color: var(--text); background: linear-gradient(90deg, rgba(255, 61, 139, 0.24), rgba(25, 227, 227, 0.06)); box-shadow: inset 0.22rem 0 0 var(--as-pink); }
+[data-theme='autosix'] .nav-item.active .icon { color: var(--as-teal); }
+[data-theme='autosix'] .card, [data-theme='autosix'] .guide-grid, [data-theme='autosix'] .league-card, [data-theme='autosix'] .game-row,
+[data-theme='autosix'] .fx-row, [data-theme='autosix'] .toast, [data-theme='autosix'] .team-option, [data-theme='autosix'] .stream-pick-main, [data-theme='autosix'] .feed-option {
+  background-color: var(--panel); border-color: var(--line);
+}
+[data-theme='autosix'] .modal { background-color: rgba(18, 8, 36, 0.97); border-color: var(--line); }
+[data-theme='autosix'] .btn { background: rgba(36, 16, 62, 0.85); border-color: var(--line); }
+[data-theme='autosix'] .btn-primary, [data-theme='autosix'] .chip.chip-active, [data-theme='autosix'] .badge-live, [data-theme='autosix'] .live-pill.on { background: var(--as-neon); color: #2a0618; border-color: transparent; font-weight: 700; }
+[data-theme='autosix'] .btn:focus, [data-theme='autosix'] .chip:focus { border-color: var(--as-teal); }
+[data-theme='autosix'] .chip { background: rgba(24, 10, 44, 0.85); border-color: var(--line); }
+[data-theme='autosix'] .progress-fill, [data-theme='autosix'] .livebar-fill, [data-theme='autosix'] .fx-progress > div, [data-theme='autosix'] .vod-progress > div, [data-theme='autosix'] .vod-ep-bar > span { background: var(--as-sea); }
+[data-theme='autosix'] .prog { background: rgba(20, 9, 38, 0.88); border: 1px solid rgba(255, 61, 139, 0.12); }
+[data-theme='autosix'] .prog.airing { background: linear-gradient(90deg, rgba(255, 61, 139, 0.22), rgba(25, 227, 227, 0.10)); border-color: rgba(255, 61, 139, 0.5); }
+[data-theme='autosix'] .guide-ch { background: rgba(16, 7, 32, 0.92); }
+[data-theme='autosix'] .input { background: rgba(12, 5, 26, 0.9); border-color: var(--line); }
+[data-theme='autosix'] .osd { background: linear-gradient(to top, rgba(10, 4, 24, 0.95) 0%, rgba(10, 4, 24, 0.7) 55%, transparent 100%); }
+[data-theme='autosix'] .player-panel { background: rgba(12, 5, 26, 0.96); border-left: 1px solid var(--line); }
+[data-theme='autosix'] .live-notice { background: rgba(12, 5, 26, 0.95); border-color: var(--line); border-left: 0.35rem solid var(--as-pink); }
+[data-theme='autosix'] .vod-card:focus .vod-poster, [data-theme='autosix'] .vod-card:hover .vod-poster { box-shadow: 0 0 0 0.2rem var(--as-pink), 0 0 1.2rem 0.2rem rgba(25, 227, 227, 0.45); }
+[data-theme='autosix'] .vod-hero-kicker, [data-theme='autosix'] .vod-quality { color: var(--as-teal); }
+[data-theme='autosix'] .vod-poster-fallback { background: linear-gradient(180deg, #3a0d5c, #c2257f 60%, #0b6f8c); }
+:root[data-theme='autosix'] .sports .league-card:focus { background-image: linear-gradient(160deg, rgba(255, 61, 139, 0.28), rgba(25, 227, 227, 0.12)) !important; }
+/* TVs: flat panels, no glows (cheap to repaint on a Fire TV). */
+:root.tv[data-theme='autosix'] { --panel: #180a2e; --panel-2: #24103e; --panel-3: #3a1858; --focus: 0 0 0 0.16rem #fff4fb, 0 0 0 0.42rem #ff3d8b; }
+:root.tv[data-theme='autosix'] h1 { text-shadow: none; }
+:root.tv[data-theme='autosix'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #ff3d8b; }
