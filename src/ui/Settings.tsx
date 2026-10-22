@@ -1,3 +1,4 @@
+import { WatchmodeSettings } from './WatchmodeSettings';
 import { AccountsSection } from './Accounts';
 import { SetupServerModal } from './PhoneSetup';
 import { h, Fragment } from 'preact';
@@ -87,6 +88,8 @@ export function SettingsScreen() {
         </div>
 
         <AccountsSection onPhoneSetup={() => setPhoneSetup(true)} />
+
+        <WatchmodeSettings />
 
         <div class="card settings-section" data-group="set-display">
           <h3>Display</h3>

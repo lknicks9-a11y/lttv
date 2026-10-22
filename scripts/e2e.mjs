@@ -256,6 +256,21 @@ function fixtureServer() {
         resp.writeHead(200, { 'content-type': 'application/json' });
         return resp.end('[]');
       }
+      if (u.pathname.startsWith('/watchmode/')) {
+        // Watchmode (the user's own key): US, English lists.
+        if (req.headers['x-api-key'] !== 'wm-test') { resp.writeHead(401, { 'content-type': 'application/json' }); return resp.end(JSON.stringify({ success: false, statusMessage: 'Invalid API key' })); }
+        const p2 = u.pathname.replace('/watchmode', '');
+        let body;
+        if (p2.startsWith('/genres')) body = [{ id: 1, name: 'Action' }, { id: 4, name: 'Comedy' }];
+        else if (p2.startsWith('/sources')) body = [{ id: 203, name: 'Netflix' }, { id: 157, name: 'Hulu' }];
+        else if (p2.startsWith('/list-titles')) {
+          const all = [{ title: 'Galaxy Quest Redux', year: 2024 }, { title: 'Night Run', year: 2021 }, { title: 'Not On Your Provider', year: 2023 }, { title: 'Harbor Lights', year: 2019 }, { title: 'Laugh Track' }];
+          const q = u.searchParams;
+          body = { titles: q.get('genres') ? all.slice(1, 3) : q.get('source_ids') === '203' ? [...all].reverse() : q.get('source_ids') ? [] : all, page: 1, total_pages: 1 };
+        } else body = {};
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify(body));
+      }
       if (u.pathname.startsWith('/itunes/us/rss/')) {
         // Apple's US charts: overall, and the Action genre chart.
         const names = /genre=4401/.test(u.pathname) ? ['Night Run', 'Harbor Lights'] : /topmovies/.test(u.pathname) && !/genre=/.test(u.pathname) ? ['Galaxy Quest Redux', 'Not On Your Provider', 'Night Run'] : [];
@@ -1086,6 +1101,18 @@ try {
   check('Continuing a show opens its page with the last-watched episode selected (no auto-play)', !!sel && sel.id === '7702' && !sel.player, JSON.stringify(sel));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
+  // Watchmode key (Settings → Movies & Shows): Hulu-style rows from Watchmode's US English lists.
+  await page.evaluate(async (b) => { localStorage.setItem('lttvWatchmodeBase', b + '/watchmode'); }, fxBase);
+  await gotoNav('Settings');
+  await page.fill('[data-group="set-watchmode"] input', 'wm-test');
+  await page.evaluate(() => [...document.querySelectorAll('[data-group="set-watchmode"] button')].find((x) => /Save/.test(x.textContent))?.click());
+  const wmMsg = await waitFor(() => page.evaluate(() => document.querySelector('[data-group="set-watchmode"] .ok-text, [data-group="set-watchmode"] .error-text')?.textContent ?? null), 8000);
+  check('Movies & Shows: a Watchmode key is tested and saved', /Key works/.test(wmMsg ?? ''), String(wmMsg));
+  await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
+  const wmRows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.includes('Popular Movies') && !document.querySelector('.vod-loading') ? { t, popular: [...[...document.querySelectorAll('.vod-row')].find((r) => /Popular Movies/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelectorAll('.vod-name') ?? []].map((x) => x.textContent) } : null; }), 15000);
+  check('Movies with Watchmode: Popular Movies and Popular on Netflix from Watchmode, only titles your provider has; thin rows left out', !!wmRows && wmRows.t.includes('Popular on Netflix') && !wmRows.t.includes('Action & Adventure') && !wmRows.t.includes('Popular on Hulu') && wmRows.popular[0] === 'Galaxy Quest Redux (2024)' && !wmRows.popular.some((n) => /Not On Your Provider/.test(n)) && wmRows.popular.length === 4, JSON.stringify(wmRows));
+  await shot('41-movies-watchmode');
+  await page.evaluate(() => window.__lttv.updateSettings({ watchmodeKey: undefined }));
   // Progress saved on a provider you've since replaced still continues on your provider now (matched by title).
   await page.evaluate(async () => {
     await window.__lttv.saveProgress({ key: 'm:old-provider:999', title: 'Night Run', subtitle: '2021', pos: 1800, dur: 6000, url: 'http://old.example/movie/999.mp4', playlistId: 'old-provider' });

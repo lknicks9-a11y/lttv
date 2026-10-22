@@ -12,6 +12,7 @@ import { openRemote } from './platform';
 import { continueList, type ResumeEntry, type SeriesRef, type VodGenre } from '../core/vod';
 export { continueList, type ResumeEntry, type SeriesRef };
 import { getState, repo, setState, subscribe } from './state';
+import { watchmodeKey, watchmodeRows, type WmRow, type WmTitle } from './watchmode';
 import type { PlaylistSource } from '../core/types';
 
 export interface VodSource {
@@ -172,6 +173,11 @@ export async function detectVod(): Promise<void> {
 }
 
 /** Forget cached lists (after playlists change). */
+/** Rebuild the Movies / Shows home pages next time (e.g. a Watchmode key was added). */
+export function resetVodHome() {
+  homeCache.clear();
+}
+
 export function resetVod() {
   mem.clear();
   m3uCache.clear();
@@ -470,6 +476,13 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
   const cats = await loadCategories(kind);
   const english = cats.filter((c) => isEnglishCategory(c.name));
   const otherLanguages = cats.filter((c) => !isEnglishCategory(c.name));
+  if (watchmodeKey()) {
+    try {
+      return await loadWatchmodeHome(kind, english, onUpdate);
+    } catch (e) {
+      console.warn('Watchmode rows unavailable, using charts:', (e as Error).message);
+    }
+  }
   // Which categories feed which row; trending and genre lists first, then the rest (for Recently added / Top rated).
   const trendingCats = english.filter((c) => isTrendingCategory(c.name));
   const genreCats = english.filter((c) => !isTrendingCategory(c.name) && genreOf(c.name));
@@ -556,6 +569,46 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
   onUpdate(build(true));
   await Promise.all([worker(), worker(), worker()]);
   const done = build(false);
+  homeCache.set(kind, done);
+  onUpdate(done);
+  return done;
+}
+
+/**
+ * Home rows from Watchmode (Settings → Movies & Shows key): US, English-language lists — Popular, New,
+ * Popular on Netflix / Hulu / Max…, then genres — showing the titles your provider has (best copy:
+ * English, 1080p first). Rows with fewer than 4 of your titles are left out.
+ */
+async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h: VodHome) => void): Promise<VodHome> {
+  const lib: VodItem[] = kind === 'movies'
+    ? (await loadAllMovies()).map((m): VodItem => ({ kind: 'movie', playlistId: m.playlistId, m }))
+    : (await loadAllSeries()).map((x): VodItem => ({ kind: 'series', playlistId: x.playlistId, s: x }));
+  const byTitle = new Map<string, VodItem[]>();
+  for (const it of lib) {
+    const k = normTitle(cleanTitle(itemName(it)));
+    if (!k) continue;
+    const l = byTitle.get(k);
+    if (l) l.push(it);
+    else byTitle.set(k, [it]);
+  }
+  const yearOf = (it: VodItem) => Number(it.kind === 'movie' ? it.m.year : it.s.year) || Number(/\((\d{4})\)/.exec(itemName(it))?.[1]) || 0;
+  const match = (t: WmTitle): VodItem | undefined => {
+    const cands = byTitle.get(normTitle(cleanTitle(t.title)));
+    if (!cands) return undefined;
+    const ok = cands.filter((c) => !t.year || !yearOf(c) || Math.abs(yearOf(c) - t.year) <= 1);
+    return dedupe(ok)[0];
+  };
+  const build = (wm: WmRow[], loading: boolean): VodHome => {
+    const rows: VodRow[] = [];
+    for (const r of wm) {
+      const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
+      if (items.length >= 4) rows.push({ id: r.id, title: r.title, items });
+    }
+    return { rows, categories: english, otherLanguages: [], loading };
+  };
+  const wm = await watchmodeRows(kind, (partial) => onUpdate(build(partial, true)));
+  if (!wm.length) throw new Error('no lists');
+  const done = build(wm, false);
   homeCache.set(kind, done);
   onUpdate(done);
   return done;

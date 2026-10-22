@@ -223,6 +223,8 @@ export interface Settings {
   preferEnglish: boolean;
   /** Subtitles / captions on movies and shows that have them. */
   captions?: boolean;
+  /** Your own Watchmode API key: Movies & Shows home rows from Watchmode (US, English). */
+  watchmodeKey?: string;
   /** Streams you chose for My TV numbers (they win over the automatic pick, and follow you to other providers by name / call sign). */
   myTvPins: MyTvPin[];
 }
