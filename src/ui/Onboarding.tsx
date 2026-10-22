@@ -1,9 +1,8 @@
-// First-launch onboarding: sign in → set up profile → add your first playlist.
+// First-launch onboarding: sign in → add your first playlist.
 // Shown once, before the main app, when the user has never completed setup.
 import { h, Fragment } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { cloudConfig, currentSession, openCloudAccount, signInEmail, signUpEmail } from '../app/cloud';
-import { currentAccount, renameAccount, setAccountColor, AVATAR_COLORS } from '../app/accounts';
 import { focusFirst } from '../app/nav';
 import { isNative, native } from '../app/platform';
 import { navigate, setState } from '../app/state';
@@ -28,11 +27,11 @@ export function markOnboarded() {
   }
 }
 
-type Step = 'auth' | 'profile' | 'playlist';
+type Step = 'auth' | 'playlist';
 
 export function OnboardingScreen({ onDone }: { onDone: () => void }) {
-  // If the user already signed in (e.g. page reloaded after sign-in), skip straight to profile.
-  const [step, setStep] = useState<Step>(currentSession() ? 'profile' : 'auth');
+  // If the user already signed in (e.g. page reloaded after sign-in), skip straight to playlist.
+  const [step, setStep] = useState<Step>(currentSession() ? 'playlist' : 'auth');
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     requestAnimationFrame(() => focusFirst(ref.current));
@@ -43,8 +42,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
       <div class="onboarding-card">
         <div class="welcome-logo"><LogoMark size="6rem" /><Wordmark /></div>
         <StepIndicator current={step} />
-        {step === 'auth' && <AuthStep onDone={() => setStep('profile')} />}
-        {step === 'profile' && <ProfileStep onDone={() => setStep('playlist')} />}
+        {step === 'auth' && <AuthStep onDone={() => setStep('playlist')} />}
         {step === 'playlist' && <PlaylistStep onDone={() => { markOnboarded(); onDone(); }} />}
       </div>
     </section>
@@ -54,7 +52,6 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
 function StepIndicator({ current }: { current: Step }) {
   const steps: { id: Step; label: string }[] = [
     { id: 'auth', label: 'Sign in' },
-    { id: 'profile', label: 'Profile' },
     { id: 'playlist', label: 'Playlist' },
   ];
   const idx = steps.findIndex((s) => s.id === current);
@@ -159,46 +156,7 @@ function EmailForm({ mode, onMode, onDone }: { mode: 'in' | 'up'; onMode: (m: 'p
   );
 }
 
-// ─── Step 2: Set up your profile ───
-
-function ProfileStep({ onDone }: { onDone: () => void }) {
-  const acc = currentAccount();
-  const [name, setName] = useState(acc.name === 'Me' ? '' : acc.name);
-  const [color, setColor] = useState(acc.color);
-
-  const save = () => {
-    const displayName = name.trim() || 'Me';
-    renameAccount(acc.id, displayName);
-    setAccountColor(acc.id, color);
-    onDone();
-  };
-
-  return (
-    <div>
-      <h1>Set up your profile</h1>
-      <p class="muted">Pick a name and color so everyone in the house knows whose account is whose.</p>
-      <label class="field">
-        <span>Name</span>
-        <input class="f input" data-autofocus maxLength={24} value={name} placeholder="e.g. Luke" onInput={(e) => setName((e.target as HTMLInputElement).value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
-      </label>
-      <div class="avatar-preview">
-        <span class="avatar" style={{ background: color, width: '5rem', height: '5rem', fontSize: '2.2rem' }}>
-          {(name.trim() || 'M').charAt(0).toUpperCase()}
-        </span>
-      </div>
-      <div class="avatar-colors" data-group="avatar-colors" role="radiogroup" aria-label="Pick a color">
-        {AVATAR_COLORS.map((c) => (
-          <button type="button" role="radio" aria-checked={c === color} aria-label={c} class={`f avatar-color ${c === color ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />
-        ))}
-      </div>
-      <div class="row gap" style={{ marginTop: '1rem' }}>
-        <Button variant="primary" icon="check" onClick={save}>Next</Button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step 3: Add your first playlist ───
+// ─── Step 2: Add your first playlist ───
 
 function PlaylistStep({ onDone }: { onDone: () => void }) {
   return (
