@@ -890,6 +890,11 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('.content button')].find((b) => /^Multiview$/.test(b.textContent.trim()))?.click());
   const mvOpen = await waitFor(() => page.evaluate(() => { const m = window.__lttv.getState().multiview; return document.querySelector('.multiview') && m ? m : null; }), 5000);
   check('Multiview opens from Sports with the game that was playing in the first tile', !!mvOpen && !!mvOpen.tiles[0], JSON.stringify(mvOpen));
+  check('Multiview asks how many games (2, 3 or 4)', await page.evaluate(() => [...document.querySelectorAll('.mv-layout')].map((b) => b.textContent.trim()).join('|') === '2 games|3 games|4 games'));
+  await page.evaluate(() => [...document.querySelectorAll('.mv-layout')].find((b) => /3 games/.test(b.textContent))?.click());
+  await page.waitForTimeout(300);
+  const mvGeo = await page.evaluate(() => { const c = [...document.querySelectorAll('.mv-cell')].map((x) => x.getBoundingClientRect()); return { n: c.length, big: c[0] && c[1] ? c[0].width > c[1].width * 1.6 && c[0].height > c[1].height * 1.6 : false, layout: window.__lttv.getState().multiview?.layout }; });
+  check('Multiview: choosing 3 games shows one big and two small tiles', mvGeo.n === 3 && mvGeo.big && mvGeo.layout === 3, JSON.stringify(mvGeo));
   await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('.mv-picker .league-card').length > 0 || null), 5000);
   await page.evaluate(() => [...document.querySelectorAll('.mv-picker .league-card')].find((c) => /MLB/.test(c.textContent))?.click());

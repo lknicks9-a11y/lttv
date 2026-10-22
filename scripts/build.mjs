@@ -47,7 +47,7 @@ const vendorPlugin = {
 const common = {
   bundle: true,
   minify: !watch,
-  sourcemap: watch ? 'inline' : false,
+  sourcemap: watch ? 'inline' : process.env.LTTV_SOURCEMAP ? 'external' : false,
   target: ['es2020'],
   plugins: [vendorPlugin],
   logLevel: 'info',

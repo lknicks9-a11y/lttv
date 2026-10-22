@@ -8,7 +8,7 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
-import { feedSide, textMatchesGame, type Broadcast, type Game, type GameTeam, type ScheduleLeague } from './schedule';
+import { feedSide, gameText, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
 export type FeedChoice = 'home' | 'away' | 'national';
 
@@ -52,6 +52,54 @@ export function buildGameIndex(lineup: LineupChannel[], guide: GuideIndex, from:
   return out;
 }
 
+/**
+ * The index prepared once for checking many games: each entry's text folded, plus a word → entries map,
+ * so a game only looks at the entries that contain one of its team names (big lineups have tens of
+ * thousands of listings; checking every one for every game froze Fire TVs for seconds).
+ */
+interface PreparedIndex {
+  texts: GameText[];
+  byWord: Map<string, number[]>;
+}
+const prepCache = new WeakMap<GameIndexEntry[], PreparedIndex>();
+function prepare(index: GameIndexEntry[]): PreparedIndex {
+  const hit = prepCache.get(index);
+  if (hit) return hit;
+  const p: PreparedIndex = { texts: new Array(index.length), byWord: new Map() };
+  addPrepared(p, index, 0, index.length);
+  prepCache.set(index, p);
+  return p;
+}
+function addPrepared(p: PreparedIndex, index: GameIndexEntry[], from: number, to: number) {
+  const { texts, byWord } = p;
+  for (let i = from; i < to; i++) {
+    const t = gameText(index[i].text);
+    texts[i] = t;
+    for (const w of new Set(t.f.split(' '))) {
+      if (!w) continue;
+      const l = byWord.get(w);
+      if (l) l.push(i);
+      else byWord.set(w, [i]);
+    }
+  }
+}
+/** prepare() in slices with breaks in between, so the TV stays responsive. */
+async function prepareAsync(index: GameIndexEntry[]): Promise<void> {
+  if (prepCache.has(index)) return;
+  const p: PreparedIndex = { texts: new Array(index.length), byWord: new Map() };
+  for (let i = 0; i < index.length; i += 400) {
+    addPrepared(p, index, i, Math.min(index.length, i + 400));
+    await new Promise<void>((r) => setTimeout(r, 0));
+  }
+  prepCache.set(index, p);
+}
+/** Entries that could mention the team: they contain the first word of one of its names. */
+function candidates(p: PreparedIndex, names: string[]): number[] {
+  const seen = new Set<number>();
+  for (const n of names) for (const i of p.byWord.get(n.split(' ')[0]) ?? []) seen.add(i);
+  return [...seen].sort((a, b) => a - b);
+}
+
 const yieldNow = () => new Promise<void>((r) => setTimeout(r, 0));
 const asyncCache = new WeakMap<object, Map<string, Promise<GameIndexEntry[]>>>();
 
@@ -71,6 +119,7 @@ export function buildGameIndexAsync(lineup: LineupChannel[], guide: GuideIndex, 
       out.push(...buildGameIndex(lineup.slice(i, i + 250), guide, from, to));
       await yieldNow();
     }
+    await prepareAsync(out);
     return out;
   })();
   per.set(key, job);
@@ -131,9 +180,11 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
 
   // 1–2. Event channels and guide listings that name both teams.
   const index = opts.index ?? (opts.guide ? buildGameIndex(lineup, opts.guide, game.start - 3600_000, game.start + 5 * 3600_000) : []);
-  for (const e of index) {
+  const prep = prepare(index);
+  for (const i of candidates(prep, teamNames(game.home, opts.sport))) {
+    const e = index[i];
     if (e.stop < game.start - 30 * 60_000 || e.start > game.start + 4 * 3600_000) continue;
-    if (!textMatchesGame(e.text, game, opts.sport)) continue;
+    if (!preparedMatchesGame(prep.texts[i], game, opts.sport)) continue;
     const side = sideOfText(e.text);
     let score = e.event ? 100 : 90;
     if (feed && feed !== 'national' && side) score += side === feed ? 8 : -30;
@@ -167,11 +218,24 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
     for (const b of game.broadcasts) {
       const svc = STREAMING_SERVICES.find((x) => x.re.test(b.name));
       if (!svc) continue;
-      const chans = lineup.filter((c) => !c.hidden && svc.re.test(`${c.originalName} ${c.name}`)).sort((a, z) => a.number - z.number).slice(0, 3);
+      const chans = serviceChannels(svc, lineup);
       for (const ch of chans) add({ ch, score: 40, kind: 'national', broadcast: b.name, reason: game.state === 'pre' ? `${svc.label} channel · the game's own channel usually appears on game day` : `${svc.label} channel` });
     }
   }
   return [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
+}
+
+const svcCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
+/** A streaming service's first few channels in the lineup (worked out once per lineup). */
+function serviceChannels(svc: { label: string; re: RegExp }, lineup: LineupChannel[]): LineupChannel[] {
+  const m = svcCache.get(lineup) ?? new Map<string, LineupChannel[]>();
+  svcCache.set(lineup, m);
+  let v = m.get(svc.label);
+  if (!v) {
+    v = lineup.filter((c) => !c.hidden && svc.re.test(`${c.originalName} ${c.name}`)).sort((a, z) => a.number - z.number).slice(0, 3);
+    m.set(svc.label, v);
+  }
+  return v;
 }
 
 /** Streaming services ESPN lists as a game's "broadcast", and how providers name their channels. */

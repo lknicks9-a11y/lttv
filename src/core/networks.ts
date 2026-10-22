@@ -166,7 +166,20 @@ export interface NetworkChannel {
 }
 
 /** The user's channels that carry a network/broadcast name. */
+const bcCache = new WeakMap<LineupChannel[], Map<string, NetworkChannel[]>>();
+/** Channels in the lineup for a broadcast name (worked out once per lineup; games share networks). */
 export function channelsForBroadcast(name: string, lineup: LineupChannel[]): NetworkChannel[] {
+  const m = bcCache.get(lineup) ?? new Map<string, NetworkChannel[]>();
+  bcCache.set(lineup, m);
+  let v = m.get(name);
+  if (!v) {
+    v = channelsForBroadcastUncached(name, lineup);
+    if (m.size > 300) m.clear();
+    m.set(name, v);
+  }
+  return v;
+}
+function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): NetworkChannel[] {
   const { network, keys } = networkForBroadcast(name);
   if (!keys.length && !network) return [];
   const out: NetworkChannel[] = [];

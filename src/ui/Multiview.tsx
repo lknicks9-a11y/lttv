@@ -4,7 +4,7 @@ import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
-import { TILE_COUNT, closeMultiview, connectionLimit, setActiveTile, setTile, tilePlayer, type MvTile } from '../app/multiview';
+import { closeMultiview, connectionLimit, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
@@ -32,7 +32,7 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
   const showLabel = () => {
     setLabel(true);
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setLabel(false), 5000);
+    timer.current = window.setTimeout(() => setLabel(false), 15000);
   };
   useEffect(() => {
     showLabel();
@@ -51,17 +51,21 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
       type="button"
       class={`f mv-tile ${active ? 'mv-active' : ''}`}
       onFocus={showLabel}
-      onClick={() => (active ? onOptions() : setActiveTile(i))}
+      onClick={() => {
+        showLabel();
+        if (active) onOptions();
+        else setActiveTile(i);
+      }}
       aria-label={`${tile.title}${active ? ', sound on' : ''}`}
     >
       <TileVideo ctl={ctl} />
       {(st.state === 'loading' || st.state === 'buffering' || st.state === 'retrying') && <span class="spinner mv-spinner" />}
       {st.state === 'error' && <span class="mv-error">{st.error ?? 'This stream didn’t start.'}</span>}
-      {(label || active) && (
-        <span class={`mv-label ${label ? '' : 'mv-label-min'}`}>
+      {label && (
+        <span class="mv-label">
           {active && <Icon name="volume" size="1.1em" />}
-          {label && <b>{tile.title}</b>}
-          {label && tile.sub && <small>{tile.sub}</small>}
+          <b>{tile.title}</b>
+          {tile.sub && <small>{tile.sub}</small>}
         </span>
       )}
     </button>
@@ -92,17 +96,64 @@ function GamePicker({ onPick, onClose }: { onPick: (t: MvTile) => void; onClose:
   );
 }
 
+const LAYOUTS: { n: MvLayout; label: string }[] = [
+  { n: 2, label: '2 games' },
+  { n: 3, label: '3 games' },
+  { n: 4, label: '4 games' },
+];
+
+function LayoutIcon({ n }: { n: MvLayout }) {
+  const rects = n === 2 ? [[1, 6, 14, 9], [17, 6, 14, 9]] : n === 3 ? [[1, 2, 20, 17], [23, 2, 8, 8], [23, 11, 8, 8]] : [[1, 2, 14, 8], [17, 2, 14, 8], [1, 11, 14, 8], [17, 11, 14, 8]];
+  return (
+    <svg class="mv-layout-icon" viewBox="0 0 32 21" aria-hidden="true">
+      {rects.map(([x, y, w, hh]) => <rect x={x} y={y} width={w} height={hh} rx="1.5" />)}
+    </svg>
+  );
+}
+
+function LayoutPicker({ current, onPick, onClose }: { current: MvLayout; onPick: (n: MvLayout) => void; onClose: () => void }) {
+  return (
+    <Modal title="How many games?" onClose={onClose} class="mv-layouts-modal">
+      <div class="mv-layouts" data-group="mv-layouts">
+        {LAYOUTS.map((l) => (
+          <button type="button" class={`f mv-layout ${l.n === current ? 'on' : ''}`} data-autofocus={l.n === current ? '' : undefined} onClick={() => onPick(l.n)}>
+            <LayoutIcon n={l.n} />
+            <span>{l.label}</span>
+          </button>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
 export function MultiviewScreen() {
   const mv = useApp((s) => s.multiview)!;
   const [adding, setAdding] = useState<number | null>(null);
   const [options, setOptions] = useState<number | null>(null);
+  // Asked each time Multiview opens (the last choice is selected); also from a tile's options.
+  const [choosing, setChoosing] = useState(true);
+  // Hints and notes at the bottom fade out after 15 s without a key press.
+  const [quiet, setQuiet] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let t = window.setTimeout(() => setQuiet(true), 15000);
+    const wake = () => {
+      setQuiet(false);
+      window.clearTimeout(t);
+      t = window.setTimeout(() => setQuiet(true), 15000);
+    };
+    window.addEventListener('keydown', wake, true);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('keydown', wake, true);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     requestAnimationFrame(() => focusFirst(rootRef.current));
   }, []);
   useEffect(() => {
-    if (adding !== null || options !== null) return;
+    if (adding !== null || options !== null || choosing) return;
     const offBack = onBack(() => {
       closeMultiview();
       return true;
@@ -119,14 +170,14 @@ export function MultiviewScreen() {
       offBack();
       offKeys();
     };
-  }, [adding, options, mv]);
+  }, [adding, options, choosing, mv]);
 
   const keys = mv.tiles.filter((t): t is MvTile => !!t).map((t) => t.key);
   const limit = connectionLimit(keys);
   return (
-    <div class="multiview" ref={rootRef} data-scope role="region" aria-label="Multiview">
-      <div class="mv-grid" data-group="mv-grid">
-        {Array.from({ length: TILE_COUNT }, (_, i) => (
+    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label="Multiview">
+      <div class={`mv-grid mv-grid-${mv.layout}`} data-group="mv-grid">
+        {Array.from({ length: mv.layout }, (_, i) => (
           <div class="mv-cell" data-tile={i} key={i}>
             <Tile i={i} tile={mv.tiles[i]} active={mv.active === i && !!mv.tiles[i]} onAdd={() => setAdding(i)} onOptions={() => setOptions(i)} />
           </div>
@@ -135,7 +186,21 @@ export function MultiviewScreen() {
       {limit !== undefined && keys.length > limit && (
         <div class="mv-note">Your provider allows {limit} stream{limit === 1 ? '' : 's'} at once — the extra tiles may not play or may buffer.</div>
       )}
-      <div class="mv-hint muted">OK: sound · OK again or Menu: options · Back: full screen on the game with sound</div>
+      <div class="mv-hint muted">OK: sound · OK again or Menu: options (layout, full screen) · Back: full screen on the game with sound</div>
+      {choosing && (
+        <LayoutPicker
+          current={mv.layout}
+          onClose={() => {
+            setChoosing(false);
+            requestAnimationFrame(() => focusFirst(rootRef.current));
+          }}
+          onPick={(n) => {
+            setLayout(n);
+            setChoosing(false);
+            requestAnimationFrame(() => focusFirst(rootRef.current));
+          }}
+        />
+      )}
       {adding !== null && (
         <GamePicker
           onClose={() => setAdding(null)}
@@ -150,6 +215,7 @@ export function MultiviewScreen() {
           <div class="row gap modal-actions">
             <Button variant="primary" icon="fullscreen" data-autofocus onClick={() => { const i = options; setOptions(null); closeMultiview(i); }}>Full screen</Button>
             <Button icon="refresh" onClick={() => { const i = options; setOptions(null); setAdding(i); }}>Change game</Button>
+            <Button icon="multiview" onClick={() => { setOptions(null); setChoosing(true); }}>Layout</Button>
             <Button icon="close" onClick={() => { setTile(options, null); setOptions(null); }}>Remove</Button>
           </div>
         </Modal>

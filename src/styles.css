@@ -1205,3 +1205,19 @@ small, .small { font-size: 1.15rem; }
 :root[data-theme='autumn'] .sports .league-card:focus { background-image: linear-gradient(160deg, rgba(255, 138, 30, 0.26), rgba(255, 194, 74, 0.10)) !important; }
 /* TVs: flat panels (no see-through layers over the photo to repaint). */
 :root.tv[data-theme='autumn'] { --panel: #1c1108; --panel-2: #2c1b0d; --panel-3: #442812; --focus: 0 0 0 0.16rem #fff7ec, 0 0 0 0.42rem #ff8a1e; }
+
+/* ---------- Multiview layouts: 2 side by side, 3 = one big + two small, 4 = 2×2 ---------- */
+.mv-grid.mv-grid-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; align-content: center; }
+.mv-grid.mv-grid-2 .mv-cell { aspect-ratio: 16 / 9; height: auto; align-self: center; }
+.mv-grid.mv-grid-3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.mv-grid.mv-grid-3 .mv-cell:first-child { grid-row: 1 / span 2; }
+.mv-grid.mv-grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.mv-label { left: 0.6rem; right: auto; bottom: 0.6rem; }
+.multiview .mv-hint, .multiview .mv-note { transition: opacity 0.4s ease; }
+.multiview.mv-quiet .mv-hint, .multiview.mv-quiet .mv-note { opacity: 0; }
+:root.tv .multiview.mv-quiet .mv-hint, :root.tv .multiview.mv-quiet .mv-note { display: none; }
+.mv-layouts { display: flex; gap: 1.2rem; justify-content: center; padding: 0.6rem 0; }
+.mv-layout { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; padding: 1.2rem 1.6rem; border-radius: 0.8rem; border: 0.15rem solid var(--line); background: var(--panel-2); color: var(--text); font-size: 1.2rem; font-weight: 600; }
+.mv-layout.on { border-color: var(--accent); }
+.mv-layout-icon { width: 7rem; height: auto; fill: currentColor; opacity: 0.85; }
+.mv-layout:focus .mv-layout-icon { fill: var(--accent); opacity: 1; }

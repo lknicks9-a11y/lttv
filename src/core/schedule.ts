@@ -186,12 +186,24 @@ export function parseScoreboard(json: unknown, league: ScheduleLeagueId): Game[]
 function fold(s: string): string {
   return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9&+]+/g, ' ').trim();
 }
+/** Lower-case, accents and punctuation removed, single spaces (how game text is compared). */
+export const foldText = fold;
 
 /** Words too generic to identify a team on their own. */
 const GENERIC = new Set(['fc', 'cf', 'sc', 'ac', 'afc', 'united', 'city', 'state', 'real', 'club', 'sporting', 'athletic', 'new', 'the', 'of', 'de', 'la', 'st', 'saint', 'university', 'college']);
 
 /** Names a team goes by, longest first ("new york yankees", "yankees", "nyy" only for pro teams). */
+const namesCache = new Map<string, string[]>();
 export function teamNames(t: GameTeam, sport: ScheduleLeague['sport']): string[] {
+  const ck = `${sport}|${t.name}|${t.short}|${t.abbr}|${t.location ?? ''}`;
+  const hit = namesCache.get(ck);
+  if (hit) return hit;
+  const out = teamNamesUncached(t, sport);
+  if (namesCache.size > 3000) namesCache.clear();
+  namesCache.set(ck, out);
+  return out;
+}
+function teamNamesUncached(t: GameTeam, sport: ScheduleLeague['sport']): string[] {
   const names = new Set<string>();
   const add = (s: string | undefined) => {
     const f = fold(s ?? '');
@@ -216,7 +228,10 @@ export function teamNames(t: GameTeam, sport: ScheduleLeague['sport']): string[]
 const SCHOOL_SUFFIX = /^(state|st|tech|a m|am|southern|northern|eastern|western|central|christian|international|atlantic|poly|wesleyan)\b/;
 
 function mentions(text: string, names: string[]): boolean {
-  const f = ` ${fold(text)} `;
+  return mentionsFolded(` ${fold(text)} `, names);
+}
+/** `f` = folded text padded with a space on both sides. */
+export function mentionsFolded(f: string, names: string[]): boolean {
   return names.some((n) => {
     let i = f.indexOf(` ${n} `);
     while (i >= 0) {
@@ -241,9 +256,32 @@ const OTHER_SPORTS = /\b(volleyball|softball|wrestling|lacrosse|field hockey|swi
 /** Does this text (channel name, programme title/subtitle) describe this game? Needs both teams, and no other sport. */
 export function textMatchesGame(text: string, game: Game, sport: ScheduleLeague['sport']): boolean {
   if (!text) return false;
-  if (OTHER_SPORTS.test(text)) return false;
-  for (const [sp, re] of Object.entries(SPORT_WORDS)) if (sp !== sport && re.test(text) && !SPORT_WORDS[sport]?.test(text)) return false;
-  return mentions(text, teamNames(game.home, sport)) && mentions(text, teamNames(game.away, sport));
+  const t = gameText(text);
+  return preparedMatchesGame(t, game, sport);
+}
+
+const SPORT_KEYS = Object.keys(SPORT_WORDS);
+/** Text prepared once for checking against many games. */
+export interface GameText {
+  /** Folded, padded with spaces. */
+  f: string;
+  /** Names another sport (volleyball, women's…). */
+  other: boolean;
+  /** Bit per SPORT_WORDS entry the text names. */
+  sports: number;
+}
+export function gameText(text: string): GameText {
+  let sports = 0;
+  SPORT_KEYS.forEach((k, i) => {
+    if (SPORT_WORDS[k].test(text)) sports |= 1 << i;
+  });
+  return { f: ` ${fold(text)} `, other: OTHER_SPORTS.test(text), sports };
+}
+export function preparedMatchesGame(t: GameText, game: Game, sport: ScheduleLeague['sport']): boolean {
+  if (t.other) return false;
+  const own = 1 << SPORT_KEYS.indexOf(sport);
+  if (t.sports & ~own && !(t.sports & own)) return false;
+  return mentionsFolded(t.f, teamNames(game.home, sport)) && mentionsFolded(t.f, teamNames(game.away, sport));
 }
 
 /** Which team's broadcast a channel name/title refers to, e.g. "(Yankees feed)", "Home", "YES". */
