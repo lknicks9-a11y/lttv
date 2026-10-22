@@ -1149,3 +1149,71 @@ small, .small { font-size: 1.15rem; }
 
 /* TV: no full-screen blur behind the movie/show hero (expensive to paint on Fire TV). */
 :root.tv .vod-hero-bg.is-poster { filter: none; transform: none; opacity: 0.3; }
+
+/* ---------- Victors theme: navy & maize, a bold V, gold star award stickers ---------- */
+.logo-victors { display: none; }
+[data-theme='victors'] .logo-victors { display: inline-block; }
+[data-theme='victors'] .logo-aero, [data-theme='victors'] .logo-owl, [data-theme='victors'] .logo-a7 { display: none; }
+:root[data-theme='victors'] {
+  --bg: #061127; --bg-2: #0a1a36; --panel: rgba(12, 31, 62, 0.9); --panel-2: rgba(19, 43, 82, 0.92); --panel-3: rgba(28, 58, 106, 0.95);
+  --line: rgba(255, 199, 44, 0.22); --text: #f6f4ec; --text-2: #dfe6f2; --muted: #9fb1cc;
+  --ok: #57d68d; --warn: #ffc72c; --danger: #ff6464; --radius: 0.8rem;
+  --vic-maize: #ffc72c; --vic-navy: #0c2142;
+  --vic-gold: linear-gradient(180deg, #ffe28a 0%, #ffc72c 55%, #f2b705 100%);
+  --focus: 0 0 0 0.16rem #061127, 0 0 0 0.42rem var(--vic-maize), 0 0 1.2rem 0.3rem rgba(255, 199, 44, 0.45);
+  --sidebar-open: rgba(5, 14, 32, 0.97);
+  --glow: rgba(255, 199, 44, 0.75);
+}
+/* Navy field with a big faint V of maize pinstripes and scattered star stickers. */
+[data-theme='victors'] .backdrop {
+  background:
+    radial-gradient(0.9rem 0.9rem at 88% 14%, #ffc72c 45%, transparent 48%), radial-gradient(0.75rem 0.75rem at 92.5% 20%, #ffc72c 45%, transparent 48%),
+    radial-gradient(0.75rem 0.75rem at 84% 21%, #ffc72c 45%, transparent 48%),
+    linear-gradient(124deg, transparent 63.2%, rgba(255, 199, 44, 0.16) 63.2% 64.8%, transparent 64.8% 66%, rgba(255, 199, 44, 0.08) 66% 66.5%, transparent 66.5%),
+    linear-gradient(-124deg, transparent 63.2%, rgba(255, 199, 44, 0.16) 63.2% 64.8%, transparent 64.8% 66%, rgba(255, 199, 44, 0.08) 66% 66.5%, transparent 66.5%),
+    radial-gradient(60rem 40rem at 75% 0%, rgba(40, 90, 170, 0.35), transparent 65%),
+    radial-gradient(50rem 30rem at 0% 100%, rgba(255, 199, 44, 0.06), transparent 60%),
+    linear-gradient(180deg, #0a1a36 0%, #061127 70%);
+}
+[data-theme='victors'] h1 { font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+[data-theme='victors'] h2, [data-theme='victors'] .vod-row-title, [data-theme='victors'] .modal-title { font-weight: 800; letter-spacing: 0.03em; }
+[data-theme='victors'] .wordmark { font-weight: 900; letter-spacing: 0.06em; }
+[data-theme='victors'] .wordmark-tv { color: var(--vic-maize); }
+[data-theme='victors'] .card, [data-theme='victors'] .modal, [data-theme='victors'] .guide-grid, [data-theme='victors'] .league-card, [data-theme='victors'] .game-row,
+[data-theme='victors'] .fx-row, [data-theme='victors'] .toast, [data-theme='victors'] .team-option, [data-theme='victors'] .stream-pick-main, [data-theme='victors'] .feed-option {
+  background-color: var(--panel); border-color: var(--line);
+}
+[data-theme='victors'] .modal { background-color: rgba(8, 22, 46, 0.97); border-top: 0.3rem solid var(--vic-maize); }
+[data-theme='victors'] .sidebar { border-right: 0.2rem solid var(--vic-maize); background: linear-gradient(180deg, #0c2142, #061127); }
+[data-theme='victors'] .nav-item { color: var(--muted); }
+[data-theme='victors'] .nav-item.active { color: var(--text); background: rgba(255, 199, 44, 0.14); box-shadow: inset 0.25rem 0 0 var(--vic-maize); }
+[data-theme='victors'] .nav-item.active .icon { color: var(--vic-maize); }
+[data-theme='victors'] .btn { background: rgba(19, 43, 82, 0.9); border-color: var(--line); }
+[data-theme='victors'] .btn-primary, [data-theme='victors'] .chip.chip-active, [data-theme='victors'] .badge-live, [data-theme='victors'] .live-pill.on { background: var(--vic-gold); color: #0c2142; border-color: transparent; font-weight: 800; }
+[data-theme='victors'] .chip { background: rgba(12, 31, 62, 0.85); border-color: var(--line); }
+[data-theme='victors'] .progress-fill, [data-theme='victors'] .livebar-fill, [data-theme='victors'] .fx-progress > div, [data-theme='victors'] .vod-progress > div, [data-theme='victors'] .vod-ep-bar > span { background: var(--vic-maize); }
+[data-theme='victors'] .prog { background: rgba(10, 26, 54, 0.92); border: 1px solid rgba(255, 199, 44, 0.08); }
+[data-theme='victors'] .prog.airing { background: rgba(255, 199, 44, 0.14); border-color: rgba(255, 199, 44, 0.45); }
+[data-theme='victors'] .guide-ch { background: rgba(8, 22, 46, 0.95); }
+[data-theme='victors'] .input { background: rgba(6, 17, 39, 0.9); border-color: var(--line); }
+[data-theme='victors'] .osd { background: linear-gradient(to top, rgba(4, 11, 26, 0.95) 0%, rgba(4, 11, 26, 0.7) 55%, transparent 100%); }
+[data-theme='victors'] .player-panel { background: rgba(6, 17, 39, 0.97); border-left: 0.2rem solid var(--vic-maize); }
+[data-theme='victors'] .live-notice { background: rgba(6, 17, 39, 0.96); border-color: var(--line); border-left: 0.35rem solid var(--vic-maize); }
+[data-theme='victors'] .vod-card:focus .vod-poster, [data-theme='victors'] .vod-card:hover .vod-poster { box-shadow: 0 0 0 0.2rem var(--vic-maize); }
+[data-theme='victors'] .vod-hero-kicker, [data-theme='victors'] .vod-quality { color: var(--vic-maize); }
+[data-theme='victors'] .vod-poster-fallback { background: linear-gradient(160deg, #1b3a66, #061127); }
+/* Gold star "award sticker" on the focused league card. */
+[data-theme='victors'] .league-card { position: relative; }
+[data-theme='victors'] .league-card:focus::after {
+  content: '★'; position: absolute; top: 0.5rem; right: 0.6rem; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  display: grid; place-items: center; background: var(--vic-maize); color: #0c2142; font-size: 1.05rem; line-height: 1;
+}
+:root[data-theme='victors'] .sports .league-card:focus { background-image: linear-gradient(160deg, rgba(255, 199, 44, 0.22), rgba(255, 199, 44, 0.06)) !important; }
+/* TVs: flat fills, lighter background. */
+:root.tv[data-theme='victors'] { --panel: #0c1f3e; --panel-2: #132b52; --panel-3: #1c3a6a; --focus: 0 0 0 0.16rem #061127, 0 0 0 0.42rem #ffc72c; }
+:root.tv[data-theme='victors'] .backdrop {
+  background:
+    linear-gradient(124deg, transparent 63.2%, rgba(255, 199, 44, 0.14) 63.2% 64.8%, transparent 64.8%),
+    linear-gradient(-124deg, transparent 63.2%, rgba(255, 199, 44, 0.14) 63.2% 64.8%, transparent 64.8%),
+    #081631;
+}

@@ -71,7 +71,7 @@ jobs:
         run: |
           cp android/app/build/outputs/apk/debug/*.apk lttv.apk
           gh release delete tv --yes --cleanup-tag || true
-          VER="1.0.$((GITHUB_RUN_NUMBER - 19))"
+          VER="1.0.$((GITHUB_RUN_NUMBER - 32))"
           gh release create tv lttv.apk --title "LTTV for Fire TV — ${VER} (build ${GITHUB_RUN_NUMBER})" --notes "LTTV ${VER} (build ${GITHUB_RUN_NUMBER}) of main (${GITHUB_SHA::7}). The app offers this update itself (Settings → Check for updates). Downloader: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/lttv.apk" --latest
       - name: Build signed release APK
         if: ${{ env.KEYSTORE_BASE64 != '' }}

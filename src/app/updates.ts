@@ -24,9 +24,9 @@ export function canUpdateInApp(): boolean {
   return !!native?.installUpdate && !!native.appBuild;
 }
 
-/** Version shown to people: 1.0.0 was build 19 (the launch), each later build adds 1 (build 20 = 1.0.1). */
+/** Version shown to people: 1.0.0 is build 32 (numbering restarted), each later build adds 1 (build 33 = 1.0.1). */
 export function versionOf(build: number): string {
-  return `1.0.${Math.max(0, build - 19)}`;
+  return `1.0.${Math.max(0, build - 32)}`;
 }
 
 export function currentBuild(): number {

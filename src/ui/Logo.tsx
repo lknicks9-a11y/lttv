@@ -12,6 +12,7 @@ export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?:
       <AeroMark size={size} class={cls} />
       <OwlMark size={size} class={cls} />
       <A7Mark size={size} class={cls} />
+      <VictorsMark size={size} class={cls} />
     </>
   );
 }
@@ -154,5 +155,55 @@ export function Wordmark({ class: cls }: { class?: string }) {
     <span class={'wordmark ' + (cls ?? '')} aria-label="LTTV">
       LT<span class="wordmark-tv">TV</span>
     </span>
+  );
+}
+
+/**
+ * Victors theme mark: a navy TV with a bold maize "V" chevron rising across the screen,
+ * a thin maize pinstripe and three gold star award stickers in the corner.
+ */
+export function VictorsMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+  const n = ++gid;
+  const id = (k: string) => `lttv-vic${k}${n}`;
+  const star = (cx: number, cy: number, r: number) => {
+    const pts: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const a = (Math.PI / 5) * i - Math.PI / 2;
+      const rr = i % 2 ? r * 0.45 : r;
+      pts.push(`${(cx + rr * Math.cos(a)).toFixed(2)},${(cy + rr * Math.sin(a)).toFixed(2)}`);
+    }
+    return pts.join(' ');
+  };
+  return (
+    <svg class={'logo-mark logo-victors ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <defs>
+        <linearGradient id={id('scr')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1b3a66" /><stop offset=".55" stop-color="#0c2142" /><stop offset="1" stop-color="#071630" />
+        </linearGradient>
+        <linearGradient id={id('gold')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffe28a" /><stop offset="1" stop-color="#f2b705" />
+        </linearGradient>
+        <clipPath id={id('clip')}><rect x="5" y="10" width="54" height="39" rx="11" /></clipPath>
+      </defs>
+      <path d="M26 10 20 3M38 10 44 3" stroke={`url(#${id('gold')})`} stroke-width="1.9" stroke-linecap="round" />
+      <circle cx="20" cy="3" r="1.7" fill="#ffc72c" /><circle cx="44" cy="3" r="1.7" fill="#ffc72c" />
+      <rect x="5" y="10" width="54" height="39" rx="11" fill={`url(#${id('scr')})`} />
+      <g clip-path={`url(#${id('clip')})`}>
+        {/* glossy shine */}
+        <path d="M5 10h54v11C44 16 22 16 5 23Z" fill="#fff" opacity=".08" />
+        {/* pinstripes and the bold V chevron */}
+        <path d="M12 14 32 44 52 14" fill="none" stroke="#ffc72c" stroke-width=".9" opacity=".55" />
+        <path d="M18 14h8.5L32 31.5 37.5 14H46L35 44h-6Z" fill={`url(#${id('gold')})`} />
+        <path d="M18 14h8.5l1 3H19.3Z" fill="#fff" opacity=".25" />
+      </g>
+      <rect x="5" y="10" width="54" height="39" rx="11" fill="none" stroke={`url(#${id('gold')})`} stroke-width="1.8" />
+      {/* award stickers */}
+      <g>
+        <circle cx="49" cy="40.5" r="3.2" fill="#ffc72c" /><polygon points={star(49, 40.6, 2.3)} fill="#0c2142" />
+        <circle cx="54" cy="36" r="2.6" fill="#ffc72c" /><polygon points={star(54, 36.1, 1.8)} fill="#0c2142" />
+        <circle class="logo-dot" cx="44.6" cy="44.4" r="2.2" fill="#ffc72c" />
+      </g>
+      <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('gold')})`} stroke-width="1.9" stroke-linecap="round" />
+    </svg>
   );
 }
