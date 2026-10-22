@@ -11,7 +11,8 @@ import { chooseOutput, normalizeServer, xtreamUrls, type XtreamLogin } from '../
  * Uploaded files are held by the native host and fetched from api/upload/<id>.
  */
 interface Submission {
-  type: 'playlist' | 'epg' | 'settings' | 'xtream' | 'account' | 'session';
+  type: 'playlist' | 'epg' | 'settings' | 'xtream' | 'account' | 'session' | 'watchmode';
+  key?: string;
   refresh_token?: string;
   /** Name for the account open on the TV. */
   account?: string;
@@ -48,6 +49,22 @@ export async function handleSetupSubmission(json: string) {
       openCloudAccount(await signInWithRefreshToken(s.refresh_token));
     } catch (e) {
       toast(`Sign-in didn’t finish: ${(e as Error).message}`, 'error', 8000);
+    }
+    return;
+  }
+  if (s.type === 'watchmode' && s.key) {
+    // Watchmode key pasted on the phone: check it, save it, rebuild Movies & Shows.
+    try {
+      const { testWatchmodeKey, clearWatchmodeCache } = await import('../app/watchmode');
+      const { resetVodHome } = await import('../app/vod');
+      const { updateSettings } = await import('../app/state');
+      const n = await testWatchmodeKey(s.key);
+      await updateSettings({ watchmodeKey: s.key.trim() });
+      await clearWatchmodeCache();
+      resetVodHome();
+      toast(`Watchmode key works (${n} US services) — Movies & Shows now use Watchmode’s lists.`, 'success', 8000);
+    } catch (e) {
+      toast(`That Watchmode key didn’t work: ${(e as Error).message}`, 'error', 8000);
     }
     return;
   }

@@ -203,6 +203,12 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
             onSubmit(JSONObject().put("type", "session").put("refresh_token", token).toString())
             return sendJson(out, 200, JSONObject().put("ok", true))
         }
+        if (type == "watchmode") {
+            val key = o.optString("key").trim()
+            if (key.isEmpty() || key.length > 200) return sendJson(out, 400, JSONObject().put("error", "Paste your Watchmode API key"))
+            onSubmit(JSONObject().put("type", "watchmode").put("key", key).toString())
+            return sendJson(out, 200, JSONObject().put("ok", true))
+        }
         if (type == "account") {
             val name = o.optString("account").trim()
             if (name.isEmpty()) return sendJson(out, 400, JSONObject().put("error", "Enter a name"))
@@ -342,6 +348,12 @@ small,.hint{color:#8a96a8;font-size:13px}.tabs{display:flex;gap:6px;margin:10px 
 <button id="up">Upload to TV</button><div class="msg" id="m2"></div>
 </div>
 </div>
+<div class="card">
+<h2>Movies &amp; Shows (Watchmode)</h2>
+<small>Your own Watchmode API key (free at watchmode.com) gives Movies &amp; Shows Hulu-style rows from Watchmode's US lists.</small>
+<label>Watchmode API key</label><input id="wk" autocomplete="off" autocapitalize="off" spellcheck="false">
+<button id="wsend">Send key to TV</button><div class="msg" id="m4"></div>
+</div>
 <div class="card"><button class="sec" id="accsend">Only rename the account</button><div class="msg" id="m3"></div></div>
 <p class="hint">Only use a provider you're authorized to use. Your details travel over your home Wi-Fi to the TV and are stored only on the TV. This page stops working when you close the setup window on the TV.</p>
 </main>
@@ -355,6 +367,7 @@ async function post(body,el,okText){show(el,true,'Sending…');try{const r=await
 ${'$'}('xsend').onclick=()=>post({type:'xtream',server:${'$'}('xs').value,username:${'$'}('xu').value,password:${'$'}('xp').value},${'$'}('m0'),'Sent! Your TV is signing in and loading channels.');
 ${'$'}('send').onclick=()=>{const u=${'$'}('u').value.trim(),g=${'$'}('g').value.trim();if(!u&&!g){show(${'$'}('m1'),false,'Enter a playlist URL, a guide URL, or both');return;}if(!u){post({type:'epg',url:g,name:''},${'$'}('m1'),'Guide sent! Your TV is loading it.');return;}post({type:'playlist',url:u,epg:g,name:${'$'}('n').value},${'$'}('m1'),'Sent! Check your TV.');};
 ${'$'}('accsend').onclick=()=>post({type:'account'},${'$'}('m3'),'Account renamed on the TV.');
+${'$'}('wsend').onclick=()=>{if(!${'$'}('wk').value.trim()){show(${'$'}('m4'),false,'Paste your key first');return;}post({type:'watchmode',key:${'$'}('wk').value.trim()},${'$'}('m4'),'Key sent! Your TV is checking it.');};
 ${'$'}('up').onclick=async()=>{const f=${'$'}('f').files[0];if(!f){show(${'$'}('m2'),false,'Choose a file first');return;}show(${'$'}('m2'),true,'Uploading…');const p=new URLSearchParams({pin:${'$'}('pin').value,type:${'$'}('ft').value,name:f.name,account:${'$'}('acc').value});try{const r=await fetch('/upload?'+p,{method:'POST',body:f});const j=await r.json().catch(()=>({}));show(${'$'}('m2'),r.ok,r.ok?'Uploaded! Check your TV.':(j.error||'Failed'));}catch(e){show(${'$'}('m2'),false,'Upload failed');}};
 </script></body></html>
 """.trimIndent()
