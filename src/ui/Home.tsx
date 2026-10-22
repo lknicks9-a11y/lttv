@@ -101,7 +101,8 @@ export function Welcome() {
   return (
     <section class="screen home-empty">
       <Empty title={listAccounts().length > 1 ? `Welcome, ${currentAccount().name}` : 'Welcome to LTTV'} art={<div class="welcome-logo"><LogoMark size="9rem" /><Wordmark /></div>}>
-        <p>Add your own IPTV playlist (M3U) and, optionally, an XMLTV program guide. LTTV organizes the channels, matches them to the guide and plays them.</p>
+        <ImportBusy />
+          <p>Add your own IPTV playlist (M3U) and, optionally, an XMLTV program guide. LTTV organizes the channels, matches them to the guide and plays them.</p>
         <div class="row gap">
           <Button variant="primary" icon="add" data-autofocus onClick={() => navigate('wizard')}>Add playlist</Button>
           {native && <PhoneSetupButton />}
@@ -140,6 +141,7 @@ export function HomeScreen() {
     return (
       <section class="screen home-empty">
         <Empty title={listAccounts().length > 1 ? `Welcome, ${currentAccount().name}` : 'Welcome to LTTV'} art={<div class="welcome-logo"><LogoMark size="9rem" /><Wordmark /></div>}>
+          <ImportBusy />
           <p>Add your own IPTV playlist (M3U) and, optionally, an XMLTV program guide. LTTV organizes the channels, matches them to the guide and plays them.</p>
           <div class="row gap">
             <Button variant="primary" icon="add" data-autofocus onClick={() => navigate('wizard')}>Add playlist</Button>
@@ -349,5 +351,26 @@ function PhoneSetupButton() {
       <Button icon="phone" onClick={() => setOpen(true)}>Set up from phone or computer</Button>
       {open && <SetupServerModal onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** On the welcome screen: what's loading right now (a playlist sent from a phone, a guide…). */
+function ImportBusy() {
+  const task = useApp((s) => s.tasks.find((t) => !t.done && !t.error));
+  if (!task) return null;
+  const p = task.progress;
+  return (
+    <div class="card busy welcome-busy" aria-live="polite">
+      <span class="spinner big" />
+      <h2>{task.label}</h2>
+      {p && (p.items || p.bytes) ? (
+        <p class="muted">
+          {p.phase}
+          {p.bytes ? ` · ${(p.bytes / 1048576).toFixed(1)} MB` : ''}
+          {p.items ? ` · ${p.items.toLocaleString()} entries` : ''}
+        </p>
+      ) : null}
+      <p class="hint">This can take a minute or two for a big provider. Keep the app open.</p>
+    </div>
   );
 }

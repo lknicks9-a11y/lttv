@@ -156,7 +156,7 @@ test('team channels: each team\'s own broadcast from the team-pass / PPV channel
     ch('n', 'NHL: Carolina Hurricanes', 600, 'NHL TEAMS'),
     ch('e', 'NBA 01: Heat vs Hornets', 700, 'NBA EVENTS'),
   ];
-  assert.deepEqual((teamFeedChannels(hornets, heat, 'basketball', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
+  assert.deepEqual((teamFeedChannels(hornets as never, heat as never, 'basketball', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
   const bc = teamBroadcasts(game, lineup as never, 'basketball', []);
   assert.deepEqual(bc.map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
 });

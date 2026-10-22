@@ -166,6 +166,13 @@ export function toast(text: string, kind: Toast['kind'] = 'info', ms = 4500) {
 
 const setTaskRaw = (t: Task) => setTask(t);
 const endTaskRaw = (id: string, delay?: number) => endTask(id, delay);
+/** Show / update a progress item in the corner (also used for imports sent from a phone). */
+export function showTask(t: Task) {
+  setTask(t);
+}
+export function finishTask(id: string, delay = 2500) {
+  endTask(id, delay);
+}
 function setTask(t: Task) {
   setState((s) => {
     const others = s.tasks.filter((x) => x.id !== t.id);

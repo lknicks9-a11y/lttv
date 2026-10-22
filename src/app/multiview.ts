@@ -41,6 +41,9 @@ function apply(mv: MultiviewState) {
   mv.tiles.forEach((t, i) => tilePlayer(i).setMuted(!t || i !== mv.active));
 }
 
+// Streams start one after another (1.5 s apart): opening several provider connections at the same
+// instant is what IPTV servers most often refuse or throttle.
+let nextStartAt = 0;
 function start(i: number, t: MvTile | null) {
   const p = tilePlayer(i);
   if (!t) {
@@ -48,7 +51,20 @@ function start(i: number, t: MvTile | null) {
     return;
   }
   const ch = channelByKey(t.key);
-  if (ch) p.play({ ...playRequest(ch), key: `mv${i}:${ch.key}` });
+  if (!ch) return;
+  const wait = Math.max(0, nextStartAt - Date.now());
+  nextStartAt = Date.now() + wait + 1500;
+  window.setTimeout(() => {
+    // Still the same game in this tile?
+    if (getState().multiview?.tiles[i]?.key !== t.key) return;
+    p.play({ ...playRequest(ch), key: `mv${i}:${ch.key}:${Date.now()}` });
+  }, wait);
+}
+
+/** Start a tile's stream again (after an error). */
+export function restartTile(i: number) {
+  const t = getState().multiview?.tiles[i];
+  if (t) start(i, t);
 }
 
 /** Open Multiview; the channel playing now (if any) goes in the first tile. */

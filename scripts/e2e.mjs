@@ -888,8 +888,8 @@ try {
   check('Multiview asks how many games (2, 3 or 4)', await page.evaluate(() => [...document.querySelectorAll('.mv-layout')].map((b) => b.textContent.trim()).join('|') === '2 games|3 games|4 games'));
   await page.evaluate(() => [...document.querySelectorAll('.mv-layout')].find((b) => /3 games/.test(b.textContent))?.click());
   await page.waitForTimeout(300);
-  const mvGeo = await page.evaluate(() => { const c = [...document.querySelectorAll('.mv-cell')].map((x) => x.getBoundingClientRect()); return { n: c.length, big: c[0] && c[1] ? c[0].width > c[1].width * 1.6 && c[0].height > c[1].height * 1.6 : false, layout: window.__lttv.getState().multiview?.layout }; });
-  check('Multiview: choosing 3 games shows one big and two small tiles', mvGeo.n === 3 && mvGeo.big && mvGeo.layout === 3, JSON.stringify(mvGeo));
+  const mvGeo = await page.evaluate(() => { const c = [...document.querySelectorAll('.mv-cell')].map((x) => x.getBoundingClientRect()); return { n: c.length, big: c[0] && c[1] && c[2] ? c[0].bottom <= c[1].top + 2 && Math.abs(c[1].top - c[2].top) < 2 && c[1].right <= c[2].left + 2 : false, layout: window.__lttv.getState().multiview?.layout }; });
+  check('Multiview: choosing 3 games shows one on top and two side by side underneath', mvGeo.n === 3 && mvGeo.big && mvGeo.layout === 3, JSON.stringify(mvGeo));
   await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('.mv-picker .league-card').length > 0 || null), 5000);
   await page.evaluate(() => [...document.querySelectorAll('.mv-picker .league-card')].find((c) => /MLB/.test(c.textContent))?.click());
@@ -900,7 +900,7 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('.watch-game .team-bc')].find((b) => /Yankees Broadcast/.test(b.textContent))?.click());
   const mv2 = await waitFor(() => page.evaluate(() => { const m = window.__lttv.getState().multiview; return m?.tiles[1] ? m : null; }), 5000);
   check('Multiview: add a second game (league → game → stream)', !!mv2 && /at/.test(mv2.tiles[1].title), JSON.stringify(mv2));
-  check('Multiview: each game has its own player', await page.evaluate(() => document.querySelectorAll('.multiview video').length >= 2));
+  check('Multiview: each game has its own player (started one after another)', !!(await waitFor(() => page.evaluate(() => document.querySelectorAll('.multiview video').length >= 2 || null), 6000)));
   await shot('26-multiview');
   await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.click());
   await page.waitForTimeout(200);

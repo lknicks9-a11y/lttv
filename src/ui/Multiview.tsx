@@ -4,7 +4,7 @@ import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
-import { closeMultiview, connectionLimit, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
+import { closeMultiview, connectionLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
@@ -53,14 +53,21 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
       onFocus={showLabel}
       onClick={() => {
         showLabel();
-        if (active) onOptions();
+        if (st.state === 'error') restartTile(i);
+        else if (active) onOptions();
         else setActiveTile(i);
       }}
       aria-label={`${tile.title}${active ? ', sound on' : ''}`}
     >
       <TileVideo ctl={ctl} />
       {(st.state === 'loading' || st.state === 'buffering' || st.state === 'retrying') && <span class="spinner mv-spinner" />}
-      {st.state === 'error' && <span class="mv-error">{st.error ?? 'This stream didn’t start.'}</span>}
+      {st.state === 'error' && (
+        <span class="mv-error">
+          {/\b(40[13]|429|45\d|509)\b|connection|limit|too many/i.test(st.error ?? '')
+            ? 'Your provider refused another stream at once (connection limit). Remove a game, or press OK to try again.'
+            : `${st.error ?? 'This stream didn’t start.'} Press OK to try again.`}
+        </span>
+      )}
       {label && (
         <span class="mv-label">
           {active && <Icon name="volume" size="1.1em" />}

@@ -1209,8 +1209,10 @@ small, .small { font-size: 1.15rem; }
 /* ---------- Multiview layouts: 2 side by side, 3 = one big + two small, 4 = 2×2 ---------- */
 .mv-grid.mv-grid-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; align-content: center; }
 .mv-grid.mv-grid-2 .mv-cell { aspect-ratio: 16 / 9; height: auto; align-self: center; }
-.mv-grid.mv-grid-3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
-.mv-grid.mv-grid-3 .mv-cell:first-child { grid-row: 1 / span 2; }
+/* 3 games: one on top (centred, 16:9), two side by side underneath. */
+.mv-grid.mv-grid-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; justify-items: center; }
+.mv-grid.mv-grid-3 .mv-cell { width: 100%; }
+.mv-grid.mv-grid-3 .mv-cell:first-child { grid-column: 1 / span 2; width: auto; height: 100%; aspect-ratio: 16 / 9; max-width: 100%; }
 .mv-grid.mv-grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .mv-label { left: 0.6rem; right: auto; bottom: 0.6rem; }
 .multiview .mv-hint, .multiview .mv-note { transition: opacity 0.4s ease; }
@@ -1230,3 +1232,4 @@ small, .small { font-size: 1.15rem; }
 .team-bc-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .team-bc.fav { border-color: var(--accent); }
 .other-streams { align-self: flex-start; margin-top: 0.2rem; }
+.welcome-busy { margin: 0.5rem 0 1rem; text-align: center; }

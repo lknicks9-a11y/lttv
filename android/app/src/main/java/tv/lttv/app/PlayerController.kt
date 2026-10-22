@@ -127,7 +127,30 @@ class PlayerController(
             .setPreferredTextLanguage("en")
             .setSelectUndeterminedTextLanguage(true)
             .setForceHighestSupportedBitrate(vod)
+            // Multiview tiles: no more resolution than the tile shows (less bandwidth per stream,
+            // so several games at once don't starve each other or the provider connection).
+            .setMaxVideoSize(if (audioFocus) Int.MAX_VALUE else tileMaxW, if (audioFocus) Int.MAX_VALUE else tileMaxH)
             .build()
+    }
+
+    private var tileMaxW = 1280
+    private var tileMaxH = 720
+
+    /** Multiview: the tile's size in screen pixels; streams that offer several qualities pick one that fits. */
+    fun setTileSize(w: Int, h: Int) = main.post {
+        if (audioFocus || w <= 0 || h <= 0) return@post
+        // Round up to the usual stream sizes so a tile slightly larger than 540p still gets 720p.
+        val (mw, mh) = when {
+            h <= 360 -> 640 to 360
+            h <= 560 -> 960 to 540
+            h <= 740 -> 1280 to 720
+            else -> 1920 to 1080
+        }
+        if (mw != tileMaxW || mh != tileMaxH) {
+            tileMaxW = mw
+            tileMaxH = mh
+            applyTrackPrefs()
+        }
     }
 
     fun configure(bufferSec: Int, timeoutSec: Int, rewindMin: Int = this.rewindMin) {
@@ -160,9 +183,12 @@ class PlayerController(
         existing?.release()
         // IPTV streams are bursty: keep a healthy buffer and wait a little longer after a
         // stall before resuming, so playback doesn't stutter in and out of buffering.
-        val minMs = (bufferSec * 2000).coerceAtLeast(15000)
+        // Multiview tiles keep a smaller buffer: four streams with big buffers ran the TV out of memory
+        // and downloaded in bursts that made the other tiles stall.
+        val minMs = if (audioFocus) (bufferSec * 2000).coerceAtLeast(15000) else 8000
+        val maxMs = if (audioFocus) (minMs * 3).coerceAtLeast(50000) else 20000
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(minMs, (minMs * 3).coerceAtLeast(50000), 2500, 6000.coerceAtMost(minMs))
+            .setBufferDurationsMs(minMs, maxMs, 2500, 6000.coerceAtMost(minMs))
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         // Fall back to another decoder (e.g. software) when the preferred one can't start.

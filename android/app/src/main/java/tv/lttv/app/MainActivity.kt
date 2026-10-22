@@ -204,6 +204,7 @@ class MainActivity : AppCompatActivity() {
         if (slot !in tiles.indices) return
         main.post { tile(slot) }
         placeView({ tiles[slot]?.view }, x, y, w, h, visible)
+        if (visible) main.post { tiles[slot]?.setTileSize(Math.round(w * resources.displayMetrics.density), Math.round(h * resources.displayMetrics.density)) }
     }
 
     fun configurePlayers(bufferSec: Int, timeoutSec: Int, rewindMin: Int = 30) {
