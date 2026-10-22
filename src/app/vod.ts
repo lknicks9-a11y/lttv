@@ -9,7 +9,7 @@ import {
   type VodCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries,
 } from '../core/vod';
 import { openRemote } from './platform';
-import { continueList, type ResumeEntry, type SeriesRef } from '../core/vod';
+import { continueList, type ResumeEntry, type SeriesRef, type VodGenre } from '../core/vod';
 export { continueList, type ResumeEntry, type SeriesRef };
 import { getState, repo, setState, subscribe } from './state';
 import type { PlaylistSource } from '../core/types';
@@ -224,6 +224,41 @@ export async function resumePosition(key: string): Promise<ResumeEntry | undefin
   return (await resumeStore())[key];
 }
 
+const titleKey = (n: string) => normTitle(cleanTitle(n));
+
+/**
+ * Where you left off in a movie — also when it was watched on another provider (or another copy):
+ * matched by the movie's title and year, so switching providers keeps your progress.
+ */
+export async function movieResume(playlistId: string, m: VodMovie): Promise<ResumeEntry | undefined> {
+  const store = await resumeStore();
+  const exact = store[`m:${playlistId}:${m.id}`];
+  if (exact) return exact;
+  const want = titleKey(m.name);
+  return Object.values(store)
+    .filter((e) => e.key.startsWith('m:') && !e.done && titleKey(e.title) === want && (!m.year || !e.subtitle || e.subtitle === m.year))
+    .sort((a, b) => b.at - a.at)[0];
+}
+
+/** Progress entries for a show on any provider (matched by the show's name). */
+export function showEntries(all: ResumeEntry[], name: string): ResumeEntry[] {
+  const want = titleKey(name);
+  return all.filter((e) => (e.series ? titleKey(e.series.name) === want : e.key.startsWith('e:') && titleKey(e.title) === want));
+}
+
+/** Is this provider still in your sources? (Continue-watching entries from a provider you replaced aren't.) */
+export function providerPresent(playlistId: string): boolean {
+  return getState().playlists.some((p) => p.id === playlistId);
+}
+
+/** A movie on your current providers by title (and year), for progress saved on a provider you no longer have. */
+export async function findMovieByName(title: string, year?: string): Promise<(VodMovie & { playlistId: string }) | undefined> {
+  const want = titleKey(title);
+  const list = await loadAllMovies().catch(() => []);
+  const same = list.filter((m) => titleKey(m.name) === want && (!year || !m.year || m.year === year));
+  return same.sort((a, b) => qualityOf(b.name).rank - qualityOf(a.name).rank)[0];
+}
+
 export async function saveProgress(e: Omit<ResumeEntry, 'at'>) {
   const store = await resumeStore();
   const done = e.dur > 0 && e.pos / e.dur > 0.93;
@@ -325,14 +360,35 @@ const MAX_CATS = 40;
 
 const homeCache = new Map<VodKind, VodHome>();
 
-/** Apple's public charts of what people are watching (titles only), to find those in your provider's list. */
-async function chartTitles(kind: VodKind): Promise<string[]> {
-  const k = `chart|${kind}`;
+/** Apple's US genre charts for movies (the trusted source for the genre rows). */
+const MOVIE_CHART_GENRES: { id: VodGenre; label: string; genre: number }[] = [
+  { id: 'action', label: 'Action & Adventure', genre: 4401 },
+  { id: 'comedy', label: 'Comedies', genre: 4404 },
+  { id: 'drama', label: 'Dramas', genre: 4406 },
+  { id: 'thriller', label: 'Thrillers', genre: 4416 },
+  { id: 'horror', label: 'Horror', genre: 4408 },
+  { id: 'scifi', label: 'Sci-Fi & Fantasy', genre: 4413 },
+  { id: 'family', label: 'Kids & Family', genre: 4410 },
+  { id: 'romance', label: 'Romance', genre: 4412 },
+  { id: 'documentary', label: 'Documentaries', genre: 4405 },
+];
+
+/** Apple's public US charts of what people are watching (titles only), to find those in your provider's list. */
+async function chartTitles(kind: VodKind, genre?: number): Promise<string[]> {
+  const k = `chart|${kind}|${genre ?? ''}`;
   if (mem.has(k)) return mem.get(k) as string[];
   try {
-    const url = kind === 'movies' ? 'https://itunes.apple.com/us/rss/topmovies/limit=100/json' : 'https://itunes.apple.com/us/rss/toptvseasons/limit=100/json';
+    const g = genre ? `/genre=${genre}` : '';
+    let base = 'https://itunes.apple.com';
+    try {
+      base = localStorage.getItem('lttvItunesBase') || base;
+    } catch {
+      /* default */
+    }
+    const url = kind === 'movies' ? `${base}/us/rss/topmovies/limit=100${g}/json` : `${base}/us/rss/toptvseasons/limit=100/json`;
     const { stream } = await openRemote(url, AbortSignal.timeout?.(15_000));
-    const titles = parseItunesChart(JSON.parse(await new Response(stream).text()));
+    // TV charts list seasons ("The Bear, Season 3"): the show is what matters.
+    const titles = [...new Set(parseItunesChart(JSON.parse(await new Response(stream).text())).map((t) => t.replace(/,?\s*(season|series|vol\.?|volume)\s*\d+.*$/i, '').trim()))];
     mem.set(k, titles);
     return titles;
   } catch {
@@ -421,21 +477,21 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
   const order = [...trendingCats, ...genreCats, ...rest].slice(0, MAX_CATS);
   const loaded = new Map<string, VodItem[]>();
   let chart: string[] = [];
+  const genreCharts = new Map<VodGenre, string[]>();
 
   const build = (loading: boolean): VodHome => {
     const all = dedupe([...loaded.values()].flat());
     const rows: VodRow[] = [];
-    // Trending: the provider's own "Trending / Popular / Top 10" lists, then chart titles found in your list.
-    const trending: VodItem[] = trendingCats.flatMap((c) => loaded.get(c.key) ?? []);
-    if (chart.length) {
-      const byTitle = new Map(all.map((it) => [normTitle(itemName(it)), it]));
-      for (const t of chart) {
-        const it = byTitle.get(normTitle(t));
-        if (it) trending.push(it);
-      }
+    // Rows come from trusted US charts (Apple's top movies / TV in the US, TVmaze's US schedule),
+    // showing the titles your provider has — not from the provider's own (often foreign) category names.
+    const byTitle = new Map<string, VodItem>();
+    for (const it of all) {
+      const k = normTitle(cleanTitle(itemName(it)));
+      if (!byTitle.has(k)) byTitle.set(k, it);
     }
-    const tr = dedupe(trending).slice(0, ROW_MAX);
-    if (tr.length) rows.push({ id: 'trending', title: kind === 'movies' ? 'Popular Movies' : 'Popular Shows', items: tr });
+    const fromChart = (titles: string[]) => dedupe(titles.map((t) => byTitle.get(normTitle(cleanTitle(t)))).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
+    const tr = fromChart(chart);
+    if (tr.length) rows.push({ id: 'trending', title: kind === 'movies' ? 'Top Movies in the US' : 'Top Shows in the US', items: tr });
     // Shows with a new episode on TV or streaming this week (TVmaze schedule) that your provider has.
     if (kind === 'shows' && fresh.length) {
       const byTitle = new Map(all.map((it) => [normTitle(cleanTitle(itemName(it))), it]));
@@ -446,9 +502,20 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
     if (recent.length) rows.push({ id: 'recent', title: 'Recently Added', items: recent });
     const top = dedupe(all.filter((it) => itemRating(it) >= 7).sort((a, b) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a))).slice(0, ROW_MAX);
     if (top.length) rows.push({ id: 'top', title: 'Critically Acclaimed', items: top });
-    for (const g of GENRE_ROWS) {
-      const items = dedupe(genreCats.filter((c) => genreOf(c.name) === g.id).flatMap((c) => loaded.get(c.key) ?? [])).slice(0, ROW_MAX);
-      if (items.length) rows.push({ id: `genre:${g.id}`, title: g.label, items });
+    if (kind === 'movies') {
+      // Genre rows: Apple's US genre charts (what's popular in that genre), titles your provider has.
+      for (const g of MOVIE_CHART_GENRES) {
+        // Chart order first, then the rest of your provider's English category for that genre.
+        const extra = genreCats.filter((c) => genreOf(c.name) === g.id).flatMap((c) => loaded.get(c.key) ?? []);
+        const items = dedupe([...fromChart(genreCharts.get(g.id) ?? []), ...extra]).slice(0, ROW_MAX);
+        if (items.length) rows.push({ id: `genre:${g.id}`, title: g.label, items });
+      }
+    } else {
+      // Shows: the US streaming services' and genre categories of your provider (English only).
+      for (const g of GENRE_ROWS) {
+        const items = dedupe(genreCats.filter((c) => genreOf(c.name) === g.id).flatMap((c) => loaded.get(c.key) ?? [])).slice(0, ROW_MAX);
+        if (items.length) rows.push({ id: `genre:${g.id}`, title: g.label, items });
+      }
     }
     return { rows, categories: english, otherLanguages, loading };
   };
@@ -457,6 +524,14 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
     chart = t;
     if (loaded.size) onUpdate(build(loaded.size < order.length));
   });
+  if (kind === 'movies') {
+    void (async () => {
+      for (const g of MOVIE_CHART_GENRES) {
+        genreCharts.set(g.id, await chartTitles('movies', g.genre));
+        if (loaded.size) onUpdate(build(loaded.size < order.length));
+      }
+    })();
+  }
   let fresh: string[] = [];
   if (kind === 'shows') void newEpisodeTitles().then((t) => {
     fresh = t;

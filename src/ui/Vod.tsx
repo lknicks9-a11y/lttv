@@ -2,11 +2,11 @@
 // their detail pop-ups and the full-screen movie / episode player.
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { player, setState, useApp } from '../app/state';
+import { player, setState, toast, useApp } from '../app/state';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
   continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
-  moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching,
+  moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching, movieResume, showEntries, providerPresent, findMovieByName,
   type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
 import { cleanTitle, formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
@@ -134,9 +134,19 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                       data-autofocus={i === 0 ? '' : undefined}
                       // Shows open their page with the episode selected; movies continue right away.
                       onClick={() => {
-                        if (e.series) setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } });
-                        else if (e.key.startsWith('e:')) void findSeriesByName(e.playlistId, e.title).then((sr) => (sr ? setOpen({ kind: 'series', playlistId: e.playlistId, s: sr }) : playVod(resumePlay(e))));
-                        else playVod(resumePlay(e));
+                        const here = providerPresent(e.playlistId);
+                        if (e.series && here) setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } });
+                        else if (e.series || e.key.startsWith('e:')) {
+                          // Watched on a provider you've since replaced: the same show on your provider now.
+                          void findSeriesByName(e.playlistId, e.series?.name ?? e.title).then((sr) => (sr ? setOpen({ kind: 'series', playlistId: (sr as VodSeries & { playlistId?: string }).playlistId ?? e.playlistId, s: sr }) : here ? playVod(resumePlay(e)) : toast(`${e.series?.name ?? e.title} isn’t on your provider now.`, 'info')));
+                        } else if (here) playVod(resumePlay(e));
+                        else {
+                          void findMovieByName(e.title, e.subtitle).then((m) => {
+                            const v = m && moviePlay(m.playlistId, m, Math.max(0, e.pos - 5));
+                            if (v) playVod(v);
+                            else toast(`${e.title} isn’t on your provider now.`, 'info');
+                          });
+                        }
                       }}
                     >
                       <ArtPoster kind={e.key.startsWith('e:') ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? (e.key.startsWith('e:') ? undefined : e.poster)} />
@@ -164,7 +174,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
               </Empty>
             )}
             {home && !home.loading && home.categories.length > 0 && <CategoryRow id="cats" title="Browse categories" cats={home.categories} onPick={(cat) => setView({ mode: 'category', cat })} autofocus={!cont.length && !home.rows.length} />}
-            {home && !home.loading && home.otherLanguages.length > 0 && <CategoryRow id="other" title="Other languages" cats={home.otherLanguages} onPick={(cat) => setView({ mode: 'category', cat })} />}
+            {/* US / English only: other-language categories aren't shown. */}
           </>
         )}
       </div>
@@ -201,7 +211,7 @@ function Hero({ items, onOpen }: { items: VodItem[]; onOpen: (it: VodItem) => vo
   const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
   const play = async () => {
     if (it.kind === 'series') return onOpen(it);
-    const r = await resumePosition(`m:${it.playlistId}:${it.m.id}`);
+    const r = await movieResume(it.playlistId, it.m);
     const v = moviePlay(it.playlistId, it.m, r ? Math.max(0, r.pos - 5) : 0);
     if (v) playVod({ ...v, poster: poster ?? v.poster });
   };
@@ -371,7 +381,7 @@ function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMov
       let pick = 0;
       for (let i = 0; i < vs.length; i++) {
         const it = vs[i].item as Extract<VodItem, { kind: 'movie' }>;
-        if (await resumePosition(`m:${it.playlistId}:${it.m.id}`)) {
+        if ((await resumePosition(`m:${it.playlistId}:${it.m.id}`))) {
           pick = i;
           break;
         }
@@ -386,7 +396,7 @@ function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMov
   useEffect(() => {
     setD(null);
     void loadMovieDetails(cur.playlistId, cur.m).then(setD);
-    void resumePosition(`m:${cur.playlistId}:${cur.m.id}`).then(setResume);
+    void movieResume(cur.playlistId, cur.m).then(setResume);
   }, [cur.m.id, playing]);
   const play = (startSec?: number) => {
     const v = moviePlay(cur.playlistId, cur.m, startSec);
@@ -471,13 +481,15 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
   // The episode watched last: by show id, or (older entries) by any of this show's episodes.
   const last = useMemo(() => {
     const keys = new Set((info?.seasons ?? []).flatMap((x) => x.episodes.map((e) => `e:${cur.playlistId}:${e.id}`)));
-    return all.filter((r) => keys.has(r.key) || (r.series?.id === cur.s.id && r.playlistId === cur.playlistId)).sort((a, b) => b.at - a.at)[0] ?? lastWatched(all, cur.playlistId, cur.s.id);
+    // Also progress from another provider / copy of this show (matched by name, then by season + episode).
+    return all.filter((r) => keys.has(r.key) || (r.series?.id === cur.s.id && r.playlistId === cur.playlistId)).sort((a, b) => b.at - a.at)[0] ?? lastWatched(all, cur.playlistId, cur.s.id) ?? showEntries(all, cur.s.name).sort((a, b) => b.at - a.at)[0];
   }, [all, info, cur.s.id]);
   const target = targetEpisode(info, last);
   const shownSeason = season ?? target?.season ?? info?.seasons[0]?.season ?? null;
   const seasonEps = info?.seasons.find((x) => x.season === shownSeason)?.episodes ?? [];
   const d = info?.details ?? {};
-  const resumeOf = (e: VodEpisode) => all.find((r) => r.key === `e:${cur.playlistId}:${e.id}`);
+  const named = useMemo(() => showEntries(all, cur.s.name), [all, cur.s.name]);
+  const resumeOf = (e: VodEpisode) => all.find((r) => r.key === `e:${cur.playlistId}:${e.id}`) ?? named.find((r) => r.series?.season === e.season && r.series?.episode === e.episode);
 
   // When the episodes arrive, select the one watched last (or the first).
   useEffect(() => {

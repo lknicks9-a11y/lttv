@@ -256,6 +256,12 @@ function fixtureServer() {
         resp.writeHead(200, { 'content-type': 'application/json' });
         return resp.end('[]');
       }
+      if (u.pathname.startsWith('/itunes/us/rss/')) {
+        // Apple's US charts: overall, and the Action genre chart.
+        const names = /genre=4401/.test(u.pathname) ? ['Night Run', 'Harbor Lights'] : /topmovies/.test(u.pathname) && !/genre=/.test(u.pathname) ? ['Galaxy Quest Redux', 'Not On Your Provider', 'Night Run'] : [];
+        resp.writeHead(200, { 'content-type': 'application/json' });
+        return resp.end(JSON.stringify({ feed: { entry: names.map((n) => ({ 'im:name': { label: n } })) } }));
+      }
       if (u.pathname === '/itunes/search') {
         const ok = /night run/i.test(u.searchParams.get('term') ?? '');
         resp.writeHead(200, { 'content-type': 'application/json' });
@@ -991,22 +997,24 @@ try {
   check('Movies and Shows appear in the menu when the provider has them', !!vodNav, JSON.stringify(vodNav));
   await page.evaluate((b) => { localStorage.setItem('lttvTvmazeBase', b + '/tvmaze'); localStorage.setItem('lttvItunesBase', b + '/itunes'); localStorage.setItem('lttvWikiBase', b + '/wiki/'); }, fxBase);
   await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
-  const rows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.some((x) => /Other languages/.test(x)) && !document.querySelector('.vod-loading') ? t : null; }), 15000);
+  const rows = await waitFor(() => page.evaluate(() => { const t = [...document.querySelectorAll('.vod-row-title')].map((x) => x.textContent); return t.some((x) => /Browse categories/.test(x)) && t.includes('Top Movies in the US') && !document.querySelector('.vod-loading') ? t : null; }), 15000);
   await page.waitForTimeout(300);
-  check('Movies home (Hulu-style): Popular Movies, Recently Added, Critically Acclaimed and English genre rows', !!rows && rows.includes('Popular Movies') && rows.includes('Recently Added') && rows.includes('Critically Acclaimed') && rows.includes('Action & Adventure') && rows.includes('Comedies'), JSON.stringify(rows));
+  check('Movies home (Hulu-style): Top Movies in the US (Apple chart), Recently Added, Critically Acclaimed and genre rows', !!rows && rows.includes('Top Movies in the US') && rows.includes('Recently Added') && rows.includes('Critically Acclaimed') && rows.includes('Action & Adventure') && rows.includes('Comedies'), JSON.stringify(rows));
   const vodHome = await page.evaluate(() => ({
     chips: document.querySelectorAll('.vod .chips').length,
     inputFocused: document.activeElement?.tagName === 'INPUT',
     focusedCard: !!document.activeElement?.closest('.vod-card, .vod-hero'),
     hero: document.querySelector('.vod-hero-title')?.textContent,
-    trending: [...document.querySelectorAll('.vod-row')].find((r) => /Popular Movies/.test(r.textContent))?.querySelector('.vod-name')?.textContent,
+    trending: [...document.querySelectorAll('.vod-row')].find((r) => /Top Movies in the US/.test(r.textContent))?.querySelector('.vod-name')?.textContent,
+    action: [...[...document.querySelectorAll('.vod-row')].find((r) => /Action & Adventure/.test(r.querySelector('.vod-row-title')?.textContent ?? ''))?.querySelectorAll('.vod-name') ?? []].map((x) => x.textContent),
     browse: [...document.querySelectorAll('.vod-row')].find((r) => /Browse categories/.test(r.textContent))?.textContent ?? '',
     other: [...document.querySelectorAll('.vod-row')].find((r) => /Other languages/.test(r.textContent))?.textContent ?? '',
     rowText: [...document.querySelectorAll('.vod-row')].filter((r) => !/Other languages|Browse/.test(r.querySelector('.vod-row-title')?.textContent ?? '')).map((r) => r.textContent).join(' '),
   }));
   check('Movies: featured banner on top, no category tabs, search doesn\'t open by itself', vodHome.chips === 0 && !vodHome.inputFocused && vodHome.focusedCard && vodHome.hero === 'Galaxy Quest Redux', JSON.stringify(vodHome).slice(0, 200));
-  check('Movies: the provider\'s "Trending" list leads Popular Movies', vodHome.trending === 'Galaxy Quest Redux (2024)', String(vodHome.trending));
-  check('Movies: rows and Browse are English; other languages are kept separate', /EN \| Action/.test(vodHome.browse) && !/أفلام/.test(vodHome.browse) && /أفلام/.test(vodHome.other) && !/فيلم/.test(vodHome.rowText), vodHome.other);
+  check('Movies: the US chart (Apple) leads Top Movies in the US, in chart order', vodHome.trending === 'Galaxy Quest Redux (2024)', String(vodHome.trending));
+  check('Movies: genre rows follow Apple\'s US genre chart first', /Night Run/.test(vodHome.action[0] ?? '') && vodHome.action[1] === 'Harbor Lights (2019)', JSON.stringify(vodHome.action));
+  check('Movies: US / English only — other-language categories aren\'t shown', /EN \| Action/.test(vodHome.browse) && !/أفلام/.test(vodHome.browse) && !vodHome.other && !/فيلم/.test(vodHome.rowText), vodHome.browse.slice(0, 80));
   await shot('40-movies');
   await page.evaluate(() => document.querySelector('.vod-row .vod-card')?.focus());
   await page.keyboard.press('ArrowLeft');
@@ -1078,6 +1086,18 @@ try {
   check('Continuing a show opens its page with the last-watched episode selected (no auto-play)', !!sel && sel.id === '7702' && !sel.player, JSON.stringify(sel));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
+  // Progress saved on a provider you've since replaced still continues on your provider now (matched by title).
+  await page.evaluate(async () => {
+    await window.__lttv.saveProgress({ key: 'm:old-provider:999', title: 'Night Run', subtitle: '2021', pos: 1800, dur: 6000, url: 'http://old.example/movie/999.mp4', playlistId: 'old-provider' });
+    await window.__lttv.saveProgress({ key: 'e:old-provider:5503', title: 'Harbor', subtitle: 'S2 E1', pos: 600, dur: 2600, url: 'http://old.example/series/5503.mp4', playlistId: 'old-provider', series: { id: '55', name: 'Harbor', season: 2, episode: 1, episodeId: '5503', year: '2019' }, hasNext: false });
+  });
+  await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].find((b) => /Movies/.test(b.textContent))?.click());
+  await waitFor(() => page.evaluate(() => [...document.querySelectorAll('.vod-row')].find((x) => /Continue watching/.test(x.textContent)) || null), 8000);
+  await page.evaluate(() => [...[...document.querySelectorAll('.vod-row')].find((x) => /Continue watching/.test(x.textContent))?.querySelectorAll('.vod-card') ?? []].find((c) => /Night Run/.test(c.textContent))?.click());
+  const switched = await waitFor(() => page.evaluate(() => { const v = window.__lttv.getState().vodPlaying; return v ? { url: v.url.replace(/demo\/[^/]+/, 'demo/…'), start: v.startSec } : null; }), 8000);
+  check('Movies: progress from a replaced provider continues the same movie on your provider now, at the same place', !!switched && /127\.0\.0\.1/.test(switched.url) && switched.start >= 1790, JSON.stringify(switched));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
   try { rmSync(xtProfile, { recursive: true, force: true }); } catch { /* browser still closing */ }
 
   // ---- Accounts: each has its own setup on this device ----
