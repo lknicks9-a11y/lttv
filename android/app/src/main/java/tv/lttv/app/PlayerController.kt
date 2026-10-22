@@ -129,9 +129,9 @@ class PlayerController(
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, videoOff)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !captions)
-            // Multiview tiles without sound don't decode audio at all: several audio streams fighting
-            // over the TV's sound output (and each video timing itself by its audio) made 4 games stutter.
-            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !audioFocus && volume == 0f)
+            // (Multiview tiles keep their audio track and are silenced by volume: switching the audio track
+            // on/off as sound moved between games made a live stream reconnect — and IPTV servers start a
+            // new connection with the last ~10 s, so the picture jumped back 10 seconds.)
             .setPreferredTextLanguage("en")
             .setSelectUndeterminedTextLanguage(true)
             .setForceHighestSupportedBitrate(vod)
@@ -141,6 +141,7 @@ class PlayerController(
             .build()
     }
 
+    private var playingHls = false
     private var tileMaxW = 1280
     private var tileMaxH = 720
 
@@ -158,7 +159,9 @@ class PlayerController(
         if (mw != tileMaxW || mh != tileMaxH) {
             tileMaxW = mw
             tileMaxH = mh
-            applyTrackPrefs()
+            // Only streams with several qualities (HLS) can switch while playing; a plain live stream would
+            // reconnect (and jump back ~10 s) for nothing — it uses the new size from its next start.
+            if (playingHls || currentUrl == null) applyTrackPrefs()
         }
     }
 
@@ -263,7 +266,7 @@ class PlayerController(
             .put("format", videoFormat)
             .put("dropped", droppedFrames)
             .put("bufferedMs", p?.totalBufferedDuration ?: 0L)
-            .put("audio", !(volume == 0f && !audioFocus))
+            .put("audio", volume > 0f)
             .put("error", lastError)
     }
 
@@ -427,6 +430,7 @@ class PlayerController(
             startTimeshift(url, headers, tsFlags)
             return
         }
+        playingHls = mime == MimeTypes.APPLICATION_M3U8
         val source = if (mime == MimeTypes.APPLICATION_M3U8) {
             HlsMediaSource.Factory(dataSource)
                 .setExtractorFactory(DefaultHlsExtractorFactory(tsFlags, true))
@@ -614,10 +618,8 @@ class PlayerController(
     }
 
     fun setVolume(v: Float) = main.post {
-        val wasSilent = volume == 0f
         volume = v
         exo?.volume = v
-        if (!audioFocus && wasSilent != (v == 0f)) applyTrackPrefs()
     }
 
     fun pause() = main.post {
