@@ -191,7 +191,7 @@ export interface Settings {
   /** Auto-approve fuzzy matches at or above this confidence. 0 = never (default). */
   fuzzyAutoApprove: number;
   accent: string;
-  theme: 'a7' | 'victors' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast';
+  theme: 'a7' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast';
   /** The Frutiger Aero look was introduced (switched on once for existing setups). */
   aeroIntroduced?: boolean;
   startupScreen: StartupScreen;
@@ -223,8 +223,6 @@ export interface Settings {
   preferEnglish: boolean;
   /** Subtitles / captions on movies and shows that have them. */
   captions?: boolean;
-  /** Background picture behind every screen ('theme' = the theme's own background). */
-  background?: 'autumn' | 'theme';
   /** Streams you chose for My TV numbers (they win over the automatic pick, and follow you to other providers by name / call sign). */
   myTvPins: MyTvPin[];
 }
@@ -279,7 +277,6 @@ export const DEFAULT_SETTINGS: Settings = {
   hqLogos: true,
   rewindMin: 30,
   preferEnglish: true,
-  background: 'autumn',
   myTvPins: [
     { n: 2, name: 'A3 NEW YORK 02 WCBS CBS NEW YORK ᶜᶦᵗʸ RAW', call: 'WCBS', streamId: '2353' },
     { n: 4, name: 'A3 NEW YORK 04 WNBC NBC NEW YORK ᶜᶦᵗʸ RAW', call: 'WNBC', streamId: '2354' },

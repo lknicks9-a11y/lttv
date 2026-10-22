@@ -12,7 +12,7 @@ export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?:
       <AeroMark size={size} class={cls} />
       <OwlMark size={size} class={cls} />
       <A7Mark size={size} class={cls} />
-      <VictorsMark size={size} class={cls} />
+      <AutumnMark size={size} class={cls} />
     </>
   );
 }
@@ -159,51 +159,42 @@ export function Wordmark({ class: cls }: { class?: string }) {
 }
 
 /**
- * Victors theme mark: a navy TV with a bold maize "V" chevron rising across the screen,
- * a thin maize pinstripe and three gold star award stickers in the corner.
+ * Autumn theme mark: a TV whose screen is a golden fall sky with a tree-lined road
+ * running into the distance and a falling leaf.
  */
-export function VictorsMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+export function AutumnMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
   const n = ++gid;
-  const id = (k: string) => `lttv-vic${k}${n}`;
-  const star = (cx: number, cy: number, r: number) => {
-    const pts: string[] = [];
-    for (let i = 0; i < 10; i++) {
-      const a = (Math.PI / 5) * i - Math.PI / 2;
-      const rr = i % 2 ? r * 0.45 : r;
-      pts.push(`${(cx + rr * Math.cos(a)).toFixed(2)},${(cy + rr * Math.sin(a)).toFixed(2)}`);
-    }
-    return pts.join(' ');
-  };
+  const id = (k: string) => `lttv-aut${k}${n}`;
   return (
-    <svg class={'logo-mark logo-victors ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+    <svg class={'logo-mark logo-autumn ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
       <defs>
-        <linearGradient id={id('scr')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#1b3a66" /><stop offset=".55" stop-color="#0c2142" /><stop offset="1" stop-color="#071630" />
+        <linearGradient id={id('sky')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffd36b" /><stop offset=".55" stop-color="#ff9a2e" /><stop offset="1" stop-color="#c2410c" />
         </linearGradient>
-        <linearGradient id={id('gold')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#ffe28a" /><stop offset="1" stop-color="#f2b705" />
+        <linearGradient id={id('rim')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffd36b" /><stop offset="1" stop-color="#e2620f" />
         </linearGradient>
         <clipPath id={id('clip')}><rect x="5" y="10" width="54" height="39" rx="11" /></clipPath>
       </defs>
-      <path d="M26 10 20 3M38 10 44 3" stroke={`url(#${id('gold')})`} stroke-width="1.9" stroke-linecap="round" />
-      <circle cx="20" cy="3" r="1.7" fill="#ffc72c" /><circle cx="44" cy="3" r="1.7" fill="#ffc72c" />
-      <rect x="5" y="10" width="54" height="39" rx="11" fill={`url(#${id('scr')})`} />
+      <path d="M26 10 20 3M38 10 44 3" stroke={`url(#${id('rim')})`} stroke-width="1.9" stroke-linecap="round" />
+      <circle cx="20" cy="3" r="1.7" fill="#ffc24a" /><circle cx="44" cy="3" r="1.7" fill="#ff8a1e" />
+      <rect x="5" y="10" width="54" height="39" rx="11" fill={`url(#${id('sky')})`} />
       <g clip-path={`url(#${id('clip')})`}>
-        {/* glossy shine */}
-        <path d="M5 10h54v11C44 16 22 16 5 23Z" fill="#fff" opacity=".08" />
-        {/* pinstripes and the bold V chevron */}
-        <path d="M12 14 32 44 52 14" fill="none" stroke="#ffc72c" stroke-width=".9" opacity=".55" />
-        <path d="M18 14h8.5L32 31.5 37.5 14H46L35 44h-6Z" fill={`url(#${id('gold')})`} />
-        <path d="M18 14h8.5l1 3H19.3Z" fill="#fff" opacity=".25" />
+        {/* road */}
+        <path d="M29.5 33h5L46 50H18Z" fill="#8a5a3a" opacity=".85" />
+        {/* tree trunks */}
+        <path d="M13 50 15 26h2.4L19 50ZM45 50l1.6-24H49l2 24ZM24 40l1-12h1.4l.8 12ZM37.6 40l.8-12h1.4l1 12Z" fill="#3b2314" />
+        {/* canopies */}
+        <circle cx="13" cy="20" r="9" fill="#e2620f" /><circle cx="20" cy="17" r="7" fill="#ff8a1e" />
+        <circle cx="51" cy="20" r="9" fill="#e2620f" /><circle cx="44" cy="17" r="7" fill="#ffb02e" />
+        <circle cx="26" cy="25" r="4.5" fill="#ffb02e" /><circle cx="38.5" cy="25" r="4.5" fill="#ff8a1e" />
+        {/* leaves on the road */}
+        <circle cx="25" cy="47" r="1.1" fill="#ffd36b" /><circle cx="38" cy="45" r="1" fill="#ffc24a" /><circle cx="31" cy="44" r=".9" fill="#ff8a1e" />
       </g>
-      <rect x="5" y="10" width="54" height="39" rx="11" fill="none" stroke={`url(#${id('gold')})`} stroke-width="1.8" />
-      {/* award stickers */}
-      <g>
-        <circle cx="49" cy="40.5" r="3.2" fill="#ffc72c" /><polygon points={star(49, 40.6, 2.3)} fill="#0c2142" />
-        <circle cx="54" cy="36" r="2.6" fill="#ffc72c" /><polygon points={star(54, 36.1, 1.8)} fill="#0c2142" />
-        <circle class="logo-dot" cx="44.6" cy="44.4" r="2.2" fill="#ffc72c" />
-      </g>
-      <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('gold')})`} stroke-width="1.9" stroke-linecap="round" />
+      <rect x="5" y="10" width="54" height="39" rx="11" fill="none" stroke={`url(#${id('rim')})`} stroke-width="1.8" />
+      {/* falling leaf */}
+      <path class="logo-dot" d="M53 41c2.6-.2 4.2 1.4 4.4 4-2.6.2-4.2-1.4-4.4-4Zm.4.4 3.6 3.6" fill="#ffc24a" stroke="#c2410c" stroke-width=".5" />
+      <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('rim')})`} stroke-width="1.9" stroke-linecap="round" />
     </svg>
   );
 }
