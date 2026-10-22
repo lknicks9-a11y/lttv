@@ -1233,3 +1233,21 @@ small, .small { font-size: 1.15rem; }
 .team-bc.fav { border-color: var(--accent); }
 .other-streams { align-self: flex-start; margin-top: 0.2rem; }
 .welcome-busy { margin: 0.5rem 0 1rem; text-align: center; }
+
+/* ---------- Sign in ---------- */
+.signin-overlay { overflow-y: auto; }
+.signin { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 2rem; }
+.signin-card { width: min(46rem, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 1rem; text-align: center; }
+.signin-card h1 { margin: 0.4rem 0 0; }
+.signin-card .welcome-logo { justify-content: center; }
+.signin-options { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.6rem; }
+.signin-options .btn { justify-content: center; }
+.signin-google { background: #fff !important; color: #1f1f1f !important; border-color: transparent !important; font-weight: 700; }
+.signin-apple { background: #000 !important; color: #fff !important; border-color: #444 !important; font-weight: 700; }
+.g-mark { font-family: Arial, sans-serif; color: #4285f4; font-weight: 800; }
+.signin-form { display: flex; flex-direction: column; gap: 0.6rem; text-align: left; }
+.ok-text { color: var(--ok); }
+.setup-url-sm { color: var(--accent); }
+.cloud-row { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; border-radius: 0.8rem; background: rgba(255, 255, 255, 0.04); margin: 0.4rem 0 0.6rem; }
+.cloud-row.signed-in { background: var(--accent-soft); }
+.cloud-text { flex: 1; min-width: 14rem; display: flex; flex-direction: column; gap: 0.15rem; }

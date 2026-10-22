@@ -71,6 +71,8 @@ export interface AppState {
   multiview?: import('./multiview').MultiviewState;
   /** "Who's watching?" account picker is showing. */
   accountPicker?: boolean;
+  /** The sign-in screen is showing. */
+  signIn?: boolean;
   /** Which on-demand screens exist (the playlists have movies / shows). */
   vodAvail?: { movies: boolean; shows: boolean };
   /** The movie / episode playing full screen. */

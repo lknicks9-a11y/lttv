@@ -174,7 +174,7 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   const picks = useMemo(() => (index ? findStreams(game, lineup, { sport: league.sport, index, feed }) : []), [game, lineup, index, feed]);
   const locals = localBroadcasts(game);
   // Each team's own broadcast first (team channels like "NBA: Charlotte Hornets", else the RSN found).
-  const teamBc = useMemo(() => (index ? teamBroadcasts(game, lineup, league.sport, findStreams(game, lineup, { sport: league.sport, index })) : []), [game, lineup, index]);
+  const teamBc = useMemo(() => teamBroadcasts(game, lineup), [game, lineup]);
   const [others, setOthers] = useState(false);
   useEffect(() => {
     if (feed) feedMemory.set(game.id, feed);
@@ -205,6 +205,7 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
           {game.state === 'in' ? <span class="badge-live">LIVE</span> : null}
           <span>{game.state === 'pre' ? clock(game.start) : game.detail}</span>
           {game.note && <small class="muted">{game.note}</small>}
+          {broadcastSummary(game) && <small class="muted watch-tv">TV: {broadcastSummary(game)}</small>}
         </span>
         <span class="watch-team"><TeamLogo team={game.home} size="lg" /><span>{game.home.name}</span>{game.state !== 'pre' && <b>{game.home.score}</b>}</span>
       </div>

@@ -22,6 +22,7 @@ import { SportsScreen, ReminderPrompt } from './Sports';
 import { VodScreen, VodPlayer, useVodNav } from './Vod';
 import { MultiviewScreen } from './Multiview';
 import { Avatar, WhoIsWatching } from './Accounts';
+import { SignInScreen } from './SignIn';
 import { currentAccount, listAccounts, needsAccountPick } from '../app/accounts';
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
@@ -199,7 +200,8 @@ export function App() {
   const vodPlaying = useApp((s) => !!s.vodPlaying);
   const multiview = useApp((s) => !!s.multiview);
   const picker = useApp((s) => !!s.accountPicker);
-  const covered = fullscreen || vodPlaying || multiview || picker;
+  const signIn = useApp((s) => !!s.signIn);
+  const covered = fullscreen || vodPlaying || multiview || picker || signIn;
   useLayoutEffect(() => {
     if (needsAccountPick()) setState({ accountPicker: true });
   }, []);
@@ -245,8 +247,8 @@ export function App() {
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
-      {picker && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ accountPicker: false })} /></div>}
-      {picker ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
+      {signIn ? <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div> : picker && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ accountPicker: false })} /></div>}
+      {picker || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}

@@ -237,6 +237,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Public account-server settings (URL + anon key) served to the phone sign-in page. */
+    @Volatile var cloudConfigJson: String = "{}"
+
     fun startSetupServer(): String {
         val existing = setupServer
         if (existing != null) return existing.info()

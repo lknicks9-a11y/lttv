@@ -142,21 +142,22 @@ test('streaming-only games offer the provider\'s channels for that service until
 
 import { teamBroadcasts, teamChannels as teamFeedChannels } from '../src/core/streamfinder';
 
-test('team channels: each team\'s own broadcast from the team-pass / PPV channels', () => {
+test('team channels come only from the league\'s "Team PPV" group, by team name', () => {
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
-  const hornets = t('Charlotte Hornets', 'Hornets', 'Charlotte', 'CHA');
-  const heat = t('Miami Heat', 'Heat', 'Miami', 'MIA');
-  const game = { id: '5', league: 'nba', start: Date.now(), state: 'in', detail: '', name: '', home: hornets, away: heat, broadcasts: [{ name: 'FanDuel SN SE', market: 'home', kind: 'tv' }, { name: 'FanDuel SN SUN', market: 'away', kind: 'tv' }] } as never;
+  const hornets = t('Charlotte Hornets', 'Hornets', 'Charlotte', 'CHA') as never;
+  const heat = t('Miami Heat', 'Heat', 'Miami', 'MIA') as never;
+  const game = { id: '5', league: 'nba', start: Date.now(), state: 'in', detail: '', name: '', home: hornets, away: heat, broadcasts: [{ name: 'FanDuel SN SE', market: 'home', kind: 'tv' }] } as never;
   const ch = (key: string, name: string, number: number, group = '') => ({ key, name, originalName: name, group, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
   const lineup = [
-    ch('h', 'NBA: Charlotte Hornets', 501, 'NBA TEAMS PPV'),
-    ch('h2', 'Charlotte Hornets SD', 502, 'NBA TEAMS PPV'),
-    ch('m', 'US| NBA MIAMI HEAT HD', 510),
-    ch('x', 'WCNC Charlotte NBC', 20, 'USA LOCALS'),
-    ch('n', 'NHL: Carolina Hurricanes', 600, 'NHL TEAMS'),
-    ch('e', 'NBA 01: Heat vs Hornets', 700, 'NBA EVENTS'),
+    ch('h', 'Charlotte Hornets', 501, 'NBA Team PPV'),
+    ch('h2', 'Charlotte Hornets SD', 502, 'NBA Team PPV'),
+    ch('m', 'Miami Heat FHD', 510, 'NBA Team PPV'),
+    ch('wrong', 'NBA: Charlotte Hornets', 520, 'NBA EVENTS'),
+    ch('w', 'Charlotte Hornets', 530, 'WNBA Team PPV'),
+    ch('e', 'Heat vs Hornets', 700, 'NBA Team PPV'),
   ];
-  assert.deepEqual((teamFeedChannels(hornets as never, heat as never, 'basketball', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
-  const bc = teamBroadcasts(game, lineup as never, 'basketball', []);
-  assert.deepEqual(bc.map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
+  assert.deepEqual((teamFeedChannels(hornets, heat, 'nba', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
+  assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
+  // Other sports: no team broadcasts.
+  assert.deepEqual(teamFeedChannels(hornets, heat, 'nfl', lineup as never), []);
 });

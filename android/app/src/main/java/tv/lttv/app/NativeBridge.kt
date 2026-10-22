@@ -115,6 +115,12 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun stopSetupServer() = activity.stopSetupServer()
 
+    /** The account server's public address and key, for the phone sign-in page. */
+    @JavascriptInterface
+    fun setCloudConfig(json: String) {
+        activity.cloudConfigJson = json
+    }
+
     @JavascriptInterface
     fun keepScreenOn(on: Boolean) = activity.keepScreenOn(on)
 

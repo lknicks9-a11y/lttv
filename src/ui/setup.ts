@@ -1,4 +1,5 @@
 import { currentAccount, renameAccount } from '../app/accounts';
+import { openCloudAccount, signInWithRefreshToken } from '../app/cloud';
 import { notifyAccountsChanged } from './Accounts';
 import { addEpgSource, addPlaylist, finishTask, rematchAndReload, reloadAll, repo, showTask, toast, withClientFallback } from '../app/state';
 import type { JobProgress } from '../app/importer';
@@ -10,7 +11,8 @@ import { chooseOutput, normalizeServer, xtreamUrls, type XtreamLogin } from '../
  * Uploaded files are held by the native host and fetched from api/upload/<id>.
  */
 interface Submission {
-  type: 'playlist' | 'epg' | 'settings' | 'xtream' | 'account';
+  type: 'playlist' | 'epg' | 'settings' | 'xtream' | 'account' | 'session';
+  refresh_token?: string;
   /** Name for the account open on the TV. */
   account?: string;
   /** Guide URL sent with a playlist URL. */
@@ -36,6 +38,17 @@ export async function handleSetupSubmission(json: string) {
   try {
     s = JSON.parse(json) as Submission;
   } catch {
+    return;
+  }
+  if (s.type === 'session') {
+    // Signed in on the phone (Google, Apple or email): this TV signs in too.
+    if (!s.refresh_token) return;
+    try {
+      toast('Signing in…', 'info', 4000);
+      openCloudAccount(await signInWithRefreshToken(s.refresh_token));
+    } catch (e) {
+      toast(`Sign-in didn’t finish: ${(e as Error).message}`, 'error', 8000);
+    }
     return;
   }
   if (s.account?.trim()) {

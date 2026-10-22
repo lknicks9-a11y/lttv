@@ -139,6 +139,9 @@ function fixtureServer() {
         streams.push({ num: streams.length + 1, name: 'US: NESN HD', stream_type: 'live', stream_id: 904, stream_icon: '', epg_channel_id: '', category_id: 'USA Sports' });
         streams.push({ num: streams.length + 1, name: 'MLB 05: Boston Red Sox vs New York Yankees', stream_type: 'live', stream_id: 905, stream_icon: '', epg_channel_id: '', category_id: 'MLB Extra Innings' });
         streams.push({ num: streams.length + 1, name: 'UK: Sky Sports Main Event', stream_type: 'live', stream_id: 906, stream_icon: '', epg_channel_id: '', category_id: 'UK Sports' });
+        // The provider's team-broadcast group: one channel per team.
+        streams.push({ num: streams.length + 1, name: 'New York Yankees', stream_type: 'live', stream_id: 908, stream_icon: '', epg_channel_id: '', category_id: 'MLB Team PPV' });
+        streams.push({ num: streams.length + 1, name: 'Boston Red Sox HD', stream_type: 'live', stream_id: 909, stream_icon: '', epg_channel_id: '', category_id: 'MLB Team PPV' });
         // A channel the provider only serves as raw MPEG-TS (its .m3u8 is missing).
         streams.push({ num: streams.length + 1, name: 'US: TS Only Channel', stream_type: 'live', stream_id: 907, stream_icon: '', epg_channel_id: '', category_id: 'USA Entertainment' });
         if (u.searchParams.get('action') === 'get_short_epg') {
@@ -863,18 +866,18 @@ try {
   check('Best channel shown for the game; "none found" for a game no channel carries', /MLB 05|ESPN|YES/.test(gameRow) && await page.evaluate(() => /No channel found/.test(document.querySelectorAll('.game-row')[1]?.textContent ?? '')));
   await page.evaluate(() => document.querySelector('.game-row').click());
   const teamBc = await waitFor(() => page.evaluate(() => { const b = [...document.querySelectorAll('.team-bc')].map((x) => x.textContent); return b.length ? b : null; }), 8000);
-  check('A game with local (RSN) broadcasts offers each team\'s broadcast first, named for the team, with the channel under it', !!teamBc && teamBc.length === 2 && /Yankees Broadcast/.test(teamBc[0]) && /YES/.test(teamBc[0]) && /Red Sox Broadcast/.test(teamBc[1]) && /NESN/.test(teamBc[1]), JSON.stringify(teamBc));
+  check('MLB game: each team\'s broadcast first from the "MLB Team PPV" channels, named for the team, channel under it', !!teamBc && teamBc.length === 2 && /Yankees Broadcast/.test(teamBc[0]) && /New York Yankees/.test(teamBc[0]) && /Red Sox Broadcast/.test(teamBc[1]) && /Boston Red Sox HD/.test(teamBc[1]), JSON.stringify(teamBc));
   check('The first team broadcast has focus', await page.evaluate(() => !!document.activeElement?.classList.contains('team-bc')));
   await shot('30-team-broadcasts');
   check('Other streams stay hidden until asked for', await page.evaluate(() => !document.querySelector('.stream-pick-main') && /Other streams/.test(document.querySelector('.other-streams')?.textContent ?? '')));
   await page.evaluate(() => document.querySelector('.other-streams')?.click());
   await page.waitForTimeout(300);
   const picks = await page.evaluate(() => [...document.querySelectorAll('.stream-pick-main')].map((b) => b.textContent));
-  check('Other streams: event channel and ESPN are offered (not the team broadcasts again)', picks.some((p) => /Event channel/.test(p)) && picks.some((p) => /ESPN/.test(p) && /national/.test(p)) && !picks.some((p) => /YES Network/.test(p)), picks.join(' || '));
+  check('Other streams: event channel, ESPN and the RSNs are offered (not the team channels again)', picks.some((p) => /Event channel/.test(p)) && picks.some((p) => /ESPN/.test(p) && /national/.test(p)) && picks.some((p) => /YES Network/.test(p)) && !picks.some((p) => /New York Yankees(?! at)/.test(p.replace(/Boston Red Sox vs New York Yankees/, ''))), picks.join(' || '));
   check('Streams list has no Multiview buttons (Multiview is in the player only)', await page.evaluate(() => ![...document.querySelectorAll('.watch-game button')].some((b) => /Multiview/.test(b.textContent))));
   await shot('31-other-streams');
   await page.evaluate(() => [...document.querySelectorAll('.team-bc')].find((b) => /Red Sox Broadcast/.test(b.textContent))?.click());
-  const nesnPlaying = await waitFor(() => page.evaluate(() => { const s = window.__lttv.getState(); const c = s.lineup.find((x) => x.key === s.currentKey); return s.fullscreen && /NESN/.test(c?.originalName ?? '') ? c.originalName : null; }), 8000);
+  const nesnPlaying = await waitFor(() => page.evaluate(() => { const s = window.__lttv.getState(); const c = s.lineup.find((x) => x.key === s.currentKey); return s.fullscreen && /Boston Red Sox HD/.test(c?.originalName ?? '') ? c.originalName : null; }), 8000);
   check('Watch tunes that broadcast full screen', !!nesnPlaying, String(nesnPlaying));
   await key('Escape');
   await page.waitForTimeout(400);

@@ -18,6 +18,8 @@ export interface NativeBridge {
   setPlayerConfig(json: string): void;
   startSetupServer(): string;
   stopSetupServer(): void;
+  /** Public account-server settings for the phone sign-in page (newer app builds). */
+  setCloudConfig?(json: string): void;
   exitApp(): void;
   keepScreenOn(on: boolean): void;
   /** Multiview tiles (0–3). */

@@ -1,13 +1,16 @@
 // Accounts (profiles) on this device. Each account has its own provider login, playlists, guide,
 // favorites, teams, bets, Continue watching and theme: it simply uses its own on-device database.
 // The first account uses the original database, so existing setups become "account 1" unchanged.
-// Nothing is uploaded anywhere: accounts live only on this TV / browser.
+// An account can be linked to a cloud sign-in (cloud.ts); its data is then also kept with that sign-in.
 
 export interface Account {
   id: string;
   name: string;
   /** Avatar color. */
   color: string;
+  /** Cloud user this account is signed in as (cloud.ts). */
+  cloudUserId?: string;
+  email?: string;
 }
 
 interface Saved {
@@ -86,6 +89,15 @@ export function renameAccount(id: string, name: string) {
   const a = s.list.find((x) => x.id === id);
   if (!a || !name.trim()) return;
   a.name = name.trim().slice(0, 24);
+  write(s);
+}
+
+export function updateAccount(id: string, patch: Partial<Omit<Account, 'id'>>) {
+  const s = read();
+  const a = s.list.find((x) => x.id === id);
+  if (!a) return;
+  Object.assign(a, patch);
+  for (const [k, v] of Object.entries(patch)) if (v === undefined) delete (a as unknown as Record<string, unknown>)[k];
   write(s);
 }
 

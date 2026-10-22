@@ -264,17 +264,12 @@ export function broadcastSummary(game: Game): string {
 }
 
 // ---------------------------------------------------------------------------
-// Team channels ("NBA: Charlotte Hornets", "US| NBA HORNETS HD" in a team-pass / PPV group):
-// a provider channel that carries one team's own broadcast (its RSN feed) for every game.
+// Team channels: the provider's "NBA Team PPV", "WNBA Team PPV", "MLB Team PPV" and "NHL Team PPV"
+// groups have one channel per team ("Charlotte Hornets", "NBA: Hornets HD") carrying that team's own
+// broadcast. Only those groups are used; other sports get national broadcasts / other streams.
 
-const LEAGUE_WORD = /\b(nba|wnba|nhl|mlb|nfl|mls|league pass|team pass|center ice|extra innings|ppv|pay per view|teams?)\b/;
-const OPPOSITE_SPORT: Record<string, RegExp> = {
-  basketball: /\b(nhl|mlb|nfl|hockey|baseball)\b/,
-  hockey: /\b(nba|wnba|mlb|nfl|basketball|baseball)\b/,
-  baseball: /\b(nba|wnba|nhl|nfl|basketball|hockey)\b/,
-  football: /\b(nba|wnba|nhl|mlb|basketball|hockey|baseball)\b/,
-  soccer: /\b(nba|wnba|nhl|mlb|nfl)\b/,
-};
+/** Leagues with a team-broadcast group, and that group's name. */
+export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv', nhl: 'nhl team ppv' };
 const teamFeedCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
 
 /** Names good enough to pick out a team's own channel (full name, nickname; not the city alone). */
@@ -282,7 +277,7 @@ function feedNames(t: GameTeam): string[] {
   const out = new Set<string>();
   const add = (x: string | undefined) => {
     const f = foldText(x ?? '');
-    if (f.length >= 4) out.add(f);
+    if (f.length >= 3) out.add(f);
   };
   add(t.name);
   add(t.short);
@@ -290,24 +285,30 @@ function feedNames(t: GameTeam): string[] {
   return [...out].sort((a, b) => b.length - a.length);
 }
 
-/** The lineup's channels for one team's own broadcast, best quality first. */
-export function teamChannels(t: GameTeam, other: GameTeam, sport: ScheduleLeague['sport'], lineup: LineupChannel[]): LineupChannel[] {
+function inTeamGroup(ch: LineupChannel, league: string): boolean {
+  const want = TEAM_PPV_GROUPS[league];
+  if (!want) return false;
+  const g = foldText(ch.group ?? '');
+  // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
+  return ` ${g} `.includes(` ${want} `);
+}
+
+/** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
+export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineup: LineupChannel[]): LineupChannel[] {
+  if (!TEAM_PPV_GROUPS[league]) return [];
   const m = teamFeedCache.get(lineup) ?? new Map<string, LineupChannel[]>();
   teamFeedCache.set(lineup, m);
-  const key = `${sport}|${t.name}|${other.name}`;
+  const key = `${league}|${t.name}|${other.name}`;
   const hit = m.get(key);
   if (hit) return hit;
   const mine = feedNames(t);
   const theirs = feedNames(other);
   const out: LineupChannel[] = [];
   for (const ch of lineup) {
-    if (ch.hidden) continue;
+    if (ch.hidden || !inTeamGroup(ch, league)) continue;
     const name = ` ${foldText(ch.originalName)} `;
     if (!mentionsFolded(name, mine)) continue;
-    const ctx = `${name}${foldText(ch.group ?? '')} `;
-    if (!LEAGUE_WORD.test(ctx) || OPPOSITE_SPORT[sport]?.test(ctx)) continue;
     if (mentionsFolded(name, theirs)) continue; // a channel for this one game, not the team's channel
-    if (/\+\s?\d/.test(ch.originalName)) continue; // timeshift
     out.push(ch);
   }
   out.sort((a, b) => qualityRank(b.originalName) - qualityRank(a.originalName) || a.number - b.number);
@@ -316,21 +317,14 @@ export function teamChannels(t: GameTeam, other: GameTeam, sport: ScheduleLeague
   return out;
 }
 
-/** Each team's own broadcast for a game with local (RSN) broadcasts: the team channel, else the best local pick. */
-export function teamBroadcasts(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], picks: StreamPick[]): { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel; via: string }[] {
-  const locals = localBroadcasts(game);
-  const out: { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel; via: string }[] = [];
+/** Each team's own broadcast for a game, from the league's Team PPV channels (NBA, WNBA, MLB, NHL only). */
+export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel }[] {
+  const out: { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel }[] = [];
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
     const other = teamOfSide(game, side === 'home' ? 'away' : 'home');
-    const own = teamChannels(team, other, sport, lineup)[0];
-    if (own) {
-      out.push({ side, team, ch: own, via: 'team' });
-      continue;
-    }
-    if (!(side === 'home' ? locals.home : locals.away).length) continue;
-    const local = picks.find((p) => p.kind === 'local' && p.side === side);
-    if (local) out.push({ side, team, ch: local.ch, via: local.broadcast ?? 'local' });
+    const own = teamChannels(team, other, game.league, lineup)[0];
+    if (own) out.push({ side, team, ch: own });
   }
   return out;
 }

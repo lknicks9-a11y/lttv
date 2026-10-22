@@ -6,7 +6,9 @@ import {
   AVATAR_COLORS, createAccount, currentAccount, listAccounts, markAccountPicked, removeAccount, renameAccount, setAccountColor, switchAccount, type Account,
 } from '../app/accounts';
 import { native } from '../app/platform';
-import { toast } from '../app/state';
+import { setState, toast } from '../app/state';
+import { cloudConfig, currentSession, signOut } from '../app/cloud';
+import { onSyncStatus, pushNow, syncStatus, type SyncStatus } from '../app/cloudsync';
 import { Button, Icon, Modal } from './common';
 
 const listeners = new Set<() => void>();
@@ -94,12 +96,13 @@ export function AccountsSection({ onPhoneSetup }: { onPhoneSetup?: () => void })
   return (
     <div class="card settings-section accounts-section" data-group="set-accounts">
       <h3>Accounts</h3>
-      <p class="hint">Everyone in the house can have their own account with their own provider. Accounts are kept on this TV only.</p>
+      <CloudRow />
+      <p class="hint">Everyone in the house can have their own account with their own provider.</p>
       <div class="account-list">
         {list.map((a) => (
           <div class={`account-row ${a.id === current.id ? 'current' : ''}`} key={a.id}>
             <Avatar acc={a} />
-            <span class="account-name">{a.name}{a.id === current.id && <small class="muted"> · Watching now</small>}</span>
+            <span class="account-name">{a.name}{a.email && <small class="muted"> · {a.email}</small>}{a.id === current.id && <small class="muted"> · Watching now</small>}</span>
             {a.id !== current.id && <Button small icon="user" onClick={() => switchAccount(a.id)}>Switch</Button>}
             <Button small icon="edit" onClick={() => setEditing(a)}>Edit</Button>
           </div>
@@ -159,5 +162,40 @@ export function WhoIsWatching({ onPicked }: { onPicked: () => void }) {
       </div>
       {adding && <NewAccountModal onClose={() => setAdding(false)} />}
     </section>
+  );
+}
+
+function ago(t?: number) {
+  if (!t) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+}
+
+/** Signed in (and synced) or not, for the account that's open. */
+function CloudRow() {
+  const [st, setSt] = useState<SyncStatus>(syncStatus());
+  const [, bump] = useState(0);
+  useEffect(() => onSyncStatus(setSt), []);
+  if (!cloudConfig()) return <p class="hint">Online sign-in isn’t switched on in this version of the app yet.</p>;
+  const sess = currentSession();
+  if (!sess) {
+    return (
+      <div class="cloud-row">
+        <span class="cloud-text"><b>Not signed in</b><small class="muted">Sign in to keep your playlists, guide and settings on all your devices.</small></span>
+        <Button variant="primary" icon="user" onClick={() => setState({ signIn: true })}>Sign in or create an account</Button>
+      </div>
+    );
+  }
+  return (
+    <div class="cloud-row signed-in">
+      <span class="cloud-text">
+        <b>Signed in as {sess.email ?? 'your account'}</b>
+        <small class="muted">
+          {st.state === 'syncing' ? 'Saving to your account…' : st.state === 'error' ? `Not saved: ${st.message}` : st.at ? `Saved to your account ${ago(st.at)}` : 'Your playlists, guide and settings follow you to every device you sign in on.'}
+        </small>
+      </span>
+      <Button small icon="refresh" onClick={() => void pushNow()}>Save now</Button>
+      <Button small variant="ghost" icon="close" onClick={() => void signOut().then(() => { toast('Signed out. Your channels stay on this device.', 'success'); notifyAccountsChanged(); bump((n) => n + 1); })}>Sign out</Button>
+    </div>
   );
 }

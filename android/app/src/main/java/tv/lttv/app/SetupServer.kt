@@ -113,6 +113,8 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
                 val req = readRequest(input) ?: return
                 when {
                     req.method == "GET" && (req.path == "/" || req.path == "/index.html") -> send(out, 200, "text/html; charset=utf-8", PAGE.toByteArray())
+                    req.method == "GET" && req.path == "/signin" -> send(out, 200, "text/html; charset=utf-8", SIGNIN_PAGE.toByteArray())
+                    req.method == "GET" && req.path == "/config" -> send(out, 200, "application/json", activity.cloudConfigJson.toByteArray())
                     req.method == "POST" && req.path == "/submit" -> submit(req, out)
                     req.method == "POST" && req.path == "/upload" -> upload(req, out)
                     else -> send(out, 404, "text/plain", "Not found".toByteArray())
@@ -194,6 +196,13 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
             onSubmit(JSONObject().put("type", "xtream").put("server", server).put("username", user).put("password", pass).put("name", o.optString("name")).put("epg", o.optString("epg")).put("account", o.optString("account")).toString())
             return sendJson(out, 200, JSONObject().put("ok", true))
         }
+        if (type == "session") {
+            // A sign-in finished on the phone: hand its refresh token to the app (never logged).
+            val token = o.optString("refresh_token").trim()
+            if (token.isEmpty() || token.length > 4096) return sendJson(out, 400, JSONObject().put("error", "Sign-in didn't finish. Try again."))
+            onSubmit(JSONObject().put("type", "session").put("refresh_token", token).toString())
+            return sendJson(out, 200, JSONObject().put("ok", true))
+        }
         if (type == "account") {
             val name = o.optString("account").trim()
             if (name.isEmpty()) return sendJson(out, 400, JSONObject().put("error", "Enter a name"))
@@ -245,6 +254,53 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
     companion object {
         private const val TAG = "LTTV"
         private const val MAX_UPLOAD = 300L * 1024 * 1024
+
+        private val SIGNIN_PAGE = """
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>LTTV · Sign in</title>
+<style>
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(120% 60% at 50% 0%,#1b2433 0%,#0a0d12 60%);color:#eef2f7;margin:0;padding:24px 16px 48px;min-height:100vh}
+main{max-width:440px;margin:auto}h1{font-size:26px;margin:4px 0 6px}.sub{color:#8a96a8;margin:0 0 20px}
+button,input{font:inherit;width:100%;padding:14px 12px;border-radius:12px;border:1px solid #2a3647;background:#0e141c;color:#eef2f7}
+button{cursor:pointer;font-weight:700;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:10px}
+.g{background:#fff;color:#1f1f1f;border:0}.a{background:#000;color:#fff;border:1px solid #444}.p{background:linear-gradient(180deg,#5fd0ff,#2fa8e8);color:#04131d;border:0}
+.or{display:flex;align-items:center;gap:10px;color:#8a96a8;margin:20px 0 6px;font-size:14px}.or:before,.or:after{content:"";flex:1;height:1px;background:#2a3647}
+label{display:block;margin:12px 0 4px;color:#c4ccd8;font-size:14px}.link{background:none;border:0;color:#5fd0ff;font-weight:600;padding:8px;margin-top:4px}
+.msg{margin-top:14px;min-height:1.3em;font-size:15px;text-align:center}.ok{color:#3ddc97}.err{color:#ff8a8a}.done{font-size:20px;text-align:center;margin-top:40px}
+</style></head><body><main id="m">
+<h1>Sign in to LTTV</h1>
+<p class="sub">Your account keeps your playlists, guide, favorites and settings on every device. Your TV signs in as soon as you finish here.</p>
+<button class="g" id="google"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Continue with Google</button>
+<button class="a" id="apple"><svg width="16" height="18" viewBox="0 0 17 20" fill="#fff"><path d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.1 1.3 10.8.9 1.3 2 2.7 3.4 2.7 1.3-.1 1.9-.9 3.5-.9s2.1.9 3.5.8c1.4 0 2.4-1.3 3.2-2.6 1-1.5 1.4-2.9 1.4-3-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z"/></svg>Continue with Apple</button>
+<div class="or">or with email</div>
+<label>Email</label><input id="email" type="email" autocomplete="email" autocapitalize="off">
+<label>Password</label><input id="pw" type="password" autocomplete="current-password">
+<button class="p" id="go">Sign in</button>
+<button class="link" id="toggle">New here? Create an account</button>
+<div class="msg" id="msg"></div>
+</main>
+<script>
+const ${'$'}=(id)=>document.getElementById(id);
+const q=new URLSearchParams(location.search);const pin=q.get('pin')||'';
+let cfg=null,signup=false;
+function show(ok,t){const m=${'$'}('msg');m.className='msg '+(ok?'ok':'err');m.textContent=t;}
+async function toTv(rt){show(true,'Signing in your TV…');try{const r=await fetch('/submit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({pin:pin,type:'session',refresh_token:rt})});const j=await r.json().catch(()=>({}));if(!r.ok){show(false,j.error||'Your TV didn\'t accept the sign-in.');return;}${'$'}('m').innerHTML='<p class="done">✅ Signed in!<br><br>Look at your TV — it\'s loading your account.</p>';}catch(e){show(false,'Couldn\'t reach the TV. Is its sign-in window still open?');}}
+async function load(){try{cfg=await (await fetch('/config')).json();}catch(e){}
+ if(!cfg||!cfg.url){show(false,'Accounts aren\'t set up for this app yet.');return;}
+ if(location.hash.indexOf('refresh_token=')>=0){const h=new URLSearchParams(location.hash.slice(1));history.replaceState(null,'',location.pathname+location.search);toTv(h.get('refresh_token'));}
+ else if(location.hash.indexOf('error')>=0){const h=new URLSearchParams(location.hash.slice(1));show(false,h.get('error_description')||'Sign-in was cancelled.');}}
+function oauth(p){if(!cfg)return;const back=location.origin+'/signin?pin='+encodeURIComponent(pin);location.href=cfg.url+'/auth/v1/authorize?provider='+p+'&redirect_to='+encodeURIComponent(back);}
+${'$'}('google').onclick=()=>oauth('google');${'$'}('apple').onclick=()=>oauth('apple');
+${'$'}('toggle').onclick=()=>{signup=!signup;${'$'}('go').textContent=signup?'Create account':'Sign in';${'$'}('toggle').textContent=signup?'Have an account? Sign in':'New here? Create an account';${'$'}('pw').autocomplete=signup?'new-password':'current-password';};
+${'$'}('go').onclick=async()=>{if(!cfg)return;const email=${'$'}('email').value.trim(),pw=${'$'}('pw').value;if(!email||!pw){show(false,'Enter your email and a password.');return;}
+ show(true,signup?'Creating your account…':'Signing in…');
+ try{const r=await fetch(cfg.url+'/auth/v1/'+(signup?'signup':'token?grant_type=password'),{method:'POST',headers:{apikey:cfg.anonKey,'content-type':'application/json'},body:JSON.stringify({email:email,password:pw})});const j=await r.json().catch(()=>({}));
+ if(!r.ok){const t=j.error_description||j.msg||j.message||'Sign-in failed';show(false,/invalid login/i.test(t)?'That email and password don\'t match an account.':/already/i.test(t)?'There\'s already an account with this email — sign in instead.':/at least/i.test(t)?'Use a password with at least 6 characters.':/not confirmed/i.test(t)?'Confirm your email first (check your inbox), then sign in.':t);return;}
+ if(!j.refresh_token){show(true,'Check your email to confirm your account, then come back and sign in.');signup=false;${'$'}('go').textContent='Sign in';return;}
+ toTv(j.refresh_token);}catch(e){show(false,'Couldn\'t reach the account server.');}};
+load();
+</script></body></html>
+""".trimIndent()
 
         private val PAGE = """
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
