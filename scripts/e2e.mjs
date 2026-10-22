@@ -967,8 +967,8 @@ try {
   await page.evaluate(() => window.__lttv.pollLive());
   await page.waitForTimeout(300);
   await page.evaluate(() => window.__lttv.pollLive());
-  const notice = await waitFor(() => page.evaluate(() => { const n = [...document.querySelectorAll('.live-notice')].map((x) => x.textContent); return n.length >= 2 ? n : null; }), 8000);
-  check('While watching, pop-ups show the fantasy points and the prop hitting, with the play', !!notice && notice.some((t) => /fantasy pts/.test(t) && /TOUCHDOWN/.test(t)) && notice.some((t) => /HIT/.test(t) && /74\.5/.test(t)), JSON.stringify(notice));
+  const notice = await waitFor(() => page.evaluate(() => { const n = [...document.querySelectorAll('.live-notice')].map((x) => x.textContent); return n.some((t) => /HIT/.test(t)) ? n : null; }), 8000);
+  check('While watching, the prop hitting pops up with the play (no doubled fantasy pop-up for a player you bet on)', !!notice && notice.some((t) => /HIT/.test(t) && /74\.5/.test(t) && /TOUCHDOWN/.test(t)) && !notice.some((t) => /Smith-Njigba.*fantasy pts/.test(t)), JSON.stringify(notice));
   check('Pop-ups carry the player picture and team logo', await page.evaluate(() => !!document.querySelector('.live-notice .headshot') && !!document.querySelector('.live-notice .live-notice-logo')));
   await shot('33-prop-hit-notice');
   check('The bet row shows HIT with 83 / 74.5', await page.evaluate(() => /83 \/ 74\.5/.test(document.querySelector('.fx-list')?.textContent ?? '') && !!document.querySelector('.bet-badge-hit')));

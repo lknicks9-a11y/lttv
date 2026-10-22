@@ -61,15 +61,35 @@ test('Props: over 74.5 receiving yards moves, then hits; under loses; spread and
   const fin = parseSummary(nflSummary({ state: 'post', sea: 24, sf: 23, recYds: '83', rec: '6', recTD: '2', rushYds: '63', plays: ['x'] }), 'football');
   assert.equal(betProgress(spread, fin, 'football').status, 'lost'); // won by 1, needed 4
   assert.equal(betProgress(total, fin, 'football').status, 'hit'); // 47 > 44.5
-  // Pop-ups: the WR's fantasy points and the prop, with the play that did it and his picture/team logo.
+  // Pop-ups: fantasy points (with the play that did it and his picture / team logo)…
+  const fant = diffNotices(g1, g2, 'football', { roster: [{ athleteId: '300', name: 'Jaxon Smith-Njigba' }], bets: [], leagueHeadshot: 'nfl' });
+  assert.equal(fant.length, 1);
+  assert.match(fant[0].title, /Jaxon Smith-Njigba \+9\.2 fantasy pts/);
+  assert.match(fant[0].play ?? '', /TOUCHDOWN/);
+  assert.equal(fant[0].logo, 'https://x/sea.png');
+  assert.equal(fant[0].headshot, 'https://a.espncdn.com/i/headshots/nfl/players/full/300.png');
+  // …but a player you also bet on gets only the bet's pop-ups (no doubled fantasy ones).
   const notes = diffNotices(g1, g2, 'football', { roster: [{ athleteId: '300', name: 'Jaxon Smith-Njigba' }], bets: [bet], leagueHeadshot: 'nfl' });
-  assert.equal(notes.length, 2);
-  assert.match(notes[0].title, /Jaxon Smith-Njigba \+9\.2 fantasy pts/);
-  assert.match(notes[0].play ?? '', /TOUCHDOWN/);
-  assert.equal(notes[0].logo, 'https://x/sea.png');
-  assert.equal(notes[0].headshot, 'https://a.espncdn.com/i/headshots/nfl/players/full/300.png');
-  assert.match(notes[1].title, /^BET HIT: Jaxon Smith-Njigba over 74\.5 receiving yards/);
+  assert.equal(notes.length, 1);
+  assert.match(notes[0].title, /^BET HIT: Jaxon Smith-Njigba over 74\.5 receiving yards/);
   assert.equal(diffNotices(undefined, g2, 'football', { roster: [], bets: [bet] }).length, 0);
+});
+
+test('NBA points bet: the pop-up shows the basket, not the player\'s turnover; a stat corrected down stays quiet', () => {
+  const box = (pts: string, to: string, plays: string[]) => ({
+    header: { competitions: [{ status: { type: { state: 'in' } }, competitors: [{ score: '55', team: { id: '18', abbreviation: 'NY' } }, { score: '50', team: { id: '2', abbreviation: 'BOS' } }] }] },
+    boxscore: { players: [{ team: { id: '18' }, statistics: [{ keys: ['minutes', 'points', 'turnovers'], athletes: [{ athlete: { id: '9', displayName: 'Jalen Brunson' }, stats: ['20', pts, to] }] }] }] },
+    plays: plays.map((t, i) => ({ id: String(i), text: t, scoringPlay: /makes/.test(t), participants: [{ athlete: { id: '9' } }] })),
+  });
+  const bet: Bet = { id: 'p', kind: 'player', league: 'nba', prop: 'pts', line: 25.5, side: 'over', teamId: '18', teamName: 'Knicks', athleteId: '9', athleteName: 'Jalen Brunson', createdAt: 0 };
+  const a = parseSummary(box('18', '1', ['x']), 'basketball');
+  const b = parseSummary(box('20', '2', ['Jalen Brunson makes 12-foot jumper', 'Jalen Brunson bad pass (turnover)']), 'basketball');
+  const n = diffNotices(a, b, 'basketball', { roster: [{ athleteId: '9', name: 'Jalen Brunson' }], bets: [bet] });
+  assert.equal(n.length, 1);
+  assert.match(n[0].title, /Jalen Brunson: 20 pts/);
+  assert.match(n[0].play ?? '', /makes 12-foot jumper/);
+  const down = parseSummary(box('19', '2', ['y']), 'basketball');
+  assert.equal(diffNotices(b, down, 'basketball', { roster: [], bets: [bet] }).length, 0);
 });
 
 test('NBA summary: points, rebounds, assists and PRA; roster parsing (grouped and flat)', () => {

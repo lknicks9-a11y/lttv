@@ -379,14 +379,40 @@ export interface LiveNotice {
 }
 
 /** The latest play that mentions a player (by id when the feed lists participants, else by name). */
-export function latestPlayFor(g: LiveGame, athleteId: string, name: string): string | undefined {
+export function latestPlayFor(g: LiveGame, athleteId: string, name: string, match?: (p: LivePlay) => boolean): string | undefined {
   const last = name.split(' ').slice(-1)[0];
   for (let i = g.plays.length - 1; i >= Math.max(0, g.plays.length - 40); i--) {
     const p = g.plays[i];
+    if (match && !match(p)) continue;
     if (p.athleteIds.includes(athleteId) || (last.length > 2 && new RegExp(`\\b${last.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(p.text))) return p.text;
   }
   return undefined;
 }
+
+/** The kind of play that moves a prop (so a points bet shows the basket, not the player's last turnover). */
+const PROP_PLAYS: Record<string, (p: LivePlay) => boolean> = {
+  pts: (p) => !!p.scoring,
+  fgm: (p) => !!p.scoring && !/free throw/i.test(p.text),
+  tpm: (p) => !!p.scoring && /three point|3-pt|3pt/i.test(p.text),
+  ftm: (p) => /free throw/i.test(p.text) && /make/i.test(p.text),
+  reb: (p) => /rebound/i.test(p.text),
+  ast: (p) => /assist/i.test(p.text),
+  stl: (p) => /steal/i.test(p.text),
+  blk: (p) => /block/i.test(p.text),
+  to: (p) => /turnover|bad pass|lost ball|traveling|offensive foul/i.test(p.text),
+  pra: (p) => !!p.scoring || /rebound|assist/i.test(p.text),
+  pr: (p) => !!p.scoring || /rebound/i.test(p.text),
+  pa: (p) => !!p.scoring || /assist/i.test(p.text),
+  ra: (p) => /rebound|assist/i.test(p.text),
+  sb: (p) => /steal|block/i.test(p.text),
+  passTD: (p) => !!p.scoring,
+  rushTD: (p) => !!p.scoring,
+  recTD: (p) => !!p.scoring,
+  anyTD: (p) => !!p.scoring,
+  kickPts: (p) => !!p.scoring,
+  fgMade: (p) => /field goal/i.test(p.text) && /good/i.test(p.text),
+  sacks: (p) => /sack/i.test(p.text),
+};
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -421,7 +447,11 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
     }
   }
   const shot = (id: string, given?: string) => given || next.players.get(id)?.headshot || (opts.leagueHeadshot ? `https://a.espncdn.com/i/headshots/${opts.leagueHeadshot}/players/full/${id}.png` : undefined);
+  // A player with an open bet gets bet pop-ups only (not also fantasy-point ones, which made a points
+  // bet show "-1" for the player's turnover).
+  const betOn = new Set(opts.bets.filter((b) => b.athleteId && !['hit', 'lost', 'push'].includes(betProgress(b, prev, sport).status)).map((b) => b.athleteId!));
   for (const r of opts.roster) {
+    if (betOn.has(r.athleteId)) continue;
     const a = prev.players.get(r.athleteId);
     const b = next.players.get(r.athleteId);
     if (!b) continue;
@@ -448,13 +478,15 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
     if (p0.status === 'hit' || p0.status === 'lost' || p0.status === 'push') continue;
     const def = bet.kind === 'player' ? PLAYER_PROPS[sport].find((x) => x.id === bet.prop) : TEAM_PROPS[sport].find((x) => x.id === bet.prop);
     const decided = p1.status !== p0.status && (p1.status === 'hit' || p1.status === 'lost' || p1.status === 'push');
+    // A stat corrected down by ESPN isn't news (it showed as "-1").
+    if (!decided && p1.value < p0.value) continue;
     const lineText = def && 'spread' in def && def.spread ? `${bet.line > 0 ? '+' : ''}${bet.line}` : `${bet.side === 'over' ? 'O' : 'U'} ${bet.line}`;
     out.push({
       key: `b|${bet.id}|${p1.value}|${p1.status}`,
       kind: 'bet',
       title: decided ? `${p1.status === 'hit' ? 'BET HIT' : p1.status === 'push' ? 'BET PUSH' : 'BET LOST'}: ${betLabel(bet, sport)}` : `${bet.athleteName ?? bet.teamName}: ${fmt(p1.value)} ${def?.unit ?? ''} (${lineText})`,
       detail: decided ? `${next.state === 'post' ? 'Finished at' : 'Now at'} ${fmt(p1.value)} ${def?.unit ?? ''}` : `${p1.value > p0.value ? '+' : ''}${fmt(p1.value - p0.value)} ${def?.unit ?? ''} · needs ${bet.side === 'over' ? 'over' : 'under'} ${bet.line}`,
-      play: bet.athleteId ? latestPlayFor(next, bet.athleteId, bet.athleteName ?? '') : undefined,
+      play: bet.athleteId ? latestPlayFor(next, bet.athleteId, bet.athleteName ?? '', PROP_PLAYS[bet.prop]) : undefined,
       headshot: bet.athleteId ? shot(bet.athleteId, bet.headshot) : undefined,
       logo: bet.teamLogo || logoOf(bet.teamId),
       tone: p1.status === 'hit' ? 'good' : p1.status === 'lost' ? 'bad' : 'info',
