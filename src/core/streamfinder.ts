@@ -269,7 +269,7 @@ export function broadcastSummary(game: Game): string {
 // broadcast. Only those groups are used; other sports get national broadcasts / other streams.
 
 /** Leagues with a team-broadcast group, and that group's name. */
-export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv', nhl: 'nhl team ppv' };
+export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv' };
 const teamFeedCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
 
 /** Names good enough to pick out a team's own channel (full name, nickname; not the city alone). */

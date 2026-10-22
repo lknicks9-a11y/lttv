@@ -532,6 +532,22 @@ class PlayerController(
         send("idle")
     }
 
+    /**
+     * Stop and give back the video decoder. stop() alone keeps the decoder reserved for a quick restart,
+     * and a TV has only a few: a stopped main player (or a removed Multiview game) held one, so the
+     * third game in Multiview found none free.
+     */
+    fun freeDecoder() = main.post {
+        generation++
+        currentUrl = null
+        stopTimeshift()
+        view.player = null
+        exo?.release()
+        exo = null
+        dirty = true
+        send("idle")
+    }
+
     fun setVolume(v: Float) = main.post {
         val wasSilent = volume == 0f
         volume = v

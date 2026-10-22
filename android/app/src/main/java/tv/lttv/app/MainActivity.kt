@@ -193,10 +193,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun mvPlay(slot: Int, url: String, headers: Map<String, String>) = main.post {
+        // Multiview: the main player isn't playing; free its video decoder for the games.
+        if (!player.isActive()) player.freeDecoder()
         if (slot in tiles.indices) tile(slot).play(url, headers)
     }
 
-    fun mvStop(slot: Int) = main.post { if (slot in tiles.indices) tiles[slot]?.stop() }
+    fun mvStop(slot: Int) = main.post { if (slot in tiles.indices) tiles[slot]?.freeDecoder() }
 
     fun mvMute(slot: Int, muted: Boolean) = main.post { if (slot in tiles.indices) tiles[slot]?.setVolume(if (muted) 0f else 1f) }
 
