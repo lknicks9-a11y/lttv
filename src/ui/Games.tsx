@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { useGames, logoFor } from '../app/schedule';
 import { scheduleDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
-import { buildGameIndexAsync, broadcastSummary, findStreams, type GameIndexEntry, localBroadcasts, needsFeedChoice, type FeedChoice, type StreamPick } from '../core/streamfinder';
+import { buildGameIndexAsync, broadcastSummary, findStreams, teamBroadcasts, type GameIndexEntry, localBroadcasts, needsFeedChoice, type FeedChoice, type StreamPick } from '../core/streamfinder';
 import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
 import { clock } from './fmt';
@@ -173,6 +173,9 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   const [feed, setFeed] = useState<FeedChoice | undefined>(() => feedMemory.get(game.id));
   const picks = useMemo(() => (index ? findStreams(game, lineup, { sport: league.sport, index, feed }) : []), [game, lineup, index, feed]);
   const locals = localBroadcasts(game);
+  // Each team's own broadcast first (team channels like "NBA: Charlotte Hornets", else the RSN found).
+  const teamBc = useMemo(() => (index ? teamBroadcasts(game, lineup, league.sport, findStreams(game, lineup, { sport: league.sport, index })) : []), [game, lineup, index]);
+  const [others, setOthers] = useState(false);
   useEffect(() => {
     if (feed) feedMemory.set(game.id, feed);
   }, [feed]);
@@ -184,7 +187,10 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   }, [favs, custom]);
   const isFav = (t: GameTeam) => favNames.has(t.name.toLowerCase()) || favNames.has(t.short.toLowerCase());
 
-  const choosing = ask && !feed;
+  const choosing = ask && !feed && !teamBc.length;
+  const teamKeys = new Set(teamBc.map((t) => t.ch.key));
+  const otherPicks = teamBc.length ? picks.filter((p) => !teamKeys.has(p.ch.key)) : picks;
+  const showList = !teamBc.length || others;
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
@@ -235,7 +241,27 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
         </div>
       ) : (
         <>
-          {ask && (
+          {teamBc.length > 0 && (
+            <div class="team-bcs" data-group="team-bcs">
+              {teamBc.map((t, i) => (
+                <button type="button" class={`f team-bc ${isFav(t.team) ? 'fav' : ''}`} data-autofocus={i === 0 ? '' : undefined} onClick={() => watch(t.ch.key)}>
+                  <TeamLogo team={t.team} size="lg" />
+                  <span class="team-bc-text">
+                    <b>{t.team.short} Broadcast</b>
+                    <small class="muted"><ChannelName ch={t.ch} /></small>
+                  </span>
+                  {isFav(t.team) && <Icon name="star" class="fav-star" />}
+                  <span class="stream-pick-cta"><Icon name={onPick ? 'multiview' : 'play'} size="1em" /> {onPick ? 'Add' : 'Watch'}</span>
+                </button>
+              ))}
+              {otherPicks.length > 0 && (
+                <button type="button" class="f btn other-streams" aria-expanded={others} onClick={() => setOthers(!others)}>
+                  <Icon name={others ? 'chevronLeft' : 'channels'} size="1.1em" /> {others ? 'Hide other streams' : `Other streams (${Math.min(otherPicks.length, 10)})`}
+                </button>
+              )}
+            </div>
+          )}
+          {ask && !teamBc.length && (
             <div class="row gap feed-current">
               <span class="muted">Broadcast: <b>{feed === 'national' ? 'National' : `${(feed === 'home' ? game.home : game.away).short} (${(feed === 'home' ? locals.home : locals.away).map((b) => b.name).join(' / ')})`}</b></span>
               <Button small icon="refresh" onClick={() => setFeed(undefined)}>Change broadcast</Button>
@@ -243,16 +269,16 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
           )}
           {!index ? (
             <p class="muted row gap"><span class="spinner" /> Finding channels for this game…</p>
-          ) : picks.length ? (
+          ) : !showList ? null : otherPicks.length ? (
             <div class="stream-picks" data-group="picks">
-              {picks.slice(0, 10).map((p, i) => (
-                <div class={`stream-pick ${i === 0 ? 'best' : ''}`}>
-                  <button type="button" class="f stream-pick-main" data-autofocus={i === 0 ? '' : undefined} onClick={() => watch(p.ch.key)}>
+              {otherPicks.slice(0, 10).map((p, i) => (
+                <div class={`stream-pick ${i === 0 && !teamBc.length ? 'best' : ''}`}>
+                  <button type="button" class="f stream-pick-main" data-autofocus={i === 0 && !teamBc.length ? '' : undefined} onClick={() => watch(p.ch.key)}>
                     <span class="ch-num">{p.ch.number}</span>
                     <ChannelLogo ch={p.ch} src={p.ch.logo} name={p.ch.name} size="sm" />
                     <span class="stream-pick-text">
                       <ChannelName ch={p.ch} />
-                      <small class="muted">{i === 0 ? 'Best match · ' : ''}{p.reason}</small>
+                      <small class="muted">{i === 0 && !teamBc.length ? 'Best match · ' : ''}{p.reason}</small>
                     </span>
                     <span class="stream-pick-cta"><Icon name={onPick ? 'multiview' : 'play'} size="1em" /> {onPick ? 'Add' : 'Watch'}</span>
                   </button>

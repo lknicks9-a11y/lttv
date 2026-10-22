@@ -28,7 +28,8 @@ function finish(id: string, p: Pending) {
 
 let worker: Worker | null = null;
 let lastSeen = Date.now();
-const STALL_MS = 90_000;
+// Long enough for a slow TV; the worker also sends a heartbeat between slices of work.
+const STALL_MS = 240_000;
 
 /** If the worker stops answering (crash/out of memory), fail its jobs instead of waiting forever. */
 setInterval(() => {

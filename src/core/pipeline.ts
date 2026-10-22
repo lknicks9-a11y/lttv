@@ -235,7 +235,14 @@ export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuz
   const d = data ?? (await loadSources(repo));
   const decisions = await repo.getDecisions();
   const displayNames = cleanChannelNames(d.channels);
-  const matches = matchChannels(d.channels, d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
+  // In slices with a break in between: one long uninterrupted match on a slow TV looked like a
+  // crashed worker (no heartbeat) and was stopped, which showed "Matching failed".
+  const matches = new Map<string, MatchResult>();
+  for (let i = 0; i < d.channels.length; i += 400) {
+    const part = matchChannels(d.channels.slice(i, i + 400), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
+    for (const [k, v] of part) matches.set(k, v);
+    await new Promise((r) => setTimeout(r, 0));
+  }
   await repo.setKv('matches', [...matches.values()]);
   const byMethod: Record<string, number> = {};
   let pending = 0;
@@ -262,10 +269,11 @@ export async function matchMissing(repo: Repo, settings: Pick<Settings, 'fuzzyAu
   const present = new Set(d.channels.map((c) => c.key));
   const merged = new Map([...existing].filter(([k]) => present.has(k)));
   // In slices, saving as it goes: if the device stops the work halfway, the next start continues from there.
-  for (let i = 0; i < missing.length; i += 3000) {
-    const part = matchChannels(missing.slice(i, i + 3000), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
+  for (let i = 0; i < missing.length; i += 400) {
+    const part = matchChannels(missing.slice(i, i + 400), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
     for (const [k, v] of part) merged.set(k, v);
-    await repo.setKv('matches', [...merged.values()]);
+    if (i % 2000 === 1600 || i + 400 >= missing.length) await repo.setKv('matches', [...merged.values()]);
+    await new Promise((r) => setTimeout(r, 0));
   }
   return { matched: missing.length };
 }

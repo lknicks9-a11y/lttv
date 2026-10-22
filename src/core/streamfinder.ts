@@ -8,7 +8,7 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
-import { feedSide, gameText, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
+import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
 export type FeedChoice = 'home' | 'away' | 'national';
 
@@ -261,4 +261,76 @@ export function broadcastSummary(game: Game): string {
     .filter((b) => b.kind === 'tv' || /espn\+|peacock|prime|apple|paramount|netflix|max/i.test(b.name))
     .map((b) => (b.market === 'national' ? b.name : `${b.name} (${(b.market === 'home' ? game.home : game.away).abbr})`))
     .join(' · ');
+}
+
+// ---------------------------------------------------------------------------
+// Team channels ("NBA: Charlotte Hornets", "US| NBA HORNETS HD" in a team-pass / PPV group):
+// a provider channel that carries one team's own broadcast (its RSN feed) for every game.
+
+const LEAGUE_WORD = /\b(nba|wnba|nhl|mlb|nfl|mls|league pass|team pass|center ice|extra innings|ppv|pay per view|teams?)\b/;
+const OPPOSITE_SPORT: Record<string, RegExp> = {
+  basketball: /\b(nhl|mlb|nfl|hockey|baseball)\b/,
+  hockey: /\b(nba|wnba|mlb|nfl|basketball|baseball)\b/,
+  baseball: /\b(nba|wnba|nhl|nfl|basketball|hockey)\b/,
+  football: /\b(nba|wnba|nhl|mlb|basketball|hockey|baseball)\b/,
+  soccer: /\b(nba|wnba|nhl|mlb|nfl)\b/,
+};
+const teamFeedCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
+
+/** Names good enough to pick out a team's own channel (full name, nickname; not the city alone). */
+function feedNames(t: GameTeam): string[] {
+  const out = new Set<string>();
+  const add = (x: string | undefined) => {
+    const f = foldText(x ?? '');
+    if (f.length >= 4) out.add(f);
+  };
+  add(t.name);
+  add(t.short);
+  if (t.location && t.name.toLowerCase().startsWith(t.location.toLowerCase())) add(t.name.slice(t.location.length));
+  return [...out].sort((a, b) => b.length - a.length);
+}
+
+/** The lineup's channels for one team's own broadcast, best quality first. */
+export function teamChannels(t: GameTeam, other: GameTeam, sport: ScheduleLeague['sport'], lineup: LineupChannel[]): LineupChannel[] {
+  const m = teamFeedCache.get(lineup) ?? new Map<string, LineupChannel[]>();
+  teamFeedCache.set(lineup, m);
+  const key = `${sport}|${t.name}|${other.name}`;
+  const hit = m.get(key);
+  if (hit) return hit;
+  const mine = feedNames(t);
+  const theirs = feedNames(other);
+  const out: LineupChannel[] = [];
+  for (const ch of lineup) {
+    if (ch.hidden) continue;
+    const name = ` ${foldText(ch.originalName)} `;
+    if (!mentionsFolded(name, mine)) continue;
+    const ctx = `${name}${foldText(ch.group ?? '')} `;
+    if (!LEAGUE_WORD.test(ctx) || OPPOSITE_SPORT[sport]?.test(ctx)) continue;
+    if (mentionsFolded(name, theirs)) continue; // a channel for this one game, not the team's channel
+    if (/\+\s?\d/.test(ch.originalName)) continue; // timeshift
+    out.push(ch);
+  }
+  out.sort((a, b) => qualityRank(b.originalName) - qualityRank(a.originalName) || a.number - b.number);
+  if (m.size > 200) m.clear();
+  m.set(key, out);
+  return out;
+}
+
+/** Each team's own broadcast for a game with local (RSN) broadcasts: the team channel, else the best local pick. */
+export function teamBroadcasts(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], picks: StreamPick[]): { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel; via: string }[] {
+  const locals = localBroadcasts(game);
+  const out: { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel; via: string }[] = [];
+  for (const side of ['home', 'away'] as const) {
+    const team = teamOfSide(game, side);
+    const other = teamOfSide(game, side === 'home' ? 'away' : 'home');
+    const own = teamChannels(team, other, sport, lineup)[0];
+    if (own) {
+      out.push({ side, team, ch: own, via: 'team' });
+      continue;
+    }
+    if (!(side === 'home' ? locals.home : locals.away).length) continue;
+    const local = picks.find((p) => p.kind === 'local' && p.side === side);
+    if (local) out.push({ side, team, ch: local.ch, via: local.broadcast ?? 'local' });
+  }
+  return out;
 }

@@ -604,10 +604,13 @@ export async function rematchAndReload(showTask = true) {
     await loadGuide();
     if (showTask) setTask({ id, label: 'Guide matching updated', done: true });
   } catch (e) {
-    setTask({ id, label: 'Matching failed', error: (e as Error).message });
-  } finally {
-    if (showTask) endTask(id);
+    // Shown for a while, then it goes away (it used to stay forever when matching ran in the background).
+    setTask({ id, label: 'Guide matching didn’t finish', error: `${(e as Error).message} It will try again automatically.` });
+    endTask(id, 12000);
+    setTimeout(() => void matchMissingAndReload(), 60_000);
+    return;
   }
+  if (showTask) endTask(id);
 }
 
 // ---------------------------------------------------------------------------

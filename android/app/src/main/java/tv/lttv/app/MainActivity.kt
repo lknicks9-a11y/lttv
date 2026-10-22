@@ -307,6 +307,8 @@ class WwwPathHandler(private val activity: MainActivity) : WebViewAssetLoader.Pa
             p.endsWith(".json") -> "application/json"
             p.endsWith(".svg") -> "image/svg+xml"
             p.endsWith(".png") -> "image/png"
+            p.endsWith(".jpg") || p.endsWith(".jpeg") -> "image/jpeg"
+            p.endsWith(".webp") -> "image/webp"
             p.endsWith(".m3u8") -> "application/vnd.apple.mpegurl"
             p.endsWith(".ts") -> "video/mp2t"
             p.endsWith(".txt") -> "text/plain"

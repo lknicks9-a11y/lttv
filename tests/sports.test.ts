@@ -139,3 +139,24 @@ test('streaming-only games offer the provider\'s channels for that service until
   assert.equal(picks[0]?.ch.key, 'a');
   assert.match(picks[0]?.reason ?? '', /game day/);
 });
+
+import { teamBroadcasts, teamChannels as teamFeedChannels } from '../src/core/streamfinder';
+
+test('team channels: each team\'s own broadcast from the team-pass / PPV channels', () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const hornets = t('Charlotte Hornets', 'Hornets', 'Charlotte', 'CHA');
+  const heat = t('Miami Heat', 'Heat', 'Miami', 'MIA');
+  const game = { id: '5', league: 'nba', start: Date.now(), state: 'in', detail: '', name: '', home: hornets, away: heat, broadcasts: [{ name: 'FanDuel SN SE', market: 'home', kind: 'tv' }, { name: 'FanDuel SN SUN', market: 'away', kind: 'tv' }] } as never;
+  const ch = (key: string, name: string, number: number, group = '') => ({ key, name, originalName: name, group, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
+  const lineup = [
+    ch('h', 'NBA: Charlotte Hornets', 501, 'NBA TEAMS PPV'),
+    ch('h2', 'Charlotte Hornets SD', 502, 'NBA TEAMS PPV'),
+    ch('m', 'US| NBA MIAMI HEAT HD', 510),
+    ch('x', 'WCNC Charlotte NBC', 20, 'USA LOCALS'),
+    ch('n', 'NHL: Carolina Hurricanes', 600, 'NHL TEAMS'),
+    ch('e', 'NBA 01: Heat vs Hornets', 700, 'NBA EVENTS'),
+  ];
+  assert.deepEqual((teamFeedChannels(hornets, heat, 'basketball', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
+  const bc = teamBroadcasts(game, lineup as never, 'basketball', []);
+  assert.deepEqual(bc.map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
+});

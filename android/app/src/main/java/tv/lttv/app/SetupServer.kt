@@ -76,12 +76,25 @@ class SetupServer(private val activity: MainActivity, private val onSubmit: (Str
             .toString()
     }
 
+    /**
+     * The TV's address on the home network. Prefers the network the TV is actually connected to
+     * (Wi-Fi or Ethernet); Fire TVs also have a Wi-Fi Direct interface (p2p0, often 192.168.49.1)
+     * that phones can't reach, which used to be picked by mistake.
+     */
     private fun lanAddress(): String? {
+        try {
+            val cm = activity.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val net = cm.activeNetwork
+            val lp = if (net != null) cm.getLinkProperties(net) else null
+            lp?.linkAddresses?.map { it.address }?.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }?.let { return it.hostAddress }
+        } catch (ignored: Exception) {
+        }
         val all = NetworkInterface.getNetworkInterfaces()?.toList() ?: return null
-        for (ni in all) {
-            if (!ni.isUp || ni.isLoopback) continue
+        val good = all.filter { it.isUp && !it.isLoopback && !it.isVirtual && !it.name.startsWith("p2p") && !it.name.startsWith("dummy") && !it.name.startsWith("rmnet") }
+        // Wi-Fi / Ethernet first.
+        for (ni in good.sortedBy { if (it.name.startsWith("wlan") || it.name.startsWith("eth")) 0 else 1 }) {
             for (addr: InetAddress in ni.inetAddresses.toList()) {
-                if (addr is Inet4Address && addr.isSiteLocalAddress) return addr.hostAddress
+                if (addr is Inet4Address && addr.isSiteLocalAddress && !addr.hostAddress.startsWith("192.168.49.")) return addr.hostAddress
             }
         }
         return null
@@ -259,7 +272,7 @@ small,.hint{color:#8a96a8;font-size:13px}.tabs{display:flex;gap:6px;margin:10px 
 </div>
 <div class="card">
 <h2>Your TV provider</h2>
-<div class="tabs"><button id="tx" class="on">Username &amp; password</button><button id="tm">Playlist URL</button><button id="tf">File</button></div>
+<div class="tabs"><button id="tx" class="on">Username &amp; password</button><button id="tm">Playlist / guide URL</button><button id="tf">File</button></div>
 <div id="px">
 <label>Server address</label><input id="xs" type="url" placeholder="http://line.example.com:8080" autocomplete="off" autocapitalize="off">
 <label>Username</label><input id="xu" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -268,7 +281,7 @@ small,.hint{color:#8a96a8;font-size:13px}.tabs{display:flex;gap:6px;margin:10px 
 </div>
 <div id="pm" class="hide">
 <label>Playlist name (optional)</label><input id="n">
-<label>M3U / M3U8 playlist URL</label><input id="u" type="url" placeholder="https://…" autocomplete="off" autocapitalize="off">
+<label>M3U / M3U8 playlist URL (leave empty to add only a guide)</label><input id="u" type="url" placeholder="https://…" autocomplete="off" autocapitalize="off">
 <label>TV guide (XMLTV) URL (optional)</label><input id="g" type="url" placeholder="https://…/guide.xml.gz" autocomplete="off" autocapitalize="off">
 <button id="send">Send to TV</button><div class="msg" id="m1"></div>
 </div>
@@ -289,7 +302,7 @@ function tab(k){['x','m','f'].forEach(t=>{${'$'}('p'+t).className=t===k?'':'hide
 ${'$'}('tx').onclick=()=>tab('x');${'$'}('tm').onclick=()=>tab('m');${'$'}('tf').onclick=()=>tab('f');
 async function post(body,el,okText){show(el,true,'Sending…');try{const r=await fetch('/submit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({pin:${'$'}('pin').value,account:${'$'}('acc').value},body))});const j=await r.json().catch(()=>({}));show(el,r.ok,r.ok?okText:(j.error||'Failed'));}catch(e){show(el,false,'Could not reach the TV. Is the setup window still open?');}}
 ${'$'}('xsend').onclick=()=>post({type:'xtream',server:${'$'}('xs').value,username:${'$'}('xu').value,password:${'$'}('xp').value},${'$'}('m0'),'Sent! Your TV is signing in and loading channels.');
-${'$'}('send').onclick=()=>post({type:'playlist',url:${'$'}('u').value,epg:${'$'}('g').value,name:${'$'}('n').value},${'$'}('m1'),'Sent! Check your TV.');
+${'$'}('send').onclick=()=>{const u=${'$'}('u').value.trim(),g=${'$'}('g').value.trim();if(!u&&!g){show(${'$'}('m1'),false,'Enter a playlist URL, a guide URL, or both');return;}if(!u){post({type:'epg',url:g,name:''},${'$'}('m1'),'Guide sent! Your TV is loading it.');return;}post({type:'playlist',url:u,epg:g,name:${'$'}('n').value},${'$'}('m1'),'Sent! Check your TV.');};
 ${'$'}('accsend').onclick=()=>post({type:'account'},${'$'}('m3'),'Account renamed on the TV.');
 ${'$'}('up').onclick=async()=>{const f=${'$'}('f').files[0];if(!f){show(${'$'}('m2'),false,'Choose a file first');return;}show(${'$'}('m2'),true,'Uploading…');const p=new URLSearchParams({pin:${'$'}('pin').value,type:${'$'}('ft').value,name:f.name,account:${'$'}('acc').value});try{const r=await fetch('/upload?'+p,{method:'POST',body:f});const j=await r.json().catch(()=>({}));show(${'$'}('m2'),r.ok,r.ok?'Uploaded! Check your TV.':(j.error||'Failed'));}catch(e){show(${'$'}('m2'),false,'Upload failed');}};
 </script></body></html>

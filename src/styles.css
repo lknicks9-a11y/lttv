@@ -1221,3 +1221,12 @@ small, .small { font-size: 1.15rem; }
 .mv-layout.on { border-color: var(--accent); }
 .mv-layout-icon { width: 7rem; height: auto; fill: currentColor; opacity: 0.85; }
 .mv-layout:focus .mv-layout-icon { fill: var(--accent); opacity: 1; }
+
+/* ---------- Game pop-up: each team's own broadcast first ---------- */
+.team-bcs { display: flex; flex-direction: column; gap: 0.7rem; margin: 0.4rem 0 0.8rem; }
+.team-bc { display: flex; align-items: center; gap: 1.1rem; padding: 0.9rem 1.2rem; border-radius: var(--radius); border: 0.15rem solid var(--line); background: var(--panel-2); color: var(--text); text-align: left; }
+.team-bc-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.team-bc-text b { font-size: 1.4rem; }
+.team-bc-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-bc.fav { border-color: var(--accent); }
+.other-streams { align-self: flex-start; margin-top: 0.2rem; }

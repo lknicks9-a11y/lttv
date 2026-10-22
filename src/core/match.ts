@@ -181,14 +181,22 @@ function buildIndex(epg: EpgChannel[]): Index {
  *   4. fuzzy similarity -> "pending" until the user approves (unless auto-approve is configured)
  * User decisions always win over automatic results.
  */
+const indexCache = new WeakMap<EpgChannel[], { idx: ReturnType<typeof buildIndex>; allRefs: Set<string> }>();
+
 export function matchChannels(
   channels: ParsedChannel[],
   epg: EpgChannel[],
   decisions: Map<string, MatchDecision> = new Map(),
   opts: MatchOptions = {},
 ): Map<string, MatchResult> {
-  const idx = buildIndex(epg);
-  const allRefs = new Set(idx.names.keys());
+  // Built once per guide (matching runs in slices over the same guide).
+  let cached = indexCache.get(epg);
+  if (!cached) {
+    const built = buildIndex(epg);
+    cached = { idx: built, allRefs: new Set(built.names.keys()) };
+    indexCache.set(epg, cached);
+  }
+  const { idx, allRefs } = cached;
   const threshold = opts.fuzzyThreshold ?? 0.62;
   const auto = opts.fuzzyAutoApprove ?? 0;
   const out = new Map<string, MatchResult>();
