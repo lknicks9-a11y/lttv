@@ -1271,3 +1271,7 @@ small, .small { font-size: 1.15rem; }
 .mv-layout-over { opacity: 0.55; }
 .mv-layout small { font-size: 0.9rem; font-weight: 400; }
 .mv-limit-note { text-align: center; margin-top: 0.4rem; }
+.mv-info-table { width: 100%; border-collapse: collapse; font-size: 1.05rem; }
+.mv-info-table th, .mv-info-table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mv-info-table th { color: var(--muted); font-weight: 600; }
+.mv-info-dec { margin-top: 0.8rem; font-size: 0.95rem; }

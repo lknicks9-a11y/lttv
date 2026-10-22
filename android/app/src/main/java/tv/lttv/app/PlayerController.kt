@@ -2,6 +2,7 @@ package tv.lttv.app
 
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -12,6 +13,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Format
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -21,7 +23,9 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -190,8 +194,8 @@ class PlayerController(
         // stall before resuming, so playback doesn't stutter in and out of buffering.
         // Multiview tiles keep a smaller buffer: four streams with big buffers ran the TV out of memory
         // and downloaded in bursts that made the other tiles stall.
-        val minMs = if (audioFocus) (bufferSec * 2000).coerceAtLeast(15000) else 8000
-        val maxMs = if (audioFocus) (minMs * 3).coerceAtLeast(50000) else 20000
+        val minMs = if (audioFocus) (bufferSec * 2000).coerceAtLeast(15000) else 10000
+        val maxMs = if (audioFocus) (minMs * 3).coerceAtLeast(50000) else 25000
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(minMs, maxMs, 2500, 6000.coerceAtMost(minMs))
             .setPrioritizeTimeOverSizeThresholds(true)
@@ -199,7 +203,8 @@ class PlayerController(
         // Main player: fall back to another decoder (e.g. software) when the preferred one can't start.
         // Multiview tiles: hardware video decoders only. When the TV ran out of hardware decoders, a tile
         // quietly fell back to software decoding on the TV's small CPU, and every game (and the remote) lagged.
-        val renderers = DefaultRenderersFactory(activity).setEnableDecoderFallback(audioFocus)
+        // Tiles may still try every hardware decoder the TV lists (not just the first).
+        val renderers = DefaultRenderersFactory(activity).setEnableDecoderFallback(true)
         if (!audioFocus) {
             renderers.setMediaCodecSelector { mime, secure, tunneling ->
                 val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
@@ -218,10 +223,48 @@ class PlayerController(
         if (!audioFocus) p.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
         p.repeatMode = Player.REPEAT_MODE_ONE // VOD-style test streams loop; live streams never end
         p.addListener(listener)
+        p.addAnalyticsListener(analytics)
         view.player = p
         exo = p
         dirty = false
         return p
+    }
+
+    // ---- Diagnostics (Multiview "Stream info") ----
+    private var decoderName = ""
+    private var droppedFrames = 0L
+    private var videoFormat = ""
+    private var lastError = ""
+    private val analytics = object : AnalyticsListener {
+        override fun onVideoDecoderInitialized(eventTime: AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+            this@PlayerController.decoderName = decoderName
+        }
+        override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
+            this@PlayerController.droppedFrames += droppedFrames
+        }
+        override fun onVideoInputFormatChanged(eventTime: AnalyticsListener.EventTime, format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?) {
+            val fps = if (format.frameRate > 0) " ${Math.round(format.frameRate)}fps" else ""
+            videoFormat = "${format.width}x${format.height}$fps ${format.sampleMimeType ?: ""} ${if (format.bitrate > 0) "${format.bitrate / 1000}kbps" else ""}".trim()
+        }
+    }
+
+    /** What this player is doing right now (for the Stream info panel). */
+    fun diag(): JSONObject {
+        val p = exo
+        val state = when (p?.playbackState) {
+            Player.STATE_BUFFERING -> "buffering"
+            Player.STATE_READY -> if (p.playWhenReady) "playing" else "paused"
+            Player.STATE_ENDED -> "ended"
+            else -> if (currentUrl == null) "idle" else "starting"
+        }
+        return JSONObject()
+            .put("state", state)
+            .put("decoder", decoderName)
+            .put("format", videoFormat)
+            .put("dropped", droppedFrames)
+            .put("bufferedMs", p?.totalBufferedDuration ?: 0L)
+            .put("audio", !(volume == 0f && !audioFocus))
+            .put("error", lastError)
     }
 
     private val listener = object : Player.Listener {
@@ -270,6 +313,7 @@ class PlayerController(
                 return
             }
             val (message, fatal) = describe(error)
+            lastError = "${error.errorCodeName}: ${generateSequence(error as Throwable) { it.cause }.mapNotNull { it.message }.firstOrNull { it.isNotBlank() }?.take(140) ?: ""}"
             send("error", message, fatal)
         }
     }
@@ -297,13 +341,32 @@ class PlayerController(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> "This stream format is not supported." to true
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES -> "This device can't decode this channel's video/audio format." to true
+            // Only a real "out of decoder resources" answer from the TV means there's no free decoder.
+            // Any other decoding error is usually a glitch in the stream: reconnect instead of giving up
+            // (this used to be reported as "no free decoder" and the game stopped).
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
-            PlaybackException.ERROR_CODE_DECODING_FAILED ->
-                if (!audioFocus) "Your TV has no free video decoder for another game — remove a game or choose fewer games." to true
-                else "The video decoder could not start. Try again or restart the device." to false
-            else -> if (!audioFocus && e.errorCodeName.contains("RECLAIMED")) "Your TV needed this game's video decoder for another one — choose fewer games." to true
+            PlaybackException.ERROR_CODE_DECODING_FAILED -> when {
+                !audioFocus && outOfDecoders(e) -> "Your TV has no free video decoder for another game — remove a game or choose fewer games." to true
+                e.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED -> "The stream sent damaged video — reconnecting." to false
+                else -> "The video decoder could not start. Trying again." to false
+            }
+            else -> if (!audioFocus && outOfDecoders(e)) "Your TV needed this game's video decoder for another one — choose fewer games." to true
                 else "Playback failed (${e.errorCodeName})." to false
         }
+    }
+
+    /** The TV said it has no decoder resources left (MediaCodec insufficient-resource / reclaimed). */
+    private fun outOfDecoders(e: PlaybackException): Boolean {
+        if (e.errorCodeName.contains("RECLAIMED")) return true
+        var c: Throwable? = e
+        while (c != null) {
+            if (c is android.media.MediaCodec.CodecException && Build.VERSION.SDK_INT >= 23 &&
+                (c.errorCode == android.media.MediaCodec.CodecException.ERROR_INSUFFICIENT_RESOURCE || c.errorCode == android.media.MediaCodec.CodecException.ERROR_RECLAIMED)) return true
+            val m = c.message?.lowercase() ?: ""
+            if (m.contains("insufficient resource") || m.contains("no more resource") || m.contains("resource busy") || m.contains("too many instances")) return true
+            c = c.cause
+        }
+        return false
     }
 
     private fun send(state: String, error: String? = null, fatal: Boolean = false) {
@@ -321,6 +384,8 @@ class PlayerController(
             this.vod = vod
             this.startMs = startMs
             hasRendered = false
+            droppedFrames = 0L
+            lastError = ""
             liveLagMs = -1L
             hlsGapMs = -1L
             // Close the previous stream first: many providers allow only one connection.

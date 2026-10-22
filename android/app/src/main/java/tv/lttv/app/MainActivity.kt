@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -207,6 +208,30 @@ class MainActivity : AppCompatActivity() {
         main.post { tile(slot) }
         placeView({ tiles[slot]?.view }, x, y, w, h, visible)
         if (visible) main.post { tiles[slot]?.setTileSize(Math.round(w * resources.displayMetrics.density), Math.round(h * resources.displayMetrics.density)) }
+    }
+
+    /** Multiview "Stream info": each tile's player and the TV's hardware video decoders. */
+    fun mvDiagnostics(): String {
+        val tilesJson = org.json.JSONArray()
+        for (t in tiles) tilesJson.put(t?.diag() ?: JSONObject().put("state", "none"))
+        val decoders = org.json.JSONArray()
+        try {
+            val list = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos
+            for (ci in list) {
+                if (ci.isEncoder) continue
+                for (type in ci.supportedTypes) {
+                    if (type != "video/avc" && type != "video/hevc") continue
+                    val caps = ci.getCapabilitiesForType(type)
+                    val hw = if (Build.VERSION.SDK_INT >= 29) ci.isHardwareAccelerated else !(ci.name.startsWith("OMX.google.") || ci.name.startsWith("c2.android."))
+                    val o = JSONObject().put("name", ci.name).put("type", type).put("hardware", hw)
+                    if (Build.VERSION.SDK_INT >= 23) o.put("maxInstances", caps.maxSupportedInstances)
+                    decoders.put(o)
+                }
+            }
+        } catch (e: Exception) {
+        }
+        return JSONObject().put("tiles", tilesJson).put("main", player.diag()).put("decoders", decoders)
+            .put("device", "${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE})").toString()
     }
 
     fun configurePlayers(bufferSec: Int, timeoutSec: Int, rewindMin: Int = 30) {

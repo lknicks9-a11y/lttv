@@ -35,7 +35,8 @@ export function lastLayout(): MvLayout {
 const players: PlayerController[] = [];
 
 // ---- How many games this TV can decode at once (learned the first time a game is refused a decoder) ----
-const LIMIT_KEY = 'lttvMvDecoderLimit';
+// v2: limits learned before 1.0.11 could come from stream glitches misread as "no free decoder".
+const LIMIT_KEY = 'lttvMvDecoderLimit2';
 export function decoderLimit(): number | undefined {
   try {
     const n = Number(localStorage.getItem(LIMIT_KEY));

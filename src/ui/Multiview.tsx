@@ -3,6 +3,7 @@
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { toast, useApp } from '../app/state';
+import { native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import { closeMultiview, connectionLimit, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
@@ -30,7 +31,7 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
   const st = useTileStatus(ctl);
   // Refused a hardware video decoder: learn how many games this TV can play at once.
   useEffect(() => {
-    if (st.state === 'error' && /video decoder/i.test(st.error ?? '')) {
+    if (st.state === 'error' && /no free video decoder|needed this game's video decoder/i.test(st.error ?? '')) {
       const n = noteDecoderLimit();
       toast(`This TV can play ${n} game${n === 1 ? '' : 's'} at once in Multiview (it has ${n === 1 ? 'one video decoder' : `${n} video decoders`} free).`, 'info', 9000);
     }
@@ -157,10 +158,66 @@ function LayoutPicker({ current, onPick, onClose }: { current: MvLayout; onPick:
   );
 }
 
+interface MvDiag {
+  device?: string;
+  tiles: { state: string; decoder?: string; format?: string; dropped?: number; bufferedMs?: number; audio?: boolean; error?: string }[];
+  decoders: { name: string; type: string; hardware: boolean; maxInstances?: number }[];
+}
+
+/** Multiview "Stream info": what each game's player is doing, and the TV's hardware video decoders. */
+function StreamInfo({ titles, onClose }: { titles: (string | undefined)[]; onClose: () => void }) {
+  const [d, setD] = useState<MvDiag | null>(null);
+  useEffect(() => {
+    const read = () => {
+      try {
+        if (native?.mvDiagnostics) setD(JSON.parse(native.mvDiagnostics()) as MvDiag);
+      } catch {
+        /* older app */
+      }
+    };
+    read();
+    const t = window.setInterval(read, 2000);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <Modal title="Stream info" onClose={onClose} wide class="mv-info">
+      {!native?.mvDiagnostics ? (
+        <p class="muted">Stream info is available in the Fire TV app.</p>
+      ) : !d ? (
+        <p><span class="spinner" /> Reading…</p>
+      ) : (
+        <>
+          <table class="mv-info-table">
+            <thead><tr><th>Game</th><th>State</th><th>Decoder</th><th>Picture</th><th>Dropped</th><th>Buffer</th></tr></thead>
+            <tbody>
+              {titles.map((t, i) => t && (
+                <tr>
+                  <td>{t}{d.tiles[i]?.audio ? ' 🔊' : ''}</td>
+                  <td>{d.tiles[i]?.state ?? '—'}{d.tiles[i]?.error ? <small class="error-text"><br />{d.tiles[i]!.error}</small> : null}</td>
+                  <td>{d.tiles[i]?.decoder || '—'}</td>
+                  <td>{d.tiles[i]?.format || '—'}</td>
+                  <td>{d.tiles[i]?.dropped ?? 0}</td>
+                  <td>{((d.tiles[i]?.bufferedMs ?? 0) / 1000).toFixed(1)} s</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p class="muted mv-info-dec">
+            <b>{d.device}</b> · hardware video decoders:{' '}
+            {d.decoders.filter((x) => x.hardware).map((x) => `${x.name} (${x.type.replace('video/', '')}${x.maxInstances ? `, up to ${x.maxInstances}` : ''})`).join(' · ') || 'none listed'}
+          </p>
+        </>
+      )}
+      <div class="row gap modal-actions"><Button data-autofocus onClick={onClose}>Close</Button></div>
+    </Modal>
+  );
+}
+
 export function MultiviewScreen() {
   const mv = useApp((s) => s.multiview)!;
   const [adding, setAdding] = useState<number | null>(null);
   const [options, setOptions] = useState<number | null>(null);
+  const [info, setInfo] = useState(false);
   // Asked each time Multiview opens (the last choice is selected); also from a tile's options.
   const [choosing, setChoosing] = useState(true);
   // Hints and notes at the bottom fade out after 15 s without a key press.
@@ -184,7 +241,7 @@ export function MultiviewScreen() {
     requestAnimationFrame(() => focusFirst(rootRef.current));
   }, []);
   useEffect(() => {
-    if (adding !== null || options !== null || choosing) return;
+    if (adding !== null || options !== null || choosing || info) return;
     const offBack = onBack(() => {
       closeMultiview();
       return true;
@@ -201,7 +258,7 @@ export function MultiviewScreen() {
       offBack();
       offKeys();
     };
-  }, [adding, options, choosing, mv]);
+  }, [adding, options, choosing, info, mv]);
 
   const keys = mv.tiles.filter((t): t is MvTile => !!t).map((t) => t.key);
   const limit = connectionLimit(keys);
@@ -218,6 +275,7 @@ export function MultiviewScreen() {
         <div class="mv-note">Your provider allows {limit} stream{limit === 1 ? '' : 's'} at once — the extra tiles may not play or may buffer.</div>
       )}
       <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (layout, full screen) · Back: full screen on the highlighted game</div>
+      {info && <StreamInfo titles={mv.tiles.map((t) => t?.title)} onClose={() => setInfo(false)} />}
       {choosing && (
         <LayoutPicker
           current={mv.layout}
@@ -247,6 +305,7 @@ export function MultiviewScreen() {
             <Button variant="primary" icon="fullscreen" data-autofocus onClick={() => { const i = options; setOptions(null); closeMultiview(i); }}>Full screen</Button>
             <Button icon="refresh" onClick={() => { const i = options; setOptions(null); setAdding(i); }}>Change game</Button>
             <Button icon="multiview" onClick={() => { setOptions(null); setChoosing(true); }}>Layout</Button>
+            <Button icon="info" onClick={() => { setOptions(null); setInfo(true); }}>Stream info</Button>
             <Button icon="close" onClick={() => { setTile(options, null); setOptions(null); }}>Remove</Button>
           </div>
         </Modal>

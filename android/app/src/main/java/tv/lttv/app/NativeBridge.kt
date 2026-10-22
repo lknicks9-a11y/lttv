@@ -107,6 +107,10 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun mvStop(slot: Int) = activity.mvStop(slot)
 
+    /** Multiview "Stream info": decoder, picture, dropped frames and buffer of each game, and the TV's decoders. */
+    @JavascriptInterface
+    fun mvDiagnostics(): String = activity.mvDiagnostics()
+
     @JavascriptInterface
     fun mvMute(slot: Int, muted: Boolean) = activity.mvMute(slot, muted)
 

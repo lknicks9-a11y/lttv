@@ -22,6 +22,8 @@ export interface NativeBridge {
   setCloudConfig?(json: string): void;
   /** Open the update's download page in a browser (newer app builds). */
   openDownloadPage?(url: string): void;
+  /** Multiview stream info (newer app builds). */
+  mvDiagnostics?(): string;
   exitApp(): void;
   keepScreenOn(on: boolean): void;
   /** Multiview tiles (0–3). */
