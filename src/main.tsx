@@ -11,6 +11,7 @@ import { describeProgramme } from './app/describe';
 import { cloudConfig, currentSession, markFreshDevice } from './app/cloud';
 import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
+import { isOnboarded } from './ui/Onboarding';
 import './styles.css';
 
 async function boot() {
@@ -43,10 +44,15 @@ async function boot() {
   }
   const s = getState().settings;
   applyTheme(s);
-  // Accounts: ask to sign in
-  // (once — "Not now" keeps using this device only), or bring the signed-in account's data down.
+  // First launch: mandatory onboarding (sign in → profile → playlist).
+  // Returning users who already signed in just sync.
   markFreshDevice(!getState().playlists.length);
-  if (cloudConfig()) {
+  const hasPlaylists = getState().playlists.length > 0;
+  if (!isOnboarded() && !hasPlaylists) {
+    // Brand-new device / first time: the full onboarding flow.
+    if (cloudConfig() && currentSession()) void startCloudSync();
+    setState({ onboarding: true });
+  } else if (cloudConfig()) {
     if (currentSession()) void startCloudSync();
     else if (!signInSkipped()) setState({ signIn: true });
   }

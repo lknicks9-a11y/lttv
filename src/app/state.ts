@@ -87,6 +87,8 @@ export interface AppState {
   loadingPhase?: string;
   /** A reminder whose programme is starting now (shown as a prompt). */
   reminderDue?: Reminder;
+  /** First-launch onboarding is showing (sign in → profile → playlist). */
+  onboarding?: boolean;
 }
 
 // ---------------------------------------------------------------------------

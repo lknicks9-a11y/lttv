@@ -1234,6 +1234,22 @@ small, .small { font-size: 1.15rem; }
 .other-streams { align-self: flex-start; margin-top: 0.2rem; }
 .welcome-busy { margin: 0.5rem 0 1rem; text-align: center; }
 
+/* ---------- Onboarding ---------- */
+.onboarding { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 2rem; }
+.onboarding-card { width: min(46rem, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 1rem; text-align: center; }
+.onboarding-card h1 { margin: 0.4rem 0 0; }
+.onboarding-card .welcome-logo { justify-content: center; }
+.onboarding-steps { display: flex; align-items: center; justify-content: center; gap: 0; margin: 0.6rem 0 1rem; }
+.onboarding-step { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.9rem; color: var(--text-3); font-size: 0.85rem; position: relative; }
+.onboarding-step + .onboarding-step::before { content: ''; width: 2rem; height: 2px; background: var(--panel-3); margin-right: 0.4rem; }
+.onboarding-step.active { color: var(--accent); font-weight: 600; }
+.onboarding-step.done { color: var(--ok); }
+.step-num { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 2px solid currentColor; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+.onboarding-step.active .step-num { background: var(--accent); color: #fff; border-color: var(--accent); }
+.onboarding-step.done .step-num { background: var(--ok); color: #fff; border-color: var(--ok); }
+.avatar-preview { display: flex; justify-content: center; margin: 0.8rem 0 0.4rem; }
+.avatar-preview .avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; color: #fff; }
+
 /* ---------- Sign in ---------- */
 .signin-overlay { overflow-y: auto; }
 .signin { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 2rem; }

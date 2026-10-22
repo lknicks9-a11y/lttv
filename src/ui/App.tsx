@@ -23,6 +23,7 @@ import { VodScreen, VodPlayer, useVodNav } from './Vod';
 import { MultiviewScreen } from './Multiview';
 import { Avatar, WhoIsWatching } from './Accounts';
 import { SignInScreen } from './SignIn';
+import { OnboardingScreen } from './Onboarding';
 import { currentAccount, listAccounts, needsAccountPick } from '../app/accounts';
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
@@ -203,10 +204,11 @@ export function App() {
   const multiview = useApp((s) => !!s.multiview);
   const picker = useApp((s) => !!s.accountPicker);
   const signIn = useApp((s) => !!s.signIn);
-  const covered = fullscreen || vodPlaying || multiview || picker || signIn;
+  const onboarding = useApp((s) => !!s.onboarding);
+  const covered = fullscreen || vodPlaying || multiview || picker || signIn || onboarding;
   useLayoutEffect(() => {
-    if (needsAccountPick()) setState({ accountPicker: true });
-  }, []);
+    if (!onboarding && needsAccountPick()) setState({ accountPicker: true });
+  }, [onboarding]);
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -249,8 +251,8 @@ export function App() {
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
-      {signIn ? <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div> : picker && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ accountPicker: false })} /></div>}
-      {picker || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
+      {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn ? <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div> : picker && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ accountPicker: false })} /></div>}
+      {onboarding || picker || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}
