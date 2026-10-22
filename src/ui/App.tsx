@@ -100,12 +100,14 @@ function LoadingScreen() {
 function UpdatePrompt() {
   const u = useAvailableUpdate();
   const fullscreen = useApp((s) => s.fullscreen || !!s.vodPlaying || !!s.multiview);
-  if (!u || fullscreen) return null;
+  const inSettings = useApp((s) => s.screen === 'settings');
+  // The Update Center in Settings shows the same thing (with progress) — no pop-up on top of it.
+  if (!u || fullscreen || inSettings) return null;
   return (
     <Modal title="Update available" onClose={dismissUpdate}>
       <p>LTTV <b>{versionOf(u.build)}</b> is ready (you have {versionOf(u.current)}). It installs over this one — your playlists, My TV, teams and settings stay.</p>
       <div class="row gap modal-actions">
-        <Button variant="primary" icon="refresh" data-autofocus onClick={() => { installUpdate(u); dismissUpdate(); }}>Update now</Button>
+        <Button variant="primary" icon="refresh" data-autofocus onClick={() => { installUpdate(u); dismissUpdate(); navigate('settings'); }}>Update now</Button>
         <Button onClick={dismissUpdate}>Later</Button>
       </div>
     </Modal>

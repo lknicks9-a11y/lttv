@@ -14,6 +14,56 @@ export interface UpdateInfo {
   url: string;
 }
 
+/** The newest release on GitHub (also when it's the one installed), for the Update Center. */
+export interface LatestRelease {
+  build: number;
+  url: string;
+  publishedAt?: string;
+  /** What's new: the change notes of that build. */
+  notes: string[];
+  checkedAt: number;
+}
+
+export type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'installing' | 'permission' | 'browser' | 'error';
+export interface UpdateStatus {
+  phase: UpdatePhase;
+  percent?: number;
+  error?: string;
+}
+let latest: LatestRelease | null = null;
+let status: UpdateStatus = { phase: 'idle' };
+function setStatus(st: UpdateStatus) {
+  status = st;
+  changed();
+}
+export function updateStatus(): UpdateStatus {
+  return status;
+}
+export function latestRelease(): LatestRelease | null {
+  return latest;
+}
+
+/** The change notes of a build: the commit it was made from ("- " lines of its message). */
+async function releaseNotes(body: string): Promise<string[]> {
+  const sha = /\(([0-9a-f]{7,40})\)/.exec(body)?.[1];
+  if (!sha) return [];
+  try {
+    const { stream } = await openRemote(`https://api.github.com/repos/${UPDATE_REPO}/commits/${sha}`, AbortSignal.timeout?.(15_000), { Accept: 'application/vnd.github+json' });
+    const msg = String((JSON.parse(await new Response(stream).text()) as { commit?: { message?: string } }).commit?.message ?? '');
+    const lines = msg.split('\n').filter((l) => !/^(co-authored-by|claude-session):/i.test(l.trim()));
+    const title = lines[0]?.trim();
+    // Bullet lines, joined with their wrapped continuation lines.
+    const bullets: string[] = [];
+    for (const l of lines.slice(1)) {
+      if (/^\s*-\s+/.test(l)) bullets.push(l.replace(/^\s*-\s+/, '').trim());
+      else if (l.trim() && bullets.length) bullets[bullets.length - 1] += ' ' + l.trim();
+    }
+    return bullets.length ? bullets : title ? [title] : [];
+  } catch {
+    return [];
+  }
+}
+
 let available: UpdateInfo | null = null;
 let dismissedBuild = 0;
 let dismissedAt = 0;
@@ -42,10 +92,13 @@ export async function checkForUpdate(opts: { quiet?: boolean } = {}): Promise<Up
   if (!canUpdateInApp()) return null;
   try {
     const { stream } = await openRemote(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, AbortSignal.timeout?.(20_000), { Accept: 'application/vnd.github+json' });
-    const rel = JSON.parse(await new Response(stream).text()) as { name?: string; body?: string; assets?: { name?: string; browser_download_url?: string }[] };
+    const rel = JSON.parse(await new Response(stream).text()) as { name?: string; body?: string; published_at?: string; assets?: { name?: string; browser_download_url?: string }[] };
     const build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
     const url = rel.assets?.find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `https://github.com/${UPDATE_REPO}/releases/latest/download/lttv.apk`;
     const current = currentBuild();
+    const notes = latest?.build === build && latest.notes.length ? latest.notes : await releaseNotes(rel.body ?? '');
+    latest = { build, url, publishedAt: rel.published_at, notes, checkedAt: Date.now() };
+    changed();
     if (build > current) {
       const isNew = available?.build !== build;
       available = { build, current, url };
@@ -62,9 +115,40 @@ export async function checkForUpdate(opts: { quiet?: boolean } = {}): Promise<Up
   }
 }
 
-export function installUpdate(u: UpdateInfo) {
+export function installUpdate(u: { url: string }) {
+  setStatus({ phase: 'downloading', percent: 0 });
   toast('Downloading the update…', 'info', 4000);
   native?.installUpdate?.(u.url);
+}
+
+/** Open the downloaded update's install screen again. */
+export function reopenInstaller() {
+  native?.resumeUpdate?.();
+}
+
+/** The update's download page in a browser (always works, even if the installer won't open). */
+export function openDownloadPage(url = latest?.url ?? `https://github.com/${UPDATE_REPO}/releases/latest/download/lttv.apk`) {
+  native?.openDownloadPage?.(url);
+}
+
+/** Check now from the Update Center (shows checking / result there). */
+export async function checkNow(): Promise<void> {
+  setStatus({ phase: 'checking' });
+  await checkForUpdate({ quiet: true });
+  if (status.phase === 'checking') setStatus({ phase: 'idle' });
+}
+
+/** Re-render when the update state changes. */
+export function useUpdateState(): { status: UpdateStatus; latest: LatestRelease | null; available: UpdateInfo | null } {
+  const [, set] = useState(0);
+  useEffect(() => {
+    const l = () => set((n) => n + 1);
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
+  return { status, latest, available };
 }
 
 /** "Later": asks again in 3 hours (or right away when an even newer build is pushed). */
@@ -97,10 +181,25 @@ export function startUpdateChecks() {
   window.lttvHost.onUpdateEvent = (json: string) => {
     try {
       const ev = JSON.parse(json) as { state: string; percent?: number; error?: string };
-      if (ev.state === 'downloading' && ev.percent !== undefined && ev.percent >= 0 && ev.percent % 25 === 0 && ev.percent < 100) toast(`Downloading the update… ${ev.percent}%`, 'info', 2500);
-      else if (ev.state === 'permission') toast('Allow LTTV to install apps (switch it on), then press Back and choose “Update now” again.', 'info', 12000);
-      else if (ev.state === 'installing') toast('Press “Install” to update LTTV. Your playlists and settings are kept.', 'success', 10000);
-      else if (ev.state === 'error') toast('Update failed: ' + (ev.error ?? 'unknown error'), 'error', 8000);
+      if (ev.state === 'downloading') {
+        setStatus({ phase: 'downloading', percent: ev.percent !== undefined && ev.percent >= 0 ? ev.percent : status.percent });
+        if (ev.percent !== undefined && ev.percent >= 0 && ev.percent % 25 === 0 && ev.percent < 100) toast(`Downloading the update… ${ev.percent}%`, 'info', 2500);
+      } else if (ev.state === 'permission') {
+        setStatus({ phase: 'permission' });
+        toast('Switch on “Allow from this source” for LTTV, then press Back — the install opens by itself.', 'info', 12000);
+      } else if (ev.state === 'permission-needed') {
+        setStatus({ phase: 'permission' });
+        toast('Installing still isn’t allowed for LTTV. Open the Update Center in Settings to try again.', 'error', 8000);
+      } else if (ev.state === 'installing') {
+        setStatus({ phase: 'installing' });
+        toast('Press “Install” to update LTTV. Your playlists and settings are kept.', 'success', 10000);
+      } else if (ev.state === 'browser') {
+        setStatus({ phase: 'browser' });
+        toast('The installer didn’t open, so the download page opened instead — install the file from there.', 'info', 10000);
+      } else if (ev.state === 'error') {
+        setStatus({ phase: 'error', error: ev.error ?? 'unknown error' });
+        toast('Update failed: ' + (ev.error ?? 'unknown error'), 'error', 8000);
+      }
     } catch {
       /* ignore */
     }

@@ -260,6 +260,11 @@ class MainActivity : AppCompatActivity() {
 
     fun uploadsDir() = java.io.File(cacheDir, "uploads").apply { mkdirs() }
 
+    override fun onResume() {
+        super.onResume()
+        updater.onAppResumed()
+    }
+
     override fun onStart() {
         super.onStart()
         if (resumeOnStart) player.resume()

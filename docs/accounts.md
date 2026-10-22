@@ -1,4 +1,4 @@
-# LTTV accounts (sign in with email, Google or Apple)
+# LTTV accounts (sign in with email)
 
 LTTV keeps each person's playlists, guides, favorites, teams, bets, Continue watching and settings
 with their account, so every TV, phone or computer they sign in on has them. Accounts live in **your
@@ -33,19 +33,11 @@ create policy "delete own" on public.lttv_profiles for delete using (auth.uid() 
 
 - **Providers → Email**: on (default). "Confirm email" can stay on (people confirm from their inbox
   once) or be turned off for instant sign-up.
-- **URL Configuration → Redirect URLs**: add `http://**` (the TV's phone sign-in page runs on your home
-  network, e.g. `http://192.168.1.20:8787/signin`) and, for the desktop app, `http://localhost:8787/**`.
-- **Providers → Google** (optional, free): create an OAuth client in Google Cloud Console
-  (APIs & Services → Credentials → OAuth client ID → Web application), add the callback URL Supabase
-  shows (`https://<project>.supabase.co/auth/v1/callback`) as an authorized redirect URI, then paste the
-  client ID and secret into Supabase.
-- **Providers → Apple** (optional): needs an Apple Developer Program membership ($99/year) to create a
-  Services ID and key; follow Supabase's Apple guide.
 
 ## How it works
 
 - **TV**: Sign in → "Sign in with your phone" shows a QR code. The phone opens a page served by the TV
-  on the home network, signs in (Google, Apple or email) and hands the TV a sign-in token (PIN-checked,
+  on the home network, signs in with email and password and hands the TV a sign-in token (PIN-checked,
   never logged). The TV keeps its own sign-in and stays signed in.
 - **First sign-in**: the account is empty, so LTTV asks for the playlist / provider login and guide.
   They're saved to the account a few seconds later.

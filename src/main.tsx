@@ -8,7 +8,7 @@ import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/na
 import { addPlaylist, addEpgSource, reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings, rematchAndReload } from './app/state';
 import { isTV, isNative } from './app/platform';
 import { describeProgramme } from './app/describe';
-import { cloudConfig, currentSession, markFreshDevice, openCloudAccount, signInWithRefreshToken, takeRedirectRefreshToken } from './app/cloud';
+import { cloudConfig, currentSession, markFreshDevice } from './app/cloud';
 import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
 import './styles.css';
@@ -43,18 +43,9 @@ async function boot() {
   }
   const s = getState().settings;
   applyTheme(s);
-  // Accounts: finish a Google / Apple sign-in that came back to this page; otherwise ask to sign in
+  // Accounts: ask to sign in
   // (once — "Not now" keeps using this device only), or bring the signed-in account's data down.
   markFreshDevice(!getState().playlists.length);
-  const redirected = cloudConfig() ? takeRedirectRefreshToken() : null;
-  if (redirected) {
-    try {
-      openCloudAccount(await signInWithRefreshToken(redirected));
-      return;
-    } catch (e) {
-      toast(`Sign-in didn’t finish: ${(e as Error).message}`, 'error', 8000);
-    }
-  }
   if (cloudConfig()) {
     if (currentSession()) void startCloudSync();
     else if (!signInSkipped()) setState({ signIn: true });

@@ -1251,3 +1251,17 @@ small, .small { font-size: 1.15rem; }
 .cloud-row { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; border-radius: 0.8rem; background: rgba(255, 255, 255, 0.04); margin: 0.4rem 0 0.6rem; }
 .cloud-row.signed-in { background: var(--accent-soft); }
 .cloud-text { flex: 1; min-width: 14rem; display: flex; flex-direction: column; gap: 0.15rem; }
+
+/* ---------- Settings: Update Center ---------- */
+.update-center { grid-column: 1 / -1; }
+.uc-versions { display: flex; align-items: center; gap: 1.4rem; margin: 0.4rem 0 0.6rem; }
+.uc-ver { display: flex; flex-direction: column; gap: 0.15rem; }
+.uc-ver b { font-size: 1.5rem; }
+.uc-ver.uc-new b { color: var(--accent); }
+.uc-state { margin: 0.3rem 0 0.6rem; color: var(--text-2); }
+.uc-state-new { color: var(--accent); font-weight: 600; }
+.uc-bar { height: 0.5rem; border-radius: 0.3rem; background: var(--panel-3); overflow: hidden; margin-bottom: 0.8rem; }
+.uc-bar > div { height: 100%; background: var(--accent); transition: width 0.3s ease; }
+.uc-notes { margin: 0.4rem 0 0.8rem; }
+.uc-notes ul { margin: 0.4rem 0 0; padding-left: 1.3rem; color: var(--text-2); }
+.uc-notes li { margin: 0.25rem 0; }

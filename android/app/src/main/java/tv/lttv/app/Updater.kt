@@ -18,6 +18,9 @@ import java.io.IOException
 class Updater(private val activity: MainActivity) {
 
     @Volatile private var busy = false
+    /** Waiting for "Install unknown apps" to be switched on; the install continues when LTTV comes back. */
+    @Volatile private var waitingForPermission = false
+    @Volatile private var lastUrl: String? = null
 
     private fun send(o: JSONObject) =
         activity.sendToPage("window.lttvHost && window.lttvHost.onUpdateEvent && window.lttvHost.onUpdateEvent(${JSONObject.quote(o.toString())})")
@@ -29,6 +32,7 @@ class Updater(private val activity: MainActivity) {
             return
         }
         busy = true
+        lastUrl = url
         Thread {
             try {
                 val base = (if (Build.VERSION.SDK_INT < 24) activity.externalCacheDir else null) ?: activity.cacheDir
@@ -70,29 +74,74 @@ class Updater(private val activity: MainActivity) {
         }.start()
     }
 
+    /**
+     * Open the install screen for the downloaded update — every time: the system installer
+     * (ACTION_VIEW, then ACTION_INSTALL_PACKAGE), and if neither can open, the download page in a browser.
+     */
     private fun openInstaller(apk: File) {
-        try {
-            if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
-                // First time only: the system asks to allow LTTV to install updates.
-                activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}")))
-                send(JSONObject().put("state", "permission"))
-                return
+        if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
+            // First time only: allow LTTV to install updates. The install continues by itself on return.
+            waitingForPermission = true
+            try {
+                activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Exception) {
+                try {
+                    activity.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (ignored: Exception) {
+                }
             }
-            val uri = if (Build.VERSION.SDK_INT >= 24) FileProvider.getUriForFile(activity, "${activity.packageName}.files", apk) else Uri.fromFile(apk)
-            val i = Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            activity.startActivity(i)
-            send(JSONObject().put("state", "installing"))
+            send(JSONObject().put("state", "permission"))
+            return
+        }
+        waitingForPermission = false
+        val uri = if (Build.VERSION.SDK_INT >= 24) FileProvider.getUriForFile(activity, "${activity.packageName}.files", apk) else Uri.fromFile(apk)
+        val attempts = listOf(
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive"),
+            @Suppress("DEPRECATION") Intent(Intent.ACTION_INSTALL_PACKAGE).setData(uri).putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true),
+        )
+        for (i in attempts) {
+            try {
+                activity.startActivity(i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+                send(JSONObject().put("state", "installing"))
+                return
+            } catch (ignored: Exception) {
+            }
+        }
+        if (openDownloadPage(lastUrl)) send(JSONObject().put("state", "browser"))
+        else send(JSONObject().put("state", "error").put("error", "Couldn't open the installer"))
+    }
+
+    /** The update's download address in a browser (fallback, or the "Open download page" button). */
+    fun openDownloadPage(url: String?): Boolean {
+        val u = url?.takeIf { it.startsWith("https://") } ?: return false
+        return try {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
         } catch (e: Exception) {
-            send(JSONObject().put("state", "error").put("error", e.message ?: "Couldn't open the installer"))
+            false
         }
     }
 
-    /** After allowing installs in Settings: open the already-downloaded update. */
-    fun resumeInstall() {
+    private fun downloadedApk(): File {
         val base = (if (Build.VERSION.SDK_INT < 24) activity.externalCacheDir else null) ?: activity.cacheDir
-        val apk = File(File(base, "updates"), "lttv-update.apk")
+        return File(File(base, "updates"), "lttv-update.apk")
+    }
+
+    /** Open the already-downloaded update again (e.g. the installer was closed). */
+    fun resumeInstall() {
+        val apk = downloadedApk()
+        if (apk.exists()) openInstaller(apk)
+        else send(JSONObject().put("state", "error").put("error", "The update isn't downloaded yet"))
+    }
+
+    /** LTTV came back to the screen: if installs were just allowed, open the installer now. */
+    fun onAppResumed() {
+        if (!waitingForPermission) return
+        if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
+            send(JSONObject().put("state", "permission-needed"))
+            return
+        }
+        val apk = downloadedApk()
         if (apk.exists()) openInstaller(apk)
     }
 }

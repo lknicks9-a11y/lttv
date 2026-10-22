@@ -40,6 +40,10 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun resumeUpdate() = activity.runOnUiThread { activity.updater.resumeInstall() }
 
+    /** Open the update's download page in a browser. */
+    @JavascriptInterface
+    fun openDownloadPage(url: String) = activity.runOnUiThread { activity.updater.openDownloadPage(url) }
+
     /** json: { url, headers: {..}, key } */
     @JavascriptInterface
     fun play(json: String) {

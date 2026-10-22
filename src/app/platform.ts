@@ -20,6 +20,8 @@ export interface NativeBridge {
   stopSetupServer(): void;
   /** Public account-server settings for the phone sign-in page (newer app builds). */
   setCloudConfig?(json: string): void;
+  /** Open the update's download page in a browser (newer app builds). */
+  openDownloadPage?(url: string): void;
   exitApp(): void;
   keepScreenOn(on: boolean): void;
   /** Multiview tiles (0–3). */

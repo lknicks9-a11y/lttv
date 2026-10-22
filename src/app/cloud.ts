@@ -1,4 +1,4 @@
-// LTTV accounts in the cloud (Supabase): sign up / sign in with email, Google or Apple; the sign-in is
+// LTTV accounts in the cloud (Supabase): sign up / sign in with email and password; the sign-in is
 // remembered on each device, and the account's playlists, guides, favorites, teams, bets, Continue
 // watching and settings are kept with the account so every device you sign in on has them.
 //
@@ -134,7 +134,7 @@ export async function signInEmail(email: string, password: string): Promise<Clou
   return s;
 }
 
-/** Turn a refresh token (from the phone sign-in or a redirect) into this device's own session. */
+/** Turn a refresh token (from the phone sign-in) into this device's own session. */
 export async function signInWithRefreshToken(refreshToken: string): Promise<CloudSession> {
   const s = toSession(await authPost('token?grant_type=refresh_token', { refresh_token: refreshToken }));
   saveSession(s);
@@ -158,22 +158,6 @@ export async function accessToken(): Promise<string | null> {
     }
     throw e;
   }
-}
-
-/** Address to send the browser to for Google / Apple sign-in; it comes back to `redirectTo` with the tokens. */
-export function oauthUrl(provider: 'google' | 'apple', redirectTo: string): string {
-  const c = cloudConfig();
-  if (!c) throw new Error('Accounts aren’t set up for this app yet.');
-  return `${c.url}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTo)}`;
-}
-
-/** Desktop / browser: finish a Google / Apple sign-in that came back to this page (tokens in the #fragment). */
-export function takeRedirectRefreshToken(): string | null {
-  if (!location.hash.includes('refresh_token=')) return null;
-  const p = new URLSearchParams(location.hash.slice(1));
-  const t = p.get('refresh_token');
-  history.replaceState(null, '', location.pathname + location.search.replace(/[?&]cloud=1/, ''));
-  return t;
 }
 
 export async function signOut(): Promise<void> {

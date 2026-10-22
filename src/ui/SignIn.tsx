@@ -1,8 +1,8 @@
-// Sign in / create an LTTV account (email, Google, Apple). On a TV the easy way is the phone: scan the
+// Sign in / create an LTTV account (email and password). On a TV the easy way is the phone: scan the
 // code, sign in there, and the TV picks up the sign-in.
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { cloudConfig, oauthUrl, openCloudAccount, signInEmail, signUpEmail } from '../app/cloud';
+import { cloudConfig, openCloudAccount, signInEmail, signUpEmail } from '../app/cloud';
 import { focusFirst } from '../app/nav';
 import { native } from '../app/platform';
 import { qrMatrix, qrSvgPath } from '../core/qr';
@@ -71,7 +71,7 @@ export function PhoneSignInModal({ onClose }: { onClose: () => void }) {
           {link ? <Qr text={link} /> : null}
           <div class="setup-steps">
             <p><b>1.</b> Scan the code with your phone’s camera (your phone must be on the <b>same Wi-Fi</b> as the TV).</p>
-            <p><b>2.</b> Sign in with Google, Apple or your email — or create an account.</p>
+            <p><b>2.</b> Sign in with your email and password — or create an account.</p>
             <p><b>3.</b> The TV signs in by itself and loads your channels.</p>
             {link ? <p class="muted">Or open <b class="setup-url-sm">{info.url}/signin</b> and enter PIN <b>{info.pin}</b>.</p> : <p class="error-text">{info.url}</p>}
           </div>
@@ -144,9 +144,6 @@ export function SignInScreen({ onClose, canSkip = true }: { onClose: () => void;
   useLayoutEffect(() => {
     requestAnimationFrame(() => focusFirst(ref.current));
   }, [email]);
-  const oauth = (p: 'google' | 'apple') => {
-    location.href = oauthUrl(p, `${location.origin}${location.pathname}?cloud=1`);
-  };
   return (
     <section class="screen signin" data-scope ref={ref}>
       <div class="signin-card">
@@ -157,15 +154,8 @@ export function SignInScreen({ onClose, canSkip = true }: { onClose: () => void;
           <EmailForm mode={email} onMode={setEmail} onDone={onClose} />
         ) : (
           <div class="signin-options" data-group="signin-options">
-            {native ? (
-              <Button variant="primary" icon="phone" data-autofocus onClick={() => setPhone(true)}>Sign in with your phone (Google, Apple or email)</Button>
-            ) : (
-              <>
-                <button type="button" class="f btn signin-google" data-autofocus onClick={() => oauth('google')}><b class="g-mark">G</b> Continue with Google</button>
-                <button type="button" class="f btn signin-apple" onClick={() => oauth('apple')}><svg width="16" height="18" viewBox="0 0 17 20" fill="#fff" aria-hidden="true"><path d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9C3.6 4.8 1.9 5.8 1 7.4c-1.9 3.3-.5 8.1 1.3 10.8.9 1.3 2 2.7 3.4 2.7 1.3-.1 1.9-.9 3.5-.9s2.1.9 3.5.8c1.4 0 2.4-1.3 3.2-2.6 1-1.5 1.4-2.9 1.4-3-.1 0-2.9-1.1-2.9-4.3zM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z" /></svg> Continue with Apple</button>
-              </>
-            )}
-            <Button icon="user" onClick={() => setEmail('in')}>Sign in with email</Button>
+            {native && <Button variant="primary" icon="phone" data-autofocus onClick={() => setPhone(true)}>Sign in with your phone (easier typing)</Button>}
+            <Button icon="user" variant={native ? undefined : 'primary'} data-autofocus={native ? undefined : ''} onClick={() => setEmail('in')}>Sign in with email</Button>
             <Button icon="add" onClick={() => setEmail('up')}>Create an account</Button>
             {canSkip && (
               <Button variant="ghost" onClick={() => { skipSignIn(); onClose(); }}>Not now — use LTTV on this device only</Button>

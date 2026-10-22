@@ -1,7 +1,8 @@
 import { AccountsSection } from './Accounts';
 import { SetupServerModal } from './PhoneSetup';
 import { h, Fragment } from 'preact';
-import { canUpdateInApp, checkForUpdate, currentBuild, versionOf, installUpdate } from '../app/updates';
+import { currentBuild, versionOf } from '../app/updates';
+import { UpdateCenter } from './UpdateCenter';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useApp, updateSettings, repo, reloadAll, toast, pruneExpired, getState, loadGuide, stopPlayback, player } from '../app/state';
 import type { Settings } from '../core/types';
@@ -78,6 +79,7 @@ export function SettingsScreen() {
       {phoneSetup && <SetupServerModal onClose={() => setPhoneSetup(false)} />}
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
+        <UpdateCenter />
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
@@ -124,12 +126,6 @@ export function SettingsScreen() {
           <Choice label="Live rewind" value={s.rewindMin ?? 30} hint={native ? 'Keeps the last minutes of the channel on this device so you can pause, rewind and fast-forward. Applies to the next channel you tune.' : 'Keeps up to 10 minutes in memory in a browser (the full time on Fire TV).'} options={[0, 5, 15, 30, 60].map((n) => ({ value: n, label: n === 0 ? 'Off' : `${n} min` }))} onChange={(v) => { set({ rewindMin: v }); if (native) native.setPlayerConfig(JSON.stringify({ bufferSec: s.bufferSec, timeoutSec: s.stallTimeoutSec, rewindMin: v })); }} />
           <Choice label="Info overlay hides after" value={s.osdTimeoutSec} options={[3, 5, 8, 15].map((n) => ({ value: n, label: `${n} s` }))} onChange={(v) => set({ osdTimeoutSec: v })} />
           {!native && <Choice label="Route streams through local helper" value={s.streamProxy} hint="Needed for streams that block browsers (CORS) or require special headers." options={[{ value: 'auto', label: 'When needed' }, { value: 'always', label: 'Always' }, { value: 'never', label: 'Never' }]} onChange={(v) => set({ streamProxy: v })} />}
-          {canUpdateInApp() && (
-            <div class="row gap wrap">
-              <Button icon="refresh" onClick={() => void checkForUpdate().then((u) => u && installUpdate(u))}>Check for updates</Button>
-              <span class="muted">Installed: LTTV {versionOf(currentBuild())}</span>
-            </div>
-          )}
           <Toggle label="Resume last channel on start" checked={s.autoplayLastChannel} onChange={(v) => set({ autoplayLastChannel: v })} />
         </div>
 
