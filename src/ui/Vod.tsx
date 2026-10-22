@@ -1,8 +1,9 @@
 // Movies and Shows screens (only offered when the user's playlists have them),
 // their detail pop-ups and the full-screen movie / episode player.
-import { h, Fragment } from 'preact';
+import { h, Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { player, setState, toast, useApp } from '../app/state';
+import { native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
   continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
@@ -56,6 +57,19 @@ function fmtClock(sec: number): string {
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
   return (h ? `${h}:${String(m).padStart(2, '0')}` : String(m)) + ':' + String(s).padStart(2, '0');
+}
+
+/**
+ * A row's cards: the first 8 are drawn right away, the rest once you move into the row (20 rows × 30
+ * posters drawn at once made opening Movies / Shows slow on a TV).
+ */
+function LazyStrip({ id, count, children }: { id: string; count: number; children: (n: number) => ComponentChildren }) {
+  const [full, setFull] = useState(false);
+  return (
+    <div class="vod-strip" data-group={`vod-row-${id}`} data-hlock onFocusIn={() => !full && setFull(true)}>
+      {children(full ? count : Math.min(8, count))}
+    </div>
+  );
 }
 
 export function VodScreen({ kind }: { kind: VodKind }) {
@@ -161,9 +175,9 @@ export function VodScreen({ kind }: { kind: VodKind }) {
             {home?.rows.map((r, ri) => (
               <section class="vod-row" key={r.id}>
                 <h2 class="vod-row-title">{r.title}{r.note && <small class="muted"> · {r.note}</small>}</h2>
-                <div class="vod-strip" data-group={`vod-row-${r.id}`} data-hlock>
-                  {r.items.map((it, i) => <ItemCard it={it} autofocus={!cont.length && ri === 0 && i === 0} onOpen={setOpen} />)}
-                </div>
+                <LazyStrip id={r.id} count={r.items.length}>
+                  {(n) => r.items.slice(0, n).map((it, i) => <ItemCard it={it} autofocus={!cont.length && ri === 0 && i === 0} onOpen={setOpen} />)}
+                </LazyStrip>
               </section>
             ))}
             {(!home || home.loading) && !homeErr && <div class="muted row gap vod-loading"><span class="spinner" /> Loading {title.toLowerCase()}…</div>}
@@ -434,6 +448,30 @@ function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMov
 type SeriesInfo = Awaited<ReturnType<typeof loadSeriesDetails>>;
 
 /** The episode a show's page selects: the one watched last — or the next one when it was finished. */
+/** An episode's picture: its own stills in order; if they don't load, the show's artwork with the number; else the number. */
+function EpisodeImage({ srcs, fallback, num }: { srcs: string[]; fallback?: string; num: number }) {
+  const [i, setI] = useState(0);
+  const [fbBad, setFbBad] = useState(false);
+  const key = srcs.join('|');
+  useEffect(() => {
+    setI(0);
+    setFbBad(false);
+  }, [key, fallback]);
+  if (i < srcs.length) return <img class="vod-ep-img" src={srcs[i]} alt="" loading="lazy" onError={() => setI(i + 1)} />;
+  if (fallback && !fbBad) return <span class="vod-ep-img vod-ep-fallback"><img src={fallback} alt="" loading="lazy" onError={() => setFbBad(true)} /><b>{num}</b></span>;
+  return <span class="vod-ep-num">{num}</span>;
+}
+
+/** "2019-03-04" -> "Mar 4, 2019" (an episode's air date). */
+function fmtAirDate(d?: string): string {
+  if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return '';
+  const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+  const dt = new Date(y, m - 1, day);
+  if (Number.isNaN(dt.getTime())) return '';
+  const label = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return dt.getTime() > Date.now() ? `Airs ${label}` : label;
+}
+
 function targetEpisode(info: SeriesInfo | null, r: ResumeEntry | undefined): VodEpisode | undefined {
   if (!info) return undefined;
   const flat = info.seasons.flatMap((x) => x.episodes);
@@ -488,6 +526,8 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
   const shownSeason = season ?? target?.season ?? info?.seasons[0]?.season ?? null;
   const seasonEps = info?.seasons.find((x) => x.season === shownSeason)?.episodes ?? [];
   const d = info?.details ?? {};
+  // Episodes without their own still use the show's artwork (wide backdrop first).
+  const epFallbackImg = cur.s.backdrop ?? d.backdrop ?? art?.poster ?? cur.s.poster;
   const named = useMemo(() => showEntries(all, cur.s.name), [all, cur.s.name]);
   const resumeOf = (e: VodEpisode) => all.find((r) => r.key === `e:${cur.playlistId}:${e.id}`) ?? named.find((r) => r.series?.season === e.season && r.series?.episode === e.episode);
 
@@ -571,11 +611,12 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
                       data-autofocus={(target && shownSeason === target.season ? isTarget : i === 0) ? '' : undefined}
                       onClick={() => play(e, r && !r.done ? Math.max(0, r.pos - 5) : 0)}
                     >
-                      {(a?.image ?? e.image) ? <img class="vod-ep-img" src={a?.image ?? e.image} alt="" loading="lazy" /> : <span class="vod-ep-num">{e.episode || i + 1}</span>}
+                      {/* Every episode gets a picture: its own still (TVmaze, then the provider), else the show's artwork. */}
+                      <EpisodeImage srcs={[a?.image, e.image].filter((x): x is string => !!x)} fallback={epFallbackImg} num={e.episode || i + 1} />
                       <span class="vod-ep-text">
                         <span class="vod-ep-title">{e.episode ? `${e.episode}. ` : ''}{name}</span>
                         <span class="muted vod-ep-meta">
-                          {[formatDuration(e.durationSec ?? (a?.runtime ? a.runtime * 60 : undefined)), watched ? 'Watched' : r ? `Resume at ${fmtClock(r.pos)}` : '', isTarget && last ? (watched ? '' : 'Continue') : ''].filter(Boolean).join(' · ')}
+                          {[fmtAirDate(a?.airDate ?? e.airDate), formatDuration(e.durationSec ?? (a?.runtime ? a.runtime * 60 : undefined)), watched ? 'Watched' : r ? `Resume at ${fmtClock(r.pos)}` : '', isTarget && last ? (watched ? '' : 'Continue') : ''].filter(Boolean).join(' · ')}
                         </span>
                         {(goodText(e.plot) ?? a?.plot) && <span class="muted vod-ep-plot">{goodText(e.plot) ?? a?.plot}</span>}
                       </span>
@@ -607,6 +648,12 @@ export function VodPlayer() {
   const posRef = useRef(pos);
   posRef.current = pos;
   const lastSaved = useRef(0);
+  // SD video isn't blown up to full screen (sharper, its own shape) unless "Picture: Full screen" is chosen.
+  const sdPicture = useApp((s) => s.settings.sdPicture ?? 'sharp');
+  const isSd = !!status.videoHeight && status.videoHeight <= 576;
+  useEffect(() => {
+    native?.setPictureMode?.(sdPicture);
+  }, [sdPicture]);
 
   const save = () => {
     const p = posRef.current;
@@ -801,6 +848,9 @@ export function VodPlayer() {
           <Button small data-autofocus icon={paused ? 'play' : 'pause'} onClick={() => { player.togglePause(); poke(); }} aria-label="Play/pause" />
           <Button small icon="ffwd" onClick={() => skip(1)} aria-label="Forward 10 seconds">10s</Button>
           {v.queue?.length ? <Button small icon="ffwd" onClick={nextEpisode}>Next episode</Button> : null}
+          {isSd && native?.setPictureMode && (
+            <Button small icon="fullscreen" onClick={() => void updateSettings({ sdPicture: sdPicture === 'sharp' ? 'full' : 'sharp' })}>{sdPicture === 'sharp' ? 'Picture: Sharper' : 'Picture: Full screen'}</Button>
+          )}
           <Button small class={`cc-btn ${captions ? 'cc-on' : ''}`} onClick={toggleCaptions} aria-pressed={captions} aria-label="Captions">
             CC {captions ? 'On' : 'Off'}
           </Button>

@@ -2,7 +2,7 @@
 // plus the pop-ups that announce plays while you watch.
 import { h, Fragment } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { TEAM_PROPS, betLabel, fantasyPoints, groupRoster, liveLeague, parseLine, propsForPosition, type Bet, type LiveLeague, type LiveNotice } from '../core/livestats';
+import { TEAM_PROPS, betLabel, fantasyPoints, groupRoster, liveLeague, parseLine, propsForPosition, type Bet, type LiveLeague, type LiveNotice, type LiveSport } from '../core/livestats';
 import { isTV } from '../app/platform';
 import {
   addBet, addFantasyPlayer, addParlay, watchingSports, betStatus, clearSettledBets, parlayLegs, parlayOf, removeParlay, fantasyTotal, gameForTeam, headshotUrl, loadRoster, onLiveNotice, removeBet, removeFantasyPlayer,
@@ -113,8 +113,9 @@ function PropForm({ league, team, player, onDone, onClose, onBet }: { league: Li
   const [line, setLine] = useState('');
   const def = props.find((p) => p.id === prop);
   const spread = !!def && 'spread' in def && !!def.spread;
+  const ml = !!def && 'moneyline' in def && !!def.moneyline;
   const save = (side: 'over' | 'under') => {
-    const n = parseLine(line);
+    const n = ml ? 0 : parseLine(line);
     if (n === undefined) {
       toast('Type your line first, e.g. 74.5', 'error');
       return;
@@ -139,7 +140,16 @@ function PropForm({ league, team, player, onDone, onClose, onBet }: { league: Li
           {props.map((p, i) => <Button data-autofocus={i === 0 ? '' : undefined} onClick={() => setProp(p.id)}>{p.label}</Button>)}
         </div>
       ) : (
-        <form class="form" onSubmit={(e) => { e.preventDefault(); save('over'); }}>
+        ml ? (
+          <div class="form">
+            <p><b>{def!.label}</b> · {team.name}</p>
+            <p class="muted">No line needed: the bet wins if {team.name} win{sport === 'soccer' ? ' (a draw loses)' : ''}.</p>
+            <div class="row gap modal-actions">
+              <Button variant="primary" icon="check" data-autofocus onClick={() => save('over')}>Track {team.name} to win</Button>
+              <Button variant="ghost" onClick={() => setProp(null)}>Other prop</Button>
+            </div>
+          </div>
+        ) : <form class="form" onSubmit={(e) => { e.preventDefault(); save('over'); }}>
           <p><b>{def!.label}</b> {player ? `· ${player.name}` : `· ${team.name}`}</p>
           <input class="f input big line-input" type="text" inputMode="text" readOnly={isTV} data-autofocus={isTV ? undefined : ''} placeholder={spread ? 'e.g. -3.5' : 'Your line, e.g. 74.5'} value={line} onInput={(e) => setLine((e.target as HTMLInputElement).value)} aria-label="Your line" />
           <LinePad value={line} onChange={setLine} allowMinus={spread} />
@@ -220,7 +230,7 @@ function RosterRow({ p, scoring }: { p: FantasyPlayer; scoring: 'ppr' | 'half' |
   );
 }
 
-function statLine(s: Record<string, number>, sport: 'football' | 'basketball'): string {
+function statLine(s: Record<string, number>, sport: LiveSport): string {
   const parts: string[] = [];
   const v = (k: string) => s[k] ?? 0;
   if (sport === 'football') {
@@ -228,8 +238,16 @@ function statLine(s: Record<string, number>, sport: 'football' | 'basketball'): 
     if (v('rushAtt')) parts.push(`${v('rushAtt')} car, ${v('rushYds')} yds${v('rushTD') ? `, ${v('rushTD')} TD` : ''}`);
     if (v('rec') || v('targets')) parts.push(`${v('rec')} rec, ${v('recYds')} yds${v('recTD') ? `, ${v('recTD')} TD` : ''}`);
     if (v('fgAtt') || v('xpAtt')) parts.push(`${v('fgMade')}/${v('fgAtt')} FG, ${v('xpMade')} XP`);
-  } else {
+  } else if (sport === 'basketball') {
     parts.push(`${v('pts')} pts, ${v('reb')} reb, ${v('ast')} ast${v('stl') ? `, ${v('stl')} stl` : ''}${v('blk') ? `, ${v('blk')} blk` : ''}`);
+  } else if (sport === 'baseball') {
+    if (v('ab') || v('hits')) parts.push(`${v('hits')}-${v('ab')}${v('hr') ? `, ${v('hr')} HR` : ''}${v('rbi') ? `, ${v('rbi')} RBI` : ''}${v('runs') ? `, ${v('runs')} R` : ''}`);
+    if (v('outs')) parts.push(`${Math.floor(v('outs') / 3)}.${v('outs') % 3} IP, ${v('kPitch')} K, ${v('er')} ER`);
+  } else if (sport === 'hockey') {
+    if (v('saves') || v('goalsAgainst')) parts.push(`${v('saves')} saves, ${v('goalsAgainst')} GA`);
+    else parts.push(`${v('goals')} G, ${v('assists')} A, ${v('shots')} SOG`);
+  } else {
+    parts.push(v('saves') ? `${v('saves')} saves` : `${v('goals')} G, ${v('assists')} A, ${v('shots')} shots (${v('sot')} on target)`);
   }
   return parts.join(' · ');
 }
@@ -328,7 +346,8 @@ function BetRow({ b }: { b: Bet }) {
   const g = gameForTeam(b.league, b.teamId);
   const { value, status } = betStatus(b);
   const isSpread = b.kind === 'team' && b.prop === 'spread';
-  const pct = isSpread ? (value + b.line > 0 ? 100 : 30) : Math.max(0, Math.min(100, (value / Math.max(0.5, b.line)) * 100));
+  const isMl = b.kind === 'team' && b.prop === 'moneyline';
+  const pct = isMl ? (value > 0 ? 100 : value === 0 ? 50 : 20) : isSpread ? (value + b.line > 0 ? 100 : 30) : Math.max(0, Math.min(100, (value / Math.max(0.5, b.line)) * 100));
   return (
     <div class={`fx-row bet-${status}`}>
       {b.headshot ? <Headshot src={b.headshot} name={b.athleteName ?? b.teamName} /> : <Logo src={b.teamLogo} />}
@@ -337,7 +356,7 @@ function BetRow({ b }: { b: Bet }) {
         <div class="fx-progress"><div style={{ width: `${pct}%` }} /></div>
         <small class="muted">{g ? `${g.state === 'in' ? 'LIVE · ' : g.state === 'post' ? 'Final · ' : ''}${g.detail}` : 'Waiting for the game'}</small>
       </div>
-      <b class="fx-pts">{isSpread ? `${value > 0 ? '+' : ''}${fmt(value)}` : `${fmt(value)} / ${b.line}`}</b>
+      <b class="fx-pts">{isMl ? (g && g.state !== 'pre' ? (value > 0 ? `Up ${fmt(value)}` : value < 0 ? `Down ${fmt(-value)}` : 'Tied') : '—') : isSpread ? `${value > 0 ? '+' : ''}${fmt(value)}` : `${fmt(value)} / ${b.line}`}</b>
       <span class={`bet-badge bet-badge-${status}`}>{status === 'hit' ? 'HIT' : status === 'lost' ? 'LOST' : status === 'push' ? 'PUSH' : status === 'live' ? 'LIVE' : 'PRE'}</span>
       <Button small icon="close" aria-label="Stop tracking" onClick={() => void removeBet(b.id)} />
     </div>

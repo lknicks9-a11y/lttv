@@ -46,6 +46,8 @@ export interface VodEpisode {
   image?: string;
   durationSec?: number;
   url?: string;
+  /** First aired / released (YYYY-MM-DD). */
+  airDate?: string;
 }
 
 export interface VodDetails {
@@ -170,6 +172,7 @@ export function parseSeriesInfo(json: unknown): { details: VodDetails; seasons: 
       plot: str(ei.plot) || undefined,
       image: url(ei.movie_image),
       durationSec: durationSec(ei),
+      airDate: (/^\d{4}-\d{2}-\d{2}/.exec(str(ei.releasedate) || str(ei.air_date) || str(ei.releaseDate))?.[0]) || undefined,
     };
     if (!ep.id) continue;
     const a = bySeason.get(season);
@@ -367,7 +370,7 @@ export interface ArtInfo {
   rating?: number;
   imdb?: string;
   /** Episodes by "season:episode". */
-  episodes?: Record<string, { title?: string; plot?: string; image?: string; runtime?: number }>;
+  episodes?: Record<string, { title?: string; plot?: string; image?: string; runtime?: number; airDate?: string }>;
   source: 'tvmaze' | 'itunes' | 'wikipedia';
 }
 
@@ -384,7 +387,7 @@ export function parseTvmazeShow(json: unknown, name: string, year?: string): Art
   for (const x of arr(obj(s._embedded).episodes)) {
     const e = obj(x);
     const k = `${str(e.season)}:${str(e.number)}`;
-    episodes[k] = { title: str(e.name) || undefined, plot: strip(str(e.summary)) || undefined, image: url(obj(e.image).original) ?? url(obj(e.image).medium), runtime: num(e.runtime) };
+    episodes[k] = { title: str(e.name) || undefined, plot: strip(str(e.summary)) || undefined, image: url(obj(e.image).original) ?? url(obj(e.image).medium), runtime: num(e.runtime), airDate: str(e.airdate) || undefined };
   }
   return {
     poster: url(obj(s.image).original) ?? url(obj(s.image).medium),

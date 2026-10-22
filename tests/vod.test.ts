@@ -132,11 +132,12 @@ test('quality from names and video height, 1080p preferred', () => {
 });
 
 test('TVmaze and iTunes artwork only for exact matches', () => {
-  const show = { name: 'Harbor', premiered: '2019-01-03', summary: '<p>Secrets.</p>', image: { original: 'https://img.example/p.jpg' }, _embedded: { episodes: [{ season: 1, number: 2, name: 'High Water', image: { original: 'https://img.example/e.jpg' } }] } };
+  const show = { name: 'Harbor', premiered: '2019-01-03', summary: '<p>Secrets.</p>', image: { original: 'https://img.example/p.jpg' }, _embedded: { episodes: [{ season: 1, number: 2, name: 'High Water', airdate: '2019-01-10', image: { original: 'https://img.example/e.jpg' } }] } };
   const a = parseTvmazeShow(show, 'EN - Harbor (2019)');
   assert.equal(a?.poster, 'https://img.example/p.jpg');
   assert.equal(a?.plot, 'Secrets.');
   assert.equal(a?.episodes?.['1:2'].title, 'High Water');
+  assert.equal(a?.episodes?.['1:2'].airDate, '2019-01-10');
   assert.equal(parseTvmazeShow(show, 'Harbor (2005)'), undefined);
   assert.equal(parseTvmazeShow(show, 'Harbor Lights'), undefined);
   const m = parseItunesMovie({ results: [{ trackName: 'Other' }, { trackName: 'Night Run', releaseDate: '2021-05-01', artworkUrl100: 'https://is1.example/abc/100x100bb.jpg', longDescription: 'A courier.' }] }, 'Night Run (2021) 4K');

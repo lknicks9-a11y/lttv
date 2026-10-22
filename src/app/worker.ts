@@ -5,6 +5,7 @@ import { IdbBackend } from '../core/idb';
 import { Repo } from '../core/storage';
 import { ingestEpg, ingestPlaylist, matchMissing, recomputeMatches } from '../core/pipeline';
 import type { EpgSource, PlaylistSource, Settings } from '../core/types';
+import { cleanTitle, normTitle, parseMovies, parseSeriesList } from '../core/vod';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -19,7 +20,8 @@ type Start =
   | { type: 'start'; job: 'epg'; id: string; source: EpgSource; settings: Settings }
   | { type: 'start'; job: 'match'; id: string; settings: Settings }
   | { type: 'start'; job: 'matchMissing'; id: string; settings: Settings }
-  | { type: 'start'; job: 'prune'; id: string; before: number };
+  | { type: 'start'; job: 'prune'; id: string; before: number }
+  | { type: 'start'; job: 'vodlist'; id: string; kind: 'movies' | 'series' };
 type Msg = Start | { type: 'chunk'; id: string; buf: ArrayBuffer } | { type: 'end'; id: string } | { type: 'abort'; id: string };
 
 interface Job {
@@ -96,6 +98,18 @@ async function run(m: Start) {
     }
     const job = jobs.get(m.id)!;
     const text = decode(job.stream);
+    if (m.job === 'vodlist') {
+      // A provider's whole movie / show list (often 10–60 MB of JSON): parsed here so the TV's screen never freezes.
+      let all = '';
+      for await (const s of text) all += s;
+      const json = JSON.parse(all);
+      all = '';
+      const list: { name: string; tk?: string }[] = m.kind === 'movies' ? parseMovies(json) : parseSeriesList(json);
+      // The matching key (title without language tag, year, quality) is worked out here too, off the screen's thread.
+      for (const it of list) it.tk = normTitle(cleanTitle(it.name));
+      post({ type: 'done', id: m.id, result: list });
+      return;
+    }
     if (m.job === 'playlist') {
       let all = '';
       let bytes = 0;
@@ -120,7 +134,7 @@ async function run(m: Start) {
 self.onmessage = (ev: MessageEvent<Msg>) => {
   const m = ev.data;
   if (m.type === 'start') {
-    if (m.job === 'playlist' || m.job === 'epg') {
+    if (m.job === 'playlist' || m.job === 'epg' || m.job === 'vodlist') {
       let controller!: ReadableStreamDefaultController<Uint8Array>;
       const stream = new ReadableStream<Uint8Array>({ start: (c) => void (controller = c) }, { highWaterMark: 8 });
       jobs.set(m.id, { controller, stream });

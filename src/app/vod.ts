@@ -9,6 +9,7 @@ import {
   type VodCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries,
 } from '../core/vod';
 import { openRemote } from './platform';
+import { parseVodList } from './importer';
 import { continueList, type ResumeEntry, type SeriesRef, type VodGenre } from '../core/vod';
 export { continueList, type ResumeEntry, type SeriesRef };
 import { getState, repo, setState, subscribe } from './state';
@@ -53,6 +54,19 @@ async function api(src: VodSource, action: string, extra = ''): Promise<unknown>
   } finally {
     inflight.delete(k);
   }
+}
+
+/** Whole movie / show lists: parsed in the background worker and kept for the session. */
+const allCache = new Map<string, Promise<unknown[]>>();
+function allViaWorker<T>(src: VodSource, action: string, kind: 'movies' | 'series'): Promise<T[]> {
+  const k = `${src.playlistId}|${action}`;
+  let job = allCache.get(k) as Promise<T[]> | undefined;
+  if (!job) {
+    job = parseVodList<T>(xtreamApiUrl(src.login!, action), src.userAgent ? { 'User-Agent': src.userAgent } : undefined, kind);
+    allCache.set(k, job as Promise<unknown[]>);
+    job.catch(() => allCache.delete(k));
+  }
+  return job;
 }
 
 const m3uCache = new Map<string, ReturnType<typeof m3uVod>>();
@@ -105,7 +119,7 @@ export async function loadAllMovies(): Promise<(VodMovie & { playlistId: string 
   const out: (VodMovie & { playlistId: string })[] = [];
   for (const src of sources()) {
     try {
-      const list = src.login ? parseMovies(await api(src, 'get_vod_streams')) : (await m3u(src)).movies;
+      const list = src.login ? await allViaWorker<VodMovie>(src, 'get_vod_streams', 'movies') : (await m3u(src)).movies;
       for (const m of list) out.push({ ...m, playlistId: src.playlistId });
     } catch {
       /* skip */
@@ -118,7 +132,7 @@ export async function loadAllSeries(): Promise<(VodSeries & { playlistId: string
   const out: (VodSeries & { playlistId: string })[] = [];
   for (const src of sources()) {
     try {
-      const list = src.login ? parseSeriesList(await api(src, 'get_series')) : (await m3u(src)).series.map((s) => s.series);
+      const list = src.login ? await allViaWorker<VodSeries>(src, 'get_series', 'series') : (await m3u(src)).series.map((s) => s.series);
       for (const s of list) out.push({ ...s, playlistId: src.playlistId });
     } catch {
       /* skip */
@@ -180,6 +194,7 @@ export function resetVodHome() {
 
 export function resetVod() {
   mem.clear();
+  allCache.clear();
   m3uCache.clear();
   homeCache.clear();
   void detectVod();
@@ -585,15 +600,19 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
     : (await loadAllSeries()).map((x): VodItem => ({ kind: 'series', playlistId: x.playlistId, s: x }));
   const byTitle = new Map<string, VodItem[]>();
   for (const it of lib) {
-    const k = normTitle(cleanTitle(itemName(it)));
+    // tk: worked out by the background worker while it read the list (falls back for M3U libraries).
+    const k = (it.kind === 'movie' ? (it.m as { tk?: string }).tk : (it.s as { tk?: string }).tk) ?? normTitle(cleanTitle(itemName(it)));
     if (!k) continue;
     const l = byTitle.get(k);
     if (l) l.push(it);
     else byTitle.set(k, [it]);
   }
   const yearOf = (it: VodItem) => Number(it.kind === 'movie' ? it.m.year : it.s.year) || Number(/\((\d{4})\)/.exec(itemName(it))?.[1]) || 0;
+  const keyOf = new Map<string, string>();
   const match = (t: WmTitle): VodItem | undefined => {
-    const cands = byTitle.get(normTitle(cleanTitle(t.title)));
+    let k = keyOf.get(t.title);
+    if (k === undefined) keyOf.set(t.title, (k = normTitle(cleanTitle(t.title))));
+    const cands = byTitle.get(k);
     if (!cands) return undefined;
     const ok = cands.filter((c) => !t.year || !yearOf(c) || Math.abs(yearOf(c) - t.year) <= 1);
     return dedupe(ok)[0];
@@ -606,7 +625,13 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
     }
     return { rows, categories: english, otherLanguages: [], loading };
   };
-  const wm = await watchmodeRows(kind, (partial) => onUpdate(build(partial, true)));
+  // While lists arrive, the page is updated at most about once a second.
+  let lastEmit = 0;
+  const wm = await watchmodeRows(kind, (partial) => {
+    if (Date.now() - lastEmit < 1000) return;
+    lastEmit = Date.now();
+    onUpdate(build(partial, true));
+  });
   if (!wm.length) throw new Error('no lists');
   const done = build(wm, false);
   homeCache.set(kind, done);
@@ -643,4 +668,19 @@ export async function findVersions(it: VodItem): Promise<VodVersion[]> {
   });
   if (!same.some((x) => itemId(x) === itemId(it))) same.unshift(it);
   return same.map((x) => ({ item: x, quality: qualityOf(itemName(x)) })).sort((a, b) => b.quality.rank - a.quality.rank);
+}
+
+/** A while after start-up, get Movies & Shows ready in the background so opening them is instant. */
+export function prefetchVodHomes() {
+  setTimeout(() => {
+    const st = getState();
+    if (!st.vodAvail?.movies && !st.vodAvail?.shows) return;
+    void (async () => {
+      for (const kind of ['movies', 'shows'] as VodKind[]) {
+        if (kind === 'movies' ? !st.vodAvail?.movies : !st.vodAvail?.shows) continue;
+        if (getState().fullscreen || getState().multiview) continue; // don't compete with playback
+        await loadHome(kind, () => undefined).catch(() => undefined);
+      }
+    })();
+  }, 45_000);
 }

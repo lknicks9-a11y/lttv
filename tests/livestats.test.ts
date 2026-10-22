@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { betProgress, diffNotices, fantasyPoints, parseRoster, parseSummary, type Bet } from '../src/core/livestats';
+import { betLabel, betProgress, diffNotices, fantasyPoints, parseRoster, parseSummary, type Bet } from '../src/core/livestats';
 
 // Shaped like ESPN's summary feed (site.api.espn.com/.../summary?event=…).
 function nflSummary(o: { state: string; sea: number; sf: number; recYds: string; rec: string; recTD: string; rushYds: string; plays: string[] }) {
@@ -130,4 +130,36 @@ test('team bets: every score change becomes a pop-up with the score line', () =>
   assert.match(score?.detail ?? '', /SEA \+7/);
   assert.equal(score?.logo, 'SEA.png');
   assert.equal(diffNotices2(g(14), g(21), 'football', { roster: [], bets: [{ ...bet, kind: 'player', athleteId: '1' }] }).some((x) => x.kind === 'score'), false);
+});
+
+test('MLB box score (by column label): hitter and pitcher props; NHL skater / goalie; soccer rosters', () => {
+  const hdr = (s1: string, s2: string, state = 'in') => ({ competitions: [{ status: { type: { state } }, competitors: [{ score: s1, homeAway: 'home', team: { id: '10', abbreviation: 'NYY' } }, { score: s2, homeAway: 'away', team: { id: '2', abbreviation: 'BOS' } }] }] });
+  const mlb = parseSummary({ header: hdr('5', '3'), boxscore: { players: [{ team: { id: '10' }, statistics: [
+    { name: 'batting', labels: ['H-AB', 'AB', 'R', 'H', 'RBI', 'HR', 'BB', 'K'], athletes: [{ athlete: { id: '1', displayName: 'Aaron Judge' }, stats: ['2-4', '4', '1', '2', '3', '1', '0', '1'] }] },
+    { name: 'pitching', labels: ['IP', 'H', 'R', 'ER', 'BB', 'K', 'HR'], athletes: [{ athlete: { id: '2', displayName: 'Gerrit Cole' }, stats: ['6.1', '4', '2', '2', '1', '9', '1'] }] },
+  ] }] } }, 'baseball');
+  const judge = mlb.players.get('1')!.stats;
+  assert.equal(judge.hits, 2); assert.equal(judge.hr, 1); assert.equal(judge.rbi, 3); assert.equal(judge.kBat, 1);
+  const cole = mlb.players.get('2')!.stats;
+  assert.equal(cole.kPitch, 9); assert.equal(cole.outs, 19); assert.equal(cole.er, 2); assert.equal(cole.kBat, undefined);
+  const nhl = parseSummary({ header: hdr('2', '1'), boxscore: { players: [{ team: { id: '10' }, statistics: [
+    { name: 'forwards', labels: ['G', 'A', '+/-', 'S', 'BS', 'HT'], athletes: [{ athlete: { id: '8', displayName: 'Skater' }, stats: ['1', '1', '2', '5', '1', '3'] }] },
+    { name: 'goalies', labels: ['GA', 'SA', 'SV'], athletes: [{ athlete: { id: '9', displayName: 'Goalie' }, stats: ['1', '30', '29'] }] },
+  ] }] } }, 'hockey');
+  assert.deepEqual([nhl.players.get('8')!.stats.goals, nhl.players.get('8')!.stats.shots, nhl.players.get('9')!.stats.saves], [1, 5, 29]);
+  const soc = parseSummary({ header: hdr('2', '0'), rosters: [{ team: { id: '10' }, roster: [{ athlete: { id: '7', displayName: 'Striker' }, stats: [{ name: 'totalGoals', value: 1 }, { name: 'goalAssists', value: 1 }, { name: 'shotsOnTarget', value: 3 }] }] }],
+    keyEvents: [{ id: 'k1', text: 'Goal! Striker scores.', scoringPlay: true, participants: [{ athlete: { id: '7' } }] }] }, 'soccer');
+  assert.deepEqual([soc.players.get('7')!.stats.goals, soc.players.get('7')!.stats.sot], [1, 3]);
+  assert.equal(soc.plays[0]?.scoring, true);
+});
+
+test('Moneyline: wins at the final whistle, a draw loses in soccer and pushes elsewhere', () => {
+  const g = (a: number, b: number, state: string) => ({ id: 'x', state, detail: '', teams: [{ id: '10', abbr: 'A', name: 'A', score: a, stats: {}, homeAway: 'home' }, { id: '2', abbr: 'B', name: 'B', score: b, stats: {}, homeAway: 'away' }], players: new Map(), plays: [] }) as never;
+  const ml = (league: string): Bet => ({ id: 'm', kind: 'team', league: league as never, prop: 'moneyline', line: 0, side: 'over', teamId: '10', teamName: 'A', createdAt: 0 });
+  assert.equal(betProgress(ml('nba'), g(100, 98, 'in'), 'basketball').status, 'live');
+  assert.equal(betProgress(ml('nba'), g(100, 98, 'post'), 'basketball').status, 'hit');
+  assert.equal(betProgress(ml('nhl'), g(1, 3, 'post'), 'hockey').status, 'lost');
+  assert.equal(betProgress(ml('epl'), g(1, 1, 'post'), 'soccer').status, 'lost');
+  assert.equal(betProgress(ml('nfl'), g(20, 20, 'post'), 'football').status, 'push');
+  assert.equal(betLabel(ml('nba'), 'basketball'), 'A moneyline (to win)');
 });

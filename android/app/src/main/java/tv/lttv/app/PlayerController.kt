@@ -66,6 +66,28 @@ class PlayerController(
     }
 
     private val main = Handler(Looper.getMainLooper())
+
+    // ---- SD movies / episodes: not blown up to full screen ----
+    /** "sharp": SD video (576 lines or less) is shown at most 1.5× its size, centered, in its own shape; "full": fill the screen. */
+    private var sdMode = "sharp"
+
+    fun setPictureMode(mode: String) = main.post {
+        sdMode = if (mode == "full") "full" else "sharp"
+        applySdFrame()
+    }
+
+    private fun applySdFrame() {
+        val w = view.width
+        val h = view.height
+        val vh = size.height
+        if (!vod || sdMode == "full" || vh <= 0 || vh > 576 || w <= 0 || h <= 0) {
+            if (view.paddingTop != 0 || view.paddingLeft != 0) view.setPadding(0, 0, 0, 0)
+            return
+        }
+        // At most 1.5× the video's own height (720 px for 480-line video on a 1080p screen); the shape stays the video's.
+        val pad = ((h - (vh * 1.5f).toInt()) / 2).coerceAtLeast(0)
+        if (view.paddingTop != pad) view.setPadding(0, pad, 0, pad)
+    }
     private val io = Executors.newSingleThreadExecutor()
     private var exo: ExoPlayer? = null
     private var bufferSec = 8
@@ -185,6 +207,7 @@ class PlayerController(
     }
 
     init {
+        view.addOnLayoutChangeListener { _, l, t, rr, b, ol, ot, or2, ob -> if (rr - l != or2 - ol || b - t != ob - ot) applySdFrame() }
         // Only the main player reports its live-rewind position (Multiview tiles are plain live).
         if (audioFocus) main.postDelayed(liveTicker, 1000)
     }
@@ -290,6 +313,7 @@ class PlayerController(
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             size = videoSize
+            applySdFrame()
         }
 
         override fun onTracksChanged(tracks: Tracks) {
@@ -387,6 +411,8 @@ class PlayerController(
             this.vod = vod
             this.startMs = startMs
             hasRendered = false
+            size = VideoSize.UNKNOWN
+            view.setPadding(0, 0, 0, 0)
             droppedFrames = 0L
             lastError = ""
             liveLagMs = -1L

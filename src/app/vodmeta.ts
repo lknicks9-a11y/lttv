@@ -19,7 +19,8 @@ const ITUNES = () => override('lttvItunesBase', 'https://itunes.apple.com');
 const WIKI = () => override('lttvWikiBase', 'https://en.wikipedia.org/api/rest_v1/page/summary/');
 
 type Kind = 'movie' | 'series';
-const KV = 'vodArt';
+// v2: episodes carry their air date.
+const KV = 'vodArt2';
 const cache = new Map<string, ArtInfo | null>();
 const inflight = new Map<string, Promise<ArtInfo | null>>();
 const listeners = new Map<string, Set<(a: ArtInfo | null) => void>>();

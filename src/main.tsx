@@ -1,6 +1,6 @@
 import { h, Fragment } from 'preact';
 import { startUpdateChecks } from './app/updates';
-import { startVodDetection, saveProgress } from './app/vod';
+import { prefetchVodHomes, startVodDetection, saveProgress } from './app/vod';
 import { pollLive, startLiveSports, addBet, addParlay, watchingSports } from './app/livesports';
 import { render } from 'preact';
 import { App } from './ui/App';
@@ -53,6 +53,7 @@ async function boot() {
   void startLiveSports();
   startUpdateChecks();
   startVodDetection();
+  prefetchVodHomes();
   const start = s.startupScreen;
   if (start === 'guide' || start === 'channels') setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');

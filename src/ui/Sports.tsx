@@ -174,13 +174,13 @@ export function SportsScreen() {
         <h1>{league ? league.name : 'My Teams'}</h1>
         {live && (
           <div class="chips compact league-tabs" data-group="league-tabs" role="tablist">
-            {(['games', 'fantasy', 'bets'] as const).map((t) => (
+            {(live.fantasy === false ? (['games', 'bets'] as const) : (['games', 'fantasy', 'bets'] as const)).map((t) => (
               <Chip active={tab === t} onClick={() => setTab(t)}>{t === 'games' ? 'Games' : t === 'fantasy' ? 'Fantasy' : 'Bets'}</Chip>
             ))}
           </div>
         )}
       </div>
-      {view === 'teams' ? <MyTeams /> : live && tab === 'fantasy' ? <FantasyScreen key={`f-${live.id}`} league={live.id} /> : live && tab === 'bets' ? <BetsScreen key={`b-${live.id}`} league={live.id} /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
+      {view === 'teams' ? <MyTeams /> : live && tab === 'fantasy' && live.fantasy !== false ? <FantasyScreen key={`f-${live.id}`} league={live.id} /> : live && tab === 'bets' ? <BetsScreen key={`b-${live.id}`} league={live.id} /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
     </section>
   );
 }

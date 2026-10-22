@@ -146,3 +146,8 @@ export function matchMissingChannels(settings: Settings) {
 export function pruneGuide(before: number) {
   return start<{ removed: number }>({ job: 'prune', before }, null);
 }
+
+/** A provider's whole movie / show list, downloaded and parsed in the background worker (no screen freeze). */
+export function parseVodList<T>(url: string, headers: Record<string, string> | undefined, kind: 'movies' | 'series'): Promise<T[]> {
+  return start<T[]>({ job: 'vodlist', kind }, { url, headers });
+}

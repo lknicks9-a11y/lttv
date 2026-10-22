@@ -225,6 +225,8 @@ export interface Settings {
   captions?: boolean;
   /** Your own Watchmode API key: Movies & Shows home rows from Watchmode (US, English). */
   watchmodeKey?: string;
+  /** SD movies / episodes: 'sharp' = not blown up to full screen (default), 'full' = fill the screen. */
+  sdPicture?: 'sharp' | 'full';
   /** Streams you chose for My TV numbers (they win over the automatic pick, and follow you to other providers by name / call sign). */
   myTvPins: MyTvPin[];
 }

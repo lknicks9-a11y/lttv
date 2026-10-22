@@ -24,6 +24,8 @@ export interface NativeBridge {
   openDownloadPage?(url: string): void;
   /** Multiview stream info (newer app builds). */
   mvDiagnostics?(): string;
+  /** SD movies / episodes picture (newer app builds). */
+  setPictureMode?(mode: string): void;
   exitApp(): void;
   keepScreenOn(on: boolean): void;
   /** Multiview tiles (0–3). */

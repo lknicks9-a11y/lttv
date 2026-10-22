@@ -1275,3 +1275,7 @@ small, .small { font-size: 1.15rem; }
 .mv-info-table th, .mv-info-table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 .mv-info-table th { color: var(--muted); font-weight: 600; }
 .mv-info-dec { margin-top: 0.8rem; font-size: 0.95rem; }
+/* Episode without its own still: the show's artwork, darkened, with the episode number on it. */
+.vod-ep-fallback { position: relative; overflow: hidden; display: grid; place-items: center; background: var(--panel-3); }
+.vod-ep-fallback img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: brightness(0.55); }
+.vod-ep-fallback b { position: relative; font-size: 1.8rem; text-shadow: 0 0.1rem 0.4rem rgba(0, 0, 0, 0.8); }

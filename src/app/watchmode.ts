@@ -96,7 +96,7 @@ async function listTitles(kind: Kind, extra: string): Promise<WmTitle[]> {
   return (j.titles ?? []).filter((t) => t.title).map((t) => ({ title: t.title!, year: t.year || undefined }));
 }
 
-const pause = () => new Promise((r) => setTimeout(r, 700)); // well under 120 requests / minute
+const refreshing = new Map<Kind, Promise<WmRow[]>>();
 
 /**
  * The home rows for Movies or Shows (cached 3 days): Popular, New, one per streaming service, one per genre.
@@ -107,7 +107,23 @@ export async function watchmodeRows(kind: Kind, onRow?: (rows: WmRow[]) => void)
   if (!key) return [];
   const cacheKey = `watchmode:rows:${kind}`;
   const hit = await repo.getKv<{ at: number; key: string; rows: WmRow[] }>(cacheKey).catch(() => undefined);
-  if (hit && hit.key === key.slice(-6) && Date.now() - hit.at < LIST_TTL && hit.rows.length) return hit.rows;
+  if (hit && hit.key === key.slice(-6) && hit.rows.length) {
+    // Saved lists show right away; old ones (3 days) are refreshed quietly for next time.
+    if (Date.now() - hit.at > LIST_TTL && !refreshing.has(kind)) {
+      const job = fetchRows(kind, key, cacheKey).finally(() => refreshing.delete(kind));
+      refreshing.set(kind, job);
+      job.catch(() => undefined);
+    }
+    return hit.rows;
+  }
+  const running = refreshing.get(kind);
+  if (running) return running;
+  const job = fetchRows(kind, key, cacheKey, onRow).finally(() => refreshing.delete(kind));
+  refreshing.set(kind, job);
+  return job;
+}
+
+async function fetchRows(kind: Kind, key: string, cacheKey: string, onRow?: (rows: WmRow[]) => void): Promise<WmRow[]> {
 
   const genres = await cached<Named[]>('watchmode:genres', META_TTL, async () => (await call('/genres/')) as Named[]);
   const sources = await cached<Named[]>('watchmode:sources', META_TTL, async () => (await call('/sources/?regions=US&types=sub')) as Named[]);
@@ -125,16 +141,27 @@ export async function watchmodeRows(kind: Kind, onRow?: (rows: WmRow[]) => void)
     const ids = genres.filter((x) => g.re.test(x.name)).map((x) => x.id);
     if (ids.length && !(kind === 'movies' && g.label === 'Reality')) plan.push({ id: `genre:${g.label}`, title: g.label, extra: `&genres=${ids.join(',')}` });
   }
-  const rows: WmRow[] = [];
-  for (const p of plan) {
-    try {
-      rows.push({ id: p.id, title: p.title, titles: await listTitles(kind, p.extra) });
-      onRow?.(rows.slice());
-    } catch (e) {
-      if (!rows.length) throw e; // bad key / no credits: stop early
+  // Three lists at a time (well under Watchmode's 120 requests / minute); rows keep the plan's order.
+  const got: (WmRow | null)[] = plan.map(() => null);
+  let next = 0;
+  let firstError: Error | null = null;
+  const emit = () => onRow?.(got.filter((x): x is WmRow => !!x));
+  const lane = async () => {
+    while (next < plan.length) {
+      const i = next++;
+      const p = plan[i];
+      try {
+        got[i] = { id: p.id, title: p.title, titles: await listTitles(kind, p.extra) };
+        emit();
+      } catch (e) {
+        firstError ??= e as Error;
+        if (i < 2 && !got.some(Boolean)) next = plan.length; // bad key / out of credits: stop early
+      }
     }
-    await pause();
-  }
+  };
+  await Promise.all([lane(), lane(), lane()]);
+  const rows = got.filter((x): x is WmRow => !!x);
+  if (!rows.length && firstError) throw firstError;
   if (rows.length) await repo.setKv(cacheKey, { at: Date.now(), key: key.slice(-6), rows }).catch(() => undefined);
   return rows;
 }

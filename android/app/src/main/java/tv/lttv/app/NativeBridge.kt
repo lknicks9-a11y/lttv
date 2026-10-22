@@ -37,6 +37,10 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun installUpdate(url: String) = activity.updater.install(url)
 
+    /** SD movies / episodes: "sharp" (at most 1.5× their size, centered) or "full" (fill the screen). */
+    @JavascriptInterface
+    fun setPictureMode(mode: String) = activity.player.setPictureMode(mode)
+
     @JavascriptInterface
     fun resumeUpdate() = activity.runOnUiThread { activity.updater.resumeInstall() }
 

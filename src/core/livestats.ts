@@ -3,14 +3,24 @@
 // fantasy points, prop values, and what changed between two snapshots (for the pop-ups).
 // Nothing here places bets or contacts a sportsbook: lines are typed in by the user.
 
-export type LiveSport = 'football' | 'basketball';
-export type LiveLeague = 'nfl' | 'nba' | 'cfb' | 'cbb';
+export type LiveSport = 'football' | 'basketball' | 'baseball' | 'hockey' | 'soccer';
+export type LiveLeague = 'nfl' | 'nba' | 'cfb' | 'cbb' | 'mlb' | 'nhl' | 'epl' | 'mls' | 'ucl' | 'laliga' | 'bundesliga' | 'seriea' | 'ligue1';
 
-export const LIVE_LEAGUES: { id: LiveLeague; name: string; sport: LiveSport; path: string; headshot?: string }[] = [
+/** Leagues with live stats (bets; fantasy where `fantasy` isn't false). */
+export const LIVE_LEAGUES: { id: LiveLeague; name: string; sport: LiveSport; path: string; headshot?: string; fantasy?: boolean }[] = [
   { id: 'nfl', name: 'NFL', sport: 'football', path: 'football/nfl', headshot: 'nfl' },
   { id: 'nba', name: 'NBA', sport: 'basketball', path: 'basketball/nba', headshot: 'nba' },
   { id: 'cfb', name: 'College Football', sport: 'football', path: 'football/college-football', headshot: 'college-football' },
   { id: 'cbb', name: 'College Basketball', sport: 'basketball', path: 'basketball/mens-college-basketball', headshot: 'mens-college-basketball' },
+  { id: 'mlb', name: 'MLB', sport: 'baseball', path: 'baseball/mlb', headshot: 'mlb', fantasy: false },
+  { id: 'nhl', name: 'NHL', sport: 'hockey', path: 'hockey/nhl', headshot: 'nhl', fantasy: false },
+  { id: 'epl', name: 'Premier League', sport: 'soccer', path: 'soccer/eng.1', headshot: 'soccer', fantasy: false },
+  { id: 'mls', name: 'MLS', sport: 'soccer', path: 'soccer/usa.1', headshot: 'soccer', fantasy: false },
+  { id: 'ucl', name: 'UEFA Champions League', sport: 'soccer', path: 'soccer/uefa.champions', headshot: 'soccer', fantasy: false },
+  { id: 'laliga', name: 'LaLiga', sport: 'soccer', path: 'soccer/esp.1', headshot: 'soccer', fantasy: false },
+  { id: 'bundesliga', name: 'Bundesliga', sport: 'soccer', path: 'soccer/ger.1', headshot: 'soccer', fantasy: false },
+  { id: 'seriea', name: 'Serie A', sport: 'soccer', path: 'soccer/ita.1', headshot: 'soccer', fantasy: false },
+  { id: 'ligue1', name: 'Ligue 1', sport: 'soccer', path: 'soccer/fra.1', headshot: 'soccer', fantasy: false },
 ];
 
 export function liveLeague(id: string) {
@@ -111,7 +121,24 @@ const BASKETBALL_LABELS: Record<string, string[]> = {
   MIN: ['min'], PTS: ['pts'], FG: ['fgm', 'fga'], '3PT': ['tpm', 'tpa'], FT: ['ftm', 'fta'], REB: ['reb'], AST: ['ast'], TO: ['to'], STL: ['stl'], BLK: ['blk'], OREB: ['oreb'], DREB: ['dreb'], PF: ['pf'],
 };
 
+/** Baseball / hockey box scores are read by column label (per category). */
+const BASEBALL_BATTING: Record<string, string[]> = {
+  'H-AB': ['hits', 'ab'], AB: ['ab'], R: ['runs'], H: ['hits'], RBI: ['rbi'], HR: ['hr'], BB: ['bb'], K: ['kBat'], SO: ['kBat'], SB: ['sb'], '2B': ['doubles'], '3B': ['triples'], TB: ['tb'],
+};
+const BASEBALL_PITCHING: Record<string, string[]> = {
+  IP: ['ip'], H: ['hitsAllowed'], R: ['runsAllowed'], ER: ['er'], BB: ['bbAllowed'], K: ['kPitch'], SO: ['kPitch'], HR: ['hrAllowed'], 'PC-ST': ['pitches', 'strikes'], PC: ['pitches'],
+};
+const HOCKEY_LABELS: Record<string, string[]> = {
+  G: ['goals'], A: ['assists'], S: ['shots'], SOG: ['shots'], BS: ['blocks'], HT: ['hits'], PIM: ['pim'], PPG: ['ppg'], SV: ['saves'], GA: ['goalsAgainst'], SA: ['shotsAgainst'],
+};
+/** Soccer player stats come per player in "rosters" (name/value pairs). */
+const SOCCER_STATS: Record<string, string> = {
+  totalGoals: 'goals', goalAssists: 'assists', totalShots: 'shots', shotsOnTarget: 'sot', saves: 'saves', foulsCommitted: 'fouls', yellowCards: 'yc', offsides: 'offsides',
+};
+
 const TEAM_STAT_KEYS: Record<string, string> = {
+  // soccer
+  wonCorners: 'corners', totalShots: 'shots', shotsOnTarget: 'sot',
   totalYards: 'totalYds', netPassingYards: 'passYds', rushingYards: 'rushYds', firstDowns: 'firstDowns', turnovers: 'turnovers',
   totalPenaltiesYards: 'penalties', sacksYardsLost: 'sacked',
   // basketball
@@ -167,11 +194,17 @@ export function parseSummary(json: unknown, sport: LiveSport, gameId = ''): Live
           players.set(id, p);
         }
         const vals = arr(aa.stats).map(str);
+        const pitching = /pitch/i.test(catName) || labels.includes('IP');
         vals.forEach((raw, i) => {
           const key = keys[i] ?? '';
+          const label = labels[i] ?? '';
           const names = sport === 'football'
             ? FOOTBALL_CATEGORY_OVERRIDES[catName]?.[key] ?? FOOTBALL_KEYS[key]
-            : BASKETBALL_KEYS[key] ?? BASKETBALL_LABELS[labels[i] ?? ''];
+            : sport === 'baseball'
+              ? (pitching ? BASEBALL_PITCHING : BASEBALL_BATTING)[label]
+              : sport === 'hockey'
+                ? HOCKEY_LABELS[label]
+                : BASKETBALL_KEYS[key] ?? BASKETBALL_LABELS[label];
           if (!names) return;
           const n = nums(raw);
           names.forEach((name, j) => {
@@ -181,8 +214,32 @@ export function parseSummary(json: unknown, sport: LiveSport, gameId = ''): Live
       }
     }
   }
-  // Plays: football keeps them per drive; basketball has one list.
+  // Baseball: outs recorded from innings pitched ("6.1" = 19 outs).
+  if (sport === 'baseball') {
+    for (const p of players.values()) if (p.stats.ip !== undefined) p.stats.outs = Math.floor(p.stats.ip) * 3 + Math.round((p.stats.ip % 1) * 10);
+  }
+  // Soccer: per-player stats in "rosters".
+  for (const rt of arr(root.rosters)) {
+    const r0 = obj(rt);
+    const tid = str(obj(r0.team).id);
+    for (const e of arr(r0.roster)) {
+      const ee = obj(e);
+      const ath = obj(ee.athlete);
+      const id = str(ath.id);
+      if (!id) continue;
+      const p = players.get(id) ?? { id, name: str(ath.displayName) || str(ath.shortName), teamId: tid, headshot: str(obj(ath.headshot).href) || undefined, stats: {} };
+      for (const sx of arr(ee.stats)) {
+        const ss = obj(sx);
+        const ours = SOCCER_STATS[str(ss.name)];
+        const v = Number(str(ss.value) || str(ss.displayValue));
+        if (ours && Number.isFinite(v)) p.stats[ours] = v;
+      }
+      players.set(id, p);
+    }
+  }
+  // Plays: football keeps them per drive; basketball has one list; soccer's key events.
   const rawPlays: unknown[] = [];
+  rawPlays.push(...arr(root.keyEvents));
   const drives = obj(root.drives);
   for (const d of arr(drives.previous)) rawPlays.push(...arr(obj(d).plays));
   rawPlays.push(...arr(obj(drives.current).plays));
@@ -210,8 +267,14 @@ export function fantasyPoints(s: Record<string, number>, sport: LiveSport, scori
       + v('rec') * recPts + v('recYds') / 10 + v('recTD') * 6
       - v('fumLost') * 2
       + v('fgMade') * 3 + v('xpMade');
-  } else {
+  } else if (sport === 'basketball') {
     pts = v('pts') + v('reb') * 1.2 + v('ast') * 1.5 + v('stl') * 3 + v('blk') * 3 - v('to');
+  } else if (sport === 'baseball') {
+    pts = v('hits') * 3 + v('hr') * 7 + v('rbi') * 2 + v('runs') * 2 + v('bb') * 2 + v('sb') * 5 + v('outs') * 0.75 + v('kPitch') * 2 - v('er') * 2;
+  } else if (sport === 'hockey') {
+    pts = v('goals') * 8.5 + v('assists') * 5 + v('shots') * 1.5 + v('blocks') * 1.3 + v('saves') * 0.7 - v('goalsAgainst') * 3.5;
+  } else {
+    pts = v('goals') * 10 + v('assists') * 6 + v('shots') + v('sot') + v('saves') * 2;
   }
   return Math.round(pts * 100) / 100;
 }
@@ -268,6 +331,42 @@ export const PLAYER_PROPS: Record<LiveSport, PropDef[]> = {
     { id: 'sb', label: 'Steals + blocks', unit: 'stl+blk', value: sum('stl', 'blk') },
     { id: 'ftm', label: 'Free throws made', unit: 'FTM', value: st('ftm') },
     { id: 'fgm', label: 'Field goals made', unit: 'FGM', value: st('fgm') },
+    { id: 'dd', label: 'Double-double (line 0.5)', unit: 'double-double', value: (s) => (['pts', 'reb', 'ast', 'stl', 'blk'].filter((k) => (s[k] ?? 0) >= 10).length >= 2 ? 1 : 0) },
+    { id: 'td', label: 'Triple-double (line 0.5)', unit: 'triple-double', value: (s) => (['pts', 'reb', 'ast', 'stl', 'blk'].filter((k) => (s[k] ?? 0) >= 10).length >= 3 ? 1 : 0) },
+  ],
+  baseball: [
+    { id: 'hits', label: 'Hits', unit: 'H', value: st('hits') },
+    { id: 'hr', label: 'Home runs', unit: 'HR', value: st('hr') },
+    { id: 'rbi', label: 'RBIs', unit: 'RBI', value: st('rbi') },
+    { id: 'runs', label: 'Runs scored', unit: 'R', value: st('runs') },
+    { id: 'hrr', label: 'Hits + runs + RBIs', unit: 'H+R+RBI', value: sum('hits', 'runs', 'rbi') },
+    { id: 'tb', label: 'Total bases', unit: 'TB', value: (s) => s.tb ?? (s.hits ?? 0) + (s.doubles ?? 0) + 2 * (s.triples ?? 0) + 3 * (s.hr ?? 0) },
+    { id: 'bb', label: 'Walks', unit: 'BB', value: st('bb') },
+    { id: 'sb', label: 'Stolen bases', unit: 'SB', value: st('sb') },
+    { id: 'kBat', label: 'Strikeouts (batter)', unit: 'K', value: st('kBat') },
+    { id: 'kPitch', label: 'Strikeouts (pitcher)', unit: 'K', value: st('kPitch') },
+    { id: 'outs', label: 'Outs recorded', unit: 'outs', value: st('outs') },
+    { id: 'hitsAllowed', label: 'Hits allowed', unit: 'H allowed', value: st('hitsAllowed') },
+    { id: 'er', label: 'Earned runs allowed', unit: 'ER', value: st('er') },
+    { id: 'bbAllowed', label: 'Walks allowed', unit: 'BB allowed', value: st('bbAllowed') },
+  ],
+  hockey: [
+    { id: 'goals', label: 'Goals (anytime: line 0.5)', unit: 'G', value: st('goals') },
+    { id: 'assists', label: 'Assists', unit: 'A', value: st('assists') },
+    { id: 'points', label: 'Points (goals + assists)', unit: 'PTS', value: sum('goals', 'assists') },
+    { id: 'shots', label: 'Shots on goal', unit: 'SOG', value: st('shots') },
+    { id: 'blocks', label: 'Blocked shots', unit: 'BLK', value: st('blocks') },
+    { id: 'hits', label: 'Hits', unit: 'hits', value: st('hits') },
+    { id: 'saves', label: 'Saves', unit: 'saves', value: st('saves') },
+    { id: 'goalsAgainst', label: 'Goals allowed', unit: 'GA', value: st('goalsAgainst') },
+  ],
+  soccer: [
+    { id: 'goals', label: 'Goals (anytime scorer: line 0.5)', unit: 'goals', value: st('goals') },
+    { id: 'assists', label: 'Assists', unit: 'assists', value: st('assists') },
+    { id: 'ga', label: 'Goal or assist (line 0.5)', unit: 'G+A', value: sum('goals', 'assists') },
+    { id: 'shots', label: 'Shots', unit: 'shots', value: st('shots') },
+    { id: 'sot', label: 'Shots on target', unit: 'SOT', value: st('sot') },
+    { id: 'saves', label: 'Saves', unit: 'saves', value: st('saves') },
   ],
 };
 
@@ -279,13 +378,18 @@ export interface TeamPropDef {
   value: (team: LiveTeam, opp: LiveTeam | undefined) => number;
   /** Spread: the line is added to the team's margin and must stay above 0. */
   spread?: boolean;
+  /** Moneyline: the team has to win (no line). */
+  moneyline?: boolean;
 }
+
+const moneyline: TeamPropDef = { id: 'moneyline', label: 'Moneyline (to win)', unit: 'margin', value: (t, o) => t.score - (o?.score ?? 0), moneyline: true };
 
 const ts = (k: string) => (t: LiveTeam) => t.stats[k] ?? 0;
 
 /** Every team / game prop LTTV can track, per sport. */
 export const TEAM_PROPS: Record<LiveSport, TeamPropDef[]> = {
   football: [
+    moneyline,
     { id: 'points', label: 'Team points', unit: 'pts', value: (t) => t.score },
     { id: 'gameTotal', label: 'Game total points (both teams)', unit: 'total pts', value: (t, o) => t.score + (o?.score ?? 0) },
     { id: 'spread', label: 'Spread (enter e.g. -3.5 or +7)', unit: 'margin', value: (t, o) => t.score - (o?.score ?? 0), spread: true },
@@ -296,12 +400,33 @@ export const TEAM_PROPS: Record<LiveSport, TeamPropDef[]> = {
     { id: 'turnovers', label: 'Turnovers', unit: 'turnovers', value: ts('turnovers') },
   ],
   basketball: [
+    moneyline,
     { id: 'points', label: 'Team points', unit: 'pts', value: (t) => t.score },
     { id: 'gameTotal', label: 'Game total points (both teams)', unit: 'total pts', value: (t, o) => t.score + (o?.score ?? 0) },
     { id: 'spread', label: 'Spread (enter e.g. -5.5 or +3)', unit: 'margin', value: (t, o) => t.score - (o?.score ?? 0), spread: true },
     { id: 'reb', label: 'Team rebounds', unit: 'reb', value: ts('reb') },
     { id: 'ast', label: 'Team assists', unit: 'ast', value: ts('ast') },
     { id: 'tpm', label: 'Team 3-pointers made', unit: '3PM', value: ts('tpm') },
+  ],
+  baseball: [
+    moneyline,
+    { id: 'runs', label: 'Team runs', unit: 'runs', value: (t) => t.score },
+    { id: 'gameTotal', label: 'Game total runs (both teams)', unit: 'total runs', value: (t, o) => t.score + (o?.score ?? 0) },
+    { id: 'spread', label: 'Run line (enter e.g. -1.5 or +1.5)', unit: 'margin', value: (t, o) => t.score - (o?.score ?? 0), spread: true },
+  ],
+  hockey: [
+    moneyline,
+    { id: 'goals', label: 'Team goals', unit: 'goals', value: (t) => t.score },
+    { id: 'gameTotal', label: 'Game total goals (both teams)', unit: 'total goals', value: (t, o) => t.score + (o?.score ?? 0) },
+    { id: 'spread', label: 'Puck line (enter e.g. -1.5 or +1.5)', unit: 'margin', value: (t, o) => t.score - (o?.score ?? 0), spread: true },
+  ],
+  soccer: [
+    { ...moneyline, label: 'Moneyline (to win — a draw loses)' },
+    { id: 'goals', label: 'Team goals', unit: 'goals', value: (t) => t.score },
+    { id: 'gameTotal', label: 'Game total goals (both teams)', unit: 'total goals', value: (t, o) => t.score + (o?.score ?? 0) },
+    { id: 'spread', label: 'Handicap (enter e.g. -0.5 or +1.5)', unit: 'margin', value: (t, o) => t.score - (o?.score ?? 0), spread: true },
+    { id: 'corners', label: 'Team corners', unit: 'corners', value: ts('corners') },
+    { id: 'shots', label: 'Team shots', unit: 'shots', value: ts('shots') },
   ],
 };
 
@@ -345,6 +470,11 @@ export function betProgress(b: Bet, g: LiveGame | undefined, sport: LiveSport): 
     const def = TEAM_PROPS[sport].find((x) => x.id === b.prop);
     value = t && def ? def.value(t, o) : 0;
     spread = !!def?.spread;
+    if (def?.moneyline) {
+      if (g.state === 'pre') return { value, status: 'pending' };
+      if (g.state === 'post') return { value, status: value > 0 ? 'hit' : value < 0 || sport === 'soccer' ? 'lost' : 'push' };
+      return { value, status: 'live' };
+    }
   }
   if (g.state === 'pre') return { value, status: 'pending' };
   // Spread: margin + line > 0 wins (the "over" side is the team covering).
@@ -362,6 +492,7 @@ export function betLabel(b: Bet, sport: LiveSport): string {
   const def = b.kind === 'player' ? PLAYER_PROPS[sport].find((x) => x.id === b.prop) : TEAM_PROPS[sport].find((x) => x.id === b.prop);
   const who = b.kind === 'player' ? b.athleteName ?? 'Player' : b.teamName;
   if (b.kind === 'team' && b.prop === 'spread') return `${who} ${b.line > 0 ? '+' : ''}${b.line}`;
+  if (b.kind === 'team' && b.prop === 'moneyline') return `${who} moneyline (to win)`;
   return `${who} ${b.side === 'over' ? 'over' : 'under'} ${b.line} ${def?.label.toLowerCase() ?? b.prop}`;
 }
 
@@ -480,7 +611,9 @@ export function diffNotices(prev: LiveGame | undefined, next: LiveGame, sport: L
     const decided = p1.status !== p0.status && (p1.status === 'hit' || p1.status === 'lost' || p1.status === 'push');
     // A stat corrected down by ESPN isn't news (it showed as "-1").
     if (!decided && p1.value < p0.value) continue;
-    const lineText = def && 'spread' in def && def.spread ? `${bet.line > 0 ? '+' : ''}${bet.line}` : `${bet.side === 'over' ? 'O' : 'U'} ${bet.line}`;
+    const isMl = !!def && 'moneyline' in def && !!def.moneyline;
+    const lineText = isMl ? 'to win' : def && 'spread' in def && def.spread ? `${bet.line > 0 ? '+' : ''}${bet.line}` : `${bet.side === 'over' ? 'O' : 'U'} ${bet.line}`;
+    if (isMl && !decided) continue; // a moneyline pops up when it's decided (team bets already pop up every score)
     out.push({
       key: `b|${bet.id}|${p1.value}|${p1.status}`,
       kind: 'bet',
@@ -538,6 +671,21 @@ export const POSITION_GROUPS: Record<LiveSport, PositionGroup[]> = {
     { id: 'g', label: 'Guards', positions: ['PG', 'SG', 'G'], props: PLAYER_PROPS.basketball.map((p) => p.id), fantasy: true },
     { id: 'f', label: 'Forwards', positions: ['SF', 'PF', 'F', 'GF', 'G-F', 'F-G'], props: PLAYER_PROPS.basketball.map((p) => p.id), fantasy: true },
     { id: 'c', label: 'Centers', positions: ['C', 'FC', 'F-C', 'C-F'], props: PLAYER_PROPS.basketball.map((p) => p.id), fantasy: true },
+  ],
+  baseball: [
+    { id: 'hit', label: 'Hitters', positions: ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'IF', 'DH', 'UT', 'PH', 'PR'], props: ['hits', 'hr', 'rbi', 'runs', 'hrr', 'tb', 'bb', 'sb', 'kBat'], fantasy: false },
+    { id: 'pit', label: 'Pitchers', positions: ['P', 'SP', 'RP', 'CP'], props: ['kPitch', 'outs', 'hitsAllowed', 'er', 'bbAllowed'], fantasy: false },
+  ],
+  hockey: [
+    { id: 'fwd', label: 'Forwards', positions: ['C', 'LW', 'RW', 'L', 'R', 'F', 'W'], props: ['goals', 'assists', 'points', 'shots', 'blocks', 'hits'], fantasy: false },
+    { id: 'def', label: 'Defense', positions: ['D', 'LD', 'RD'], props: ['goals', 'assists', 'points', 'shots', 'blocks', 'hits'], fantasy: false },
+    { id: 'gk', label: 'Goalies', positions: ['G'], props: ['saves', 'goalsAgainst'], fantasy: false },
+  ],
+  soccer: [
+    { id: 'fw', label: 'Forwards', positions: ['F', 'FW', 'ST', 'CF', 'LW', 'RW', 'SS', 'W'], props: ['goals', 'assists', 'ga', 'shots', 'sot'], fantasy: false },
+    { id: 'mf', label: 'Midfielders', positions: ['M', 'MF', 'CM', 'AM', 'DM', 'CAM', 'CDM', 'LM', 'RM'], props: ['goals', 'assists', 'ga', 'shots', 'sot'], fantasy: false },
+    { id: 'df', label: 'Defenders', positions: ['D', 'DF', 'CB', 'LB', 'RB', 'LWB', 'RWB', 'CD-L', 'CD-R'], props: ['goals', 'assists', 'ga', 'shots', 'sot'], fantasy: false },
+    { id: 'gk', label: 'Goalkeepers', positions: ['G', 'GK'], props: ['saves'], fantasy: false },
   ],
 };
 
