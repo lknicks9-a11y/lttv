@@ -124,6 +124,9 @@ class PlayerController(
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, videoOff)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !captions)
+            // Multiview tiles without sound don't decode audio at all: several audio streams fighting
+            // over the TV's sound output (and each video timing itself by its audio) made 4 games stutter.
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !audioFocus && volume == 0f)
             .setPreferredTextLanguage("en")
             .setSelectUndeterminedTextLanguage(true)
             .setForceHighestSupportedBitrate(vod)
@@ -142,7 +145,8 @@ class PlayerController(
         // Round up to the usual stream sizes so a tile slightly larger than 540p still gets 720p.
         val (mw, mh) = when {
             h <= 360 -> 640 to 360
-            h <= 560 -> 960 to 540
+            // A quarter of the screen (4 games): 540p is plenty and halves what each stream downloads/decodes.
+            h <= 600 -> 960 to 540
             h <= 740 -> 1280 to 720
             else -> 1920 to 1080
         }
@@ -514,8 +518,10 @@ class PlayerController(
     }
 
     fun setVolume(v: Float) = main.post {
+        val wasSilent = volume == 0f
         volume = v
         exo?.volume = v
+        if (!audioFocus && wasSilent != (v == 0f)) applyTrackPrefs()
     }
 
     fun pause() = main.post {

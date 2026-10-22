@@ -86,7 +86,9 @@ export function setTile(i: number, t: MvTile | null) {
   const tiles = mv.tiles.slice();
   tiles[i] = t;
   // A new game gets the sound when nothing else had it.
-  const active = t && !mv.tiles[mv.active] ? i : !t && i === mv.active ? Math.max(0, tiles.findIndex(Boolean)) : mv.active;
+  // Sound stays with the highlighted tile (Multiview.tsx); a new game only gets it if its tile is highlighted.
+  const focused = Number((document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[data-tile]')?.dataset.tile ?? -1);
+  const active = t && focused === i ? i : mv.active;
   apply({ tiles, active, layout: mv.layout });
   start(i, t);
 }

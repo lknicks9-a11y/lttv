@@ -23,6 +23,8 @@ function useTileStatus(ctl: PlayerController): PlayerStatus {
   return s;
 }
 
+let soundTimer = 0;
+
 function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile | null; active: boolean; onAdd: () => void; onOptions: () => void }) {
   const ctl = tilePlayer(i);
   const st = useTileStatus(ctl);
@@ -50,12 +52,16 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
     <button
       type="button"
       class={`f mv-tile ${active ? 'mv-active' : ''}`}
-      onFocus={showLabel}
+      onFocus={() => {
+        showLabel();
+        // Sound follows the highlighted game (after a short pause, so moving across tiles doesn't blip audio).
+        window.clearTimeout(soundTimer);
+        soundTimer = window.setTimeout(() => setActiveTile(i), 250);
+      }}
       onClick={() => {
         showLabel();
         if (st.state === 'error') restartTile(i);
-        else if (active) onOptions();
-        else setActiveTile(i);
+        else onOptions();
       }}
       aria-label={`${tile.title}${active ? ', sound on' : ''}`}
     >
@@ -193,7 +199,7 @@ export function MultiviewScreen() {
       {limit !== undefined && keys.length > limit && (
         <div class="mv-note">Your provider allows {limit} stream{limit === 1 ? '' : 's'} at once — the extra tiles may not play or may buffer.</div>
       )}
-      <div class="mv-hint muted">OK: sound · OK again or Menu: options (layout, full screen) · Back: full screen on the game with sound</div>
+      <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (layout, full screen) · Back: full screen on the highlighted game</div>
       {choosing && (
         <LayoutPicker
           current={mv.layout}

@@ -905,9 +905,12 @@ try {
   check('Multiview: add a second game (league → game → stream)', !!mv2 && /at/.test(mv2.tiles[1].title), JSON.stringify(mv2));
   check('Multiview: each game has its own player (started one after another)', !!(await waitFor(() => page.evaluate(() => document.querySelectorAll('.multiview video').length >= 2 || null), 6000)));
   await shot('26-multiview');
-  await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.click());
-  await page.waitForTimeout(200);
-  check('Multiview: OK on a tile gives it the sound', await page.evaluate(() => window.__lttv.getState().multiview?.active === 1 && !!document.querySelectorAll('.mv-tile')[1]?.classList.contains('mv-active')));
+  await page.evaluate(() => document.querySelectorAll('.mv-tile')[0]?.focus());
+  await page.waitForTimeout(500);
+  const mvBefore = await page.evaluate(() => window.__lttv.getState().multiview?.active);
+  await page.evaluate(() => document.querySelectorAll('.mv-tile')[1]?.focus());
+  await page.waitForTimeout(500);
+  check('Multiview: sound plays only on the highlighted game', mvBefore === 0 && await page.evaluate(() => window.__lttv.getState().multiview?.active === 1 && !!document.querySelectorAll('.mv-tile')[1]?.classList.contains('mv-active')));
   await key('Escape');
   const mvBack = await waitFor(() => page.evaluate(() => { const s = window.__lttv.getState(); return !s.multiview && s.fullscreen ? s.currentKey : null; }), 5000);
   check('Back leaves Multiview full screen on the game with sound', !!mvBack, String(mvBack));
