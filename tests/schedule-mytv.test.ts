@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseScoreboard, scoreboardUrl, scheduleLeague, textMatchesGame, SCHEDULE_LEAGUES, type Game } from '../src/core/schedule';
 import { channelsForBroadcast, networkForBroadcast } from '../src/core/networks';
-import { findStreams, needsFeedChoice, broadcastSummary } from '../src/core/streamfinder';
+import { bestStreams, findStreams, needsFeedChoice, broadcastSummary } from '../src/core/streamfinder';
+import { lighterVariant } from '../src/core/variants';
 import { assignMyTv, myTvEntryFor, MYTV_LINEUP, qualityRank } from '../src/core/mytv';
 import { buildLineup, filterLineup, sortLineup } from '../src/core/organize';
 import type { ParsedChannel } from '../src/core/types';
@@ -108,6 +109,34 @@ test('best streams: event channel, chosen team broadcast, national; other cities
   assert.deepEqual(h.map((p) => p.ch.originalName), ['US: NHL Network', 'US: NBC Sports Philadelphia']);
   assert.equal(needsFeedChoice(nhl), false);
   assert.equal(broadcastSummary(g), 'YES (NYY) · NESN (BOS)');
+});
+
+test('one best-first stream list for a game: no broadcast question, both teams\' feeds included', () => {
+  const [g] = parseScoreboard(scoreboard(), 'mlb');
+  const lineup = lineupOf([
+    ['US: YES Network HD', 'USA Sports'], ['US: NESN FHD', 'USA Sports'],
+    ['MLB 05: Red Sox @ Yankees', 'MLB Extra Innings'], ['UK: Sky Sports Main Event', 'UK Sports'],
+  ]);
+  const index = [{ ch: lineup[2], text: lineup[2].originalName, start: 0, stop: Infinity, event: true }];
+  const all = bestStreams(g, lineup, 'baseball', index);
+  assert.equal(all[0].ch.originalName, 'MLB 05: Red Sox @ Yankees'); // the game's own event channel first
+  assert.ok(all.some((p) => /YES/.test(p.ch.originalName)) && all.some((p) => /NESN/.test(p.ch.originalName)));
+  assert.ok(!all.some((p) => /Sky Sports/.test(p.ch.originalName)));
+  // A Red Sox fan gets the NESN feed ahead of YES.
+  const fan = bestStreams(g, lineup, 'baseball', index, (t) => t.short === 'Red Sox');
+  assert.ok(fan.findIndex((p) => /NESN/.test(p.ch.originalName)) < fan.findIndex((p) => /YES/.test(p.ch.originalName)));
+});
+
+test('Multiview: a lighter copy of a full-HD channel from the same provider and country', () => {
+  const lineup = lineupOf([
+    ['US: ESPN FHD', 'USA Sports'], ['US: ESPN HD', 'USA Sports'], ['US: ESPN SD', 'USA Sports'], ['UK: ESPN HD', 'UK Sports'],
+    ['US: FS1 FHD', 'USA Sports'], ['US: FS1 SD', 'USA Sports'], ['US: TNT', 'USA Sports'],
+  ]);
+  const by = (n: string) => lineup.find((c) => c.originalName === n)!;
+  assert.equal(lighterVariant(by('US: ESPN FHD'), lineup)?.originalName, 'US: ESPN HD');
+  assert.equal(lighterVariant(by('US: ESPN HD'), lineup), undefined); // already light
+  assert.equal(lighterVariant(by('US: FS1 FHD'), lineup), undefined); // never down to SD
+  assert.equal(lighterVariant(by('US: TNT'), lineup), undefined);
 });
 
 test('My TV: DIRECTV New York/NJ numbers, best copy wins, filters and sorts', () => {

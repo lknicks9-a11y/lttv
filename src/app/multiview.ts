@@ -2,6 +2,7 @@
 // Sound follows the selected tile; leaving goes full screen on that game.
 import { PlayerController } from './player';
 import { channelByKey, getState, player, playRequest, setState, tune } from './state';
+import { lighterVariant } from '../core/variants';
 
 export interface MvTile {
   /** Channel key */
@@ -78,14 +79,22 @@ function apply(mv: MultiviewState) {
 // Streams start one after another (1.5 s apart): opening several provider connections at the same
 // instant is what IPTV servers most often refuse or throttle.
 let nextStartAt = 0;
+/** The channel each tile is actually playing (may be the lighter copy of the tile's game). */
+const playingKey: (string | undefined)[] = [];
+function tileChannel(i: number, key: string) {
+  const orig = channelByKey(key);
+  return orig && ((small(i) && lighterVariant(orig, getState().lineup)) || orig);
+}
 function start(i: number, t: MvTile | null) {
   const p = tilePlayer(i);
   if (!t) {
+    playingKey[i] = undefined;
     p.stop();
     return;
   }
-  const ch = channelByKey(t.key);
+  const ch = tileChannel(i, t.key);
   if (!ch) return;
+  playingKey[i] = ch.key;
   const wait = Math.max(0, nextStartAt - Date.now());
   nextStartAt = Date.now() + wait + 1500;
   window.setTimeout(() => {
@@ -93,6 +102,12 @@ function start(i: number, t: MvTile | null) {
     if (getState().multiview?.tiles[i]?.key !== t.key) return;
     p.play({ ...playRequest(ch), key: `mv${i}:${ch.key}:${Date.now()}` });
   }, wait);
+}
+
+/** Tiles a quarter of the screen or smaller (4 games; the two side tiles of 3) play a lighter copy of the channel. */
+function small(i: number): boolean {
+  const layout = getState().multiview?.layout ?? 2;
+  return layout === 4 || (layout === 3 && i > 0);
 }
 
 /** Start a tile's stream again (after an error). */
@@ -140,6 +155,10 @@ export function setLayout(layout: MvLayout) {
   for (let i = layout; i < TILE_COUNT; i++) if (mv.tiles[i]) start(i, null);
   const active = tiles[mv.active] ? mv.active : Math.max(0, tiles.findIndex(Boolean));
   apply({ tiles, active, layout });
+  // Tiles that got smaller (or bigger) switch to the lighter (or full) copy of their channel.
+  tiles.forEach((t, i) => {
+    if (t && tileChannel(i, t.key)?.key !== playingKey[i]) start(i, t);
+  });
 }
 
 export function setActiveTile(i: number) {
@@ -152,7 +171,10 @@ export function setActiveTile(i: number) {
 export function closeMultiview(fullscreenTile?: number) {
   const mv = getState().multiview;
   if (!mv) return;
-  for (let i = 0; i < TILE_COUNT; i++) players[i]?.stop();
+  for (let i = 0; i < TILE_COUNT; i++) {
+    players[i]?.stop();
+    playingKey[i] = undefined;
+  }
   setState({ multiview: undefined });
   const t = mv.tiles[fullscreenTile ?? mv.active];
   if (t) void tune(t.key, { fullscreen: true });

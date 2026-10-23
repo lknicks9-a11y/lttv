@@ -117,7 +117,18 @@ function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
   // Up/down: only consider the nearest "row" in that direction, then pick the best-aligned element in it.
   if (dir === 'up' || dir === 'down') {
     const gap = (r: DOMRect) => (dir === 'down' ? r.top - fr.bottom : fr.top - r.bottom);
-    const inDir = pool.filter((el) => el !== active && !el.contains(active) && score(fr, rectOf(el), dir) < Infinity);
+    let inDir = pool.filter((el) => el !== active && !el.contains(active) && score(fr, rectOf(el), dir) < Infinity);
+    // Multi-column layouts (Settings cards): stay in the same column — something in the next column that
+    // happens to sit a little lower must not win over the next row of this card or the card below it.
+    const col = active.closest<HTMLElement>('[data-col], .settings-section');
+    if (col) {
+      const cr = rectOf(col);
+      const same = inDir.filter((el) => {
+        const r = rectOf(el);
+        return Math.min(r.right, cr.right) - Math.max(r.left, cr.left) > Math.min(r.width, cr.width) * 0.5;
+      });
+      if (same.length) inDir = same;
+    }
     if (inDir.length) {
       const nearest = Math.min(...inDir.map((el) => Math.max(0, gap(rectOf(el)))));
       const tol = Math.max(24, fr.height * 0.6);

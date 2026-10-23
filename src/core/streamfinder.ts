@@ -328,3 +328,19 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
   }
   return out;
 }
+
+/**
+ * The streams to offer for a game, best first: one list with no "which broadcast?" question. Event channels and
+ * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
+ */
+export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
+  const picks = new Map<string, StreamPick>();
+  for (const p of findStreams(game, lineup, { sport, index })) picks.set(p.ch.key, { ...p });
+  for (const t of teamBroadcasts(game, lineup)) {
+    const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
+    const cur = picks.get(t.ch.key);
+    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
+  }
+  for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
+  return [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
+}
