@@ -248,12 +248,20 @@ class MainActivity : AppCompatActivity() {
                 return@post
             }
             val lp = (v.layoutParams as FrameLayout.LayoutParams)
-            lp.width = Math.round(w * d)
-            lp.height = Math.round(h * d)
-            lp.leftMargin = Math.round(x * d)
-            lp.topMargin = Math.round(y * d)
-            v.layoutParams = lp
-            v.visibility = View.VISIBLE
+            val nw = Math.round(w * d)
+            val nh = Math.round(h * d)
+            val nx = Math.round(x * d)
+            val ny = Math.round(y * d)
+            // Same place and size: no new layout pass. (Each tile's loading / playing update used to re-lay out
+            // the whole screen and move every video surface, a visible hitch with several games on.)
+            if (lp.width != nw || lp.height != nh || lp.leftMargin != nx || lp.topMargin != ny) {
+                lp.width = nw
+                lp.height = nh
+                lp.leftMargin = nx
+                lp.topMargin = ny
+                v.layoutParams = lp
+            }
+            if (v.visibility != View.VISIBLE) v.visibility = View.VISIBLE
         }
     }
 

@@ -137,6 +137,10 @@ test('Multiview: a lighter copy of a full-HD channel from the same provider and 
   assert.equal(lighterVariant(by('US: ESPN HD'), lineup), undefined); // already light
   assert.equal(lighterVariant(by('US: FS1 FHD'), lineup), undefined); // never down to SD
   assert.equal(lighterVariant(by('US: TNT'), lineup), undefined);
+  // Quarter-screen tiles (4 games) may go down to SD when there's no HD copy.
+  assert.equal(lighterVariant(by('US: FS1 FHD'), lineup, true)?.originalName, 'US: FS1 SD');
+  assert.equal(lighterVariant(by('US: ESPN FHD'), lineup, true)?.originalName, 'US: ESPN HD'); // HD still preferred
+  assert.equal(lighterVariant(by('US: ESPN HD'), lineup, true)?.originalName, 'US: ESPN SD');
 });
 
 test('My TV: DIRECTV New York/NJ numbers, best copy wins, filters and sorts', () => {

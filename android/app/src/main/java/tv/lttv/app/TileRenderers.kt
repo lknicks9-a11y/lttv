@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.decoder.DecoderInputBuffer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
@@ -52,5 +53,32 @@ class LightVideoRenderer(
         val data = buffer.data ?: return false
         // Not flipped yet: the sample is bytes [0, position).
         return NonRefFrames.isDisposableH264(data, 0, data.position())
+    }
+
+    // ---- Muted tiles draw at most ~30 frames a second (half the screen updates of a 60 fps channel) ----
+    private var lastShownUs = Long.MIN_VALUE
+
+    /** True when this frame comes too soon after the last one shown, for a muted tile. */
+    private fun tooSoon(ptsUs: Long): Boolean {
+        val last = lastShownUs
+        if (!light() || last == Long.MIN_VALUE || ptsUs < last) return false // first frame / new stream: show it
+        return ptsUs - last < MIN_GAP_US
+    }
+
+    // (Every frame goes through renderOutputBufferV21: Media3 1.5's minimum is API 21.)
+    override fun renderOutputBufferV21(codec: MediaCodecAdapter, index: Int, presentationTimeUs: Long, releaseTimeNs: Long) {
+        if (tooSoon(presentationTimeUs)) return skipOutputBuffer(codec, index, presentationTimeUs)
+        lastShownUs = presentationTimeUs
+        super.renderOutputBufferV21(codec, index, presentationTimeUs, releaseTimeNs)
+    }
+
+    override fun onPositionReset(positionUs: Long, joining: Boolean) {
+        lastShownUs = Long.MIN_VALUE
+        super.onPositionReset(positionUs, joining)
+    }
+
+    private companion object {
+        /** 30 fps (a 30 fps channel keeps every frame; 60 fps shows every other one). */
+        const val MIN_GAP_US = 30_000L
     }
 }
