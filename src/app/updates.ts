@@ -75,8 +75,11 @@ export function canUpdateInApp(): boolean {
 }
 
 /** Version shown to people: 1.0.0 is build 34 (numbering restarted), each later build adds 1 (build 35 = 1.0.1). */
+/** 1.0.x counted from build 34; from build 61 it's 1.1.0, and every tenth build moves the middle number (1.1.9 -> 1.2.0). */
 export function versionOf(build: number): string {
-  return `1.0.${Math.max(0, build - 34)}`;
+  if (build < 61) return `1.0.${Math.max(0, build - 34)}`;
+  const n = build - 61;
+  return `1.${1 + Math.floor(n / 10)}.${n % 10}`;
 }
 
 export function currentBuild(): number {
