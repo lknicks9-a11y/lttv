@@ -97,7 +97,8 @@ class PlayerController(
     private var currentUrl: String? = null
     private var hasRendered = false
     private var size: VideoSize = VideoSize.UNKNOWN
-    private var volume = 1f
+    /** Read by a tile's video renderer on the playback thread (muted tiles skip frames nothing depends on). */
+    @Volatile private var volume = 1f
 
     // ---- live rewind ----
     /** Minutes of a raw MPEG-TS channel kept on the device for pausing / rewinding (0 = off). */
@@ -234,7 +235,9 @@ class PlayerController(
         // Multiview tiles: hardware video decoders only. When the TV ran out of hardware decoders, a tile
         // quietly fell back to software decoding on the TV's small CPU, and every game (and the remote) lagged.
         // Tiles may still try every hardware decoder the TV lists (not just the first).
-        val renderers = DefaultRenderersFactory(activity).setEnableDecoderFallback(true)
+        // Tiles: while muted, leave out H.264 frames nothing depends on (a fraction of the decoding per game).
+        val renderers = (if (audioFocus) DefaultRenderersFactory(activity) else TileRenderersFactory(activity) { volume == 0f })
+            .setEnableDecoderFallback(true)
         if (!audioFocus) {
             renderers.setMediaCodecSelector { mime, secure, tunneling ->
                 val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
@@ -292,6 +295,7 @@ class PlayerController(
             .put("decoder", decoderName)
             .put("format", videoFormat)
             .put("dropped", droppedFrames)
+            .put("skipped", p?.videoDecoderCounters?.skippedInputBufferCount ?: 0)
             .put("bufferedMs", p?.totalBufferedDuration ?: 0L)
             .put("audio", volume > 0f)
             .put("error", lastError)
