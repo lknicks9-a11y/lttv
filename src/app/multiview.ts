@@ -83,7 +83,7 @@ let nextStartAt = 0;
 const playingKey: (string | undefined)[] = [];
 function tileChannel(i: number, key: string) {
   const orig = channelByKey(key);
-  return orig && ((small(i) && lighterVariant(orig, getState().lineup, getState().multiview?.layout === 4)) || orig);
+  return orig && ((small(i) && lighterVariant(orig, getState().lineup)) || orig);
 }
 function start(i: number, t: MvTile | null) {
   const p = tilePlayer(i);

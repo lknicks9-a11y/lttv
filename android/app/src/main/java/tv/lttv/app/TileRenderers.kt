@@ -14,12 +14,13 @@ import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 
 /**
- * Multiview tiles: while a tile is muted (another game has the sound), its video renderer leaves out H.264
- * frames nothing depends on before they reach the decoder (see [NonRefFrames]). The game with the sound keeps
- * every frame. Four games at full frame rate is what made every tile stutter on a Fire TV stick.
+ * Multiview tiles play every frame. Only when a muted tile is actually falling behind (the TV is dropping its
+ * frames) does it step down, as little as needed: level 1 leaves out H.264 frames nothing depends on before the
+ * decoder (see [NonRefFrames]); level 2 also shows at most ~30 frames a second. The game with the sound always
+ * stays at full frame rate. [level] is decided by PlayerController from the tile's dropped frames.
  */
 @OptIn(UnstableApi::class)
-class TileRenderersFactory(context: Context, private val light: () -> Boolean) : DefaultRenderersFactory(context) {
+class TileRenderersFactory(context: Context, private val level: () -> Int) : DefaultRenderersFactory(context) {
     override fun buildVideoRenderers(
         context: Context,
         extensionRendererMode: Int,
@@ -31,7 +32,7 @@ class TileRenderersFactory(context: Context, private val light: () -> Boolean) :
         out: ArrayList<Renderer>,
     ) {
         out.add(
-            LightVideoRenderer(context, mediaCodecSelector, allowedVideoJoiningTimeMs, enableDecoderFallback, eventHandler, eventListener, light),
+            LightVideoRenderer(context, mediaCodecSelector, allowedVideoJoiningTimeMs, enableDecoderFallback, eventHandler, eventListener, level),
         )
     }
 }
@@ -44,24 +45,24 @@ class LightVideoRenderer(
     fallback: Boolean,
     handler: Handler,
     listener: VideoRendererEventListener,
-    private val light: () -> Boolean,
+    private val level: () -> Int,
 ) : MediaCodecVideoRenderer(context, selector, joiningMs, fallback, handler, listener, 50) {
     override fun shouldSkipDecoderInputBuffer(buffer: DecoderInputBuffer): Boolean {
         if (super.shouldSkipDecoderInputBuffer(buffer)) return true
-        if (!light() || buffer.isKeyFrame || buffer.isEncrypted || buffer.isLastSample) return false
+        if (level() < 1 || buffer.isKeyFrame || buffer.isEncrypted || buffer.isLastSample) return false
         if (codecInfo?.mimeType != MimeTypes.VIDEO_H264) return false
         val data = buffer.data ?: return false
         // Not flipped yet: the sample is bytes [0, position).
         return NonRefFrames.isDisposableH264(data, 0, data.position())
     }
 
-    // ---- Muted tiles draw at most ~30 frames a second (half the screen updates of a 60 fps channel) ----
+    // ---- Level 2: at most ~30 frames a second (half the screen updates of a 60 fps channel) ----
     private var lastShownUs = Long.MIN_VALUE
 
-    /** True when this frame comes too soon after the last one shown, for a muted tile. */
+    /** True when this frame comes too soon after the last one shown (level 2 only). */
     private fun tooSoon(ptsUs: Long): Boolean {
         val last = lastShownUs
-        if (!light() || last == Long.MIN_VALUE || ptsUs < last) return false // first frame / new stream: show it
+        if (level() < 2 || last == Long.MIN_VALUE || ptsUs < last) return false // first frame / new stream: show it
         return ptsUs - last < MIN_GAP_US
     }
 

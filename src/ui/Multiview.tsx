@@ -160,7 +160,7 @@ function LayoutPicker({ current, onPick, onClose }: { current: MvLayout; onPick:
 
 interface MvDiag {
   device?: string;
-  tiles: { state: string; decoder?: string; format?: string; dropped?: number; skipped?: number; bufferedMs?: number; audio?: boolean; error?: string }[];
+  tiles: { state: string; decoder?: string; format?: string; dropped?: number; skipped?: number; light?: number; bufferedMs?: number; audio?: boolean; error?: string }[];
   decoders: { name: string; type: string; hardware: boolean; maxInstances?: number }[];
 }
 
@@ -188,7 +188,7 @@ function StreamInfo({ titles, onClose }: { titles: (string | undefined)[]; onClo
       ) : (
         <>
           <table class="mv-info-table">
-            <thead><tr><th>Game</th><th>State</th><th>Decoder</th><th>Picture</th><th>Dropped</th><th>Light</th><th>Buffer</th></tr></thead>
+            <thead><tr><th>Game</th><th>State</th><th>Decoder</th><th>Picture</th><th>Dropped</th><th>Smoothness</th><th>Buffer</th></tr></thead>
             <tbody>
               {titles.map((t, i) => t && (
                 <tr>
@@ -197,7 +197,7 @@ function StreamInfo({ titles, onClose }: { titles: (string | undefined)[]; onClo
                   <td>{d.tiles[i]?.decoder || '—'}</td>
                   <td>{d.tiles[i]?.format || '—'}</td>
                   <td>{d.tiles[i]?.dropped ?? 0}</td>
-                  <td>{d.tiles[i]?.skipped ? `${d.tiles[i]!.skipped} frames skipped` : '—'}</td>
+                  <td>{!d.tiles[i]?.light ? 'Every frame' : d.tiles[i]!.light === 1 ? 'Lightened (TV falling behind)' : 'Lightened more (30 fps)'}</td>
                   <td>{((d.tiles[i]?.bufferedMs ?? 0) / 1000).toFixed(1)} s</td>
                 </tr>
               ))}
