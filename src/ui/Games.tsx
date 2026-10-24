@@ -8,6 +8,7 @@ import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
 import { clock } from './fmt';
 import { allTeams } from '../core/teams';
+import { canCheck, cachedLiveness, checkStream, type Liveness } from '../app/streamcheck';
 
 /** Team logo (transparent PNG from the schedule), falling back to the abbreviation. */
 export function TeamLogo({ team, size = 'md' }: { team: { name: string; abbr: string; logo?: string; color?: string }; size?: 'sm' | 'md' | 'lg' }) {
@@ -163,6 +164,9 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 }
 
 /** The best streams for a game, best first (event channels, team channels, networks), from the user's lineup. */
+/** How many of a game's top streams are checked for being on the air. */
+const CHECK_TOP = 6;
+
 export function WatchGame({ game, index, onClose, onPick }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler }) {
   const lineup = useApp((s) => s.lineup);
   const favs = useApp((s) => s.settings.favoriteTeams);
@@ -176,7 +180,33 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   }, [favs, custom]);
   const isFav = (t: GameTeam) => favNames.has(t.name.toLowerCase()) || favNames.has(t.short.toLowerCase());
 
-  const picks = useMemo(() => (index ? bestStreams(game, lineup, league.sport, index, isFav) : []), [game, lineup, index, favNames]);
+  const ranked = useMemo(() => (index ? bestStreams(game, lineup, league.sport, index, isFav) : []), [game, lineup, index, favNames]);
+  // Check the top streams are actually on the air, one at a time (one extra provider connection at most).
+  const [live, setLive] = useState<Map<string, Liveness>>(() => new Map());
+  const [checking, setChecking] = useState<string | undefined>();
+  const [showDead, setShowDead] = useState(false);
+  useEffect(() => {
+    const ctl = new AbortController();
+    const top = ranked.slice(0, CHECK_TOP);
+    setLive(new Map(top.flatMap((p) => { const v = cachedLiveness(p.ch.key); return v ? [[p.ch.key, v] as const] : []; })));
+    void (async () => {
+      for (const p of top) {
+        if (ctl.signal.aborted) return;
+        if (cachedLiveness(p.ch.key) || !canCheck(p.ch)) continue;
+        setChecking(p.ch.key);
+        const v = await checkStream(p.ch, ctl.signal);
+        if (ctl.signal.aborted) return;
+        if (v) setLive((m) => new Map(m).set(p.ch.key, v));
+      }
+      setChecking(undefined);
+    })();
+    return () => ctl.abort();
+  }, [ranked]);
+  // Dead channels leave the list; streams confirmed working go first (the ranking otherwise stays).
+  const dead = ranked.filter((p) => live.get(p.ch.key) === 'dead');
+  const picks = showDead
+    ? ranked
+    : ranked.filter((p) => live.get(p.ch.key) !== 'dead').sort((a, b) => Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live'));
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
@@ -202,18 +232,31 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
           ) : picks.length ? (
             <div class="stream-picks" data-group="picks">
               {picks.slice(0, 10).map((p, i) => (
-                <div class={`stream-pick ${i === 0 ? 'best' : ''}`}>
+                <div class={`stream-pick ${i === 0 ? 'best' : ''}`} key={p.ch.key}>
                   <button type="button" class="f stream-pick-main" data-autofocus={i === 0 ? '' : undefined} onClick={() => watch(p.ch.key)}>
                     <span class="ch-num">{p.ch.number}</span>
                     <ChannelLogo ch={p.ch} src={p.ch.logo} name={p.ch.name} size="sm" />
                     <span class="stream-pick-text">
                       <ChannelName ch={p.ch} />
-                      <small class="muted">{i === 0 ? 'Best stream · ' : ''}{p.reason}</small>
+                      <small class="muted">
+                        {i === 0 ? 'Best stream · ' : ''}
+                        {live.get(p.ch.key) === 'live' ? 'Working · ' : live.get(p.ch.key) === 'dead' ? 'Not sending video · ' : checking === p.ch.key ? 'Checking… · ' : ''}
+                        {p.reason}
+                      </small>
                     </span>
                     <span class="stream-pick-cta"><Icon name={onPick ? 'multiview' : 'play'} size="1em" /> {onPick ? 'Add' : 'Watch'}</span>
                   </button>
                 </div>
               ))}
+              {dead.length > 0 && !showDead && (
+                <p class="hint">{dead.length} channel{dead.length === 1 ? '' : 's'} for this game {dead.length === 1 ? 'isn’t' : 'aren’t'} sending video right now and {dead.length === 1 ? 'is' : 'are'} hidden.</p>
+              )}
+            </div>
+          ) : dead.length ? (
+            <div class="card">
+              <p><b>None of the channels for this game are sending video right now.</b></p>
+              <p class="muted">Event channels often only come on shortly before the game. Try again closer to start time.</p>
+              <Button icon="channels" onClick={() => setShowDead(true)}>Show them anyway</Button>
             </div>
           ) : (
             <div class="card">

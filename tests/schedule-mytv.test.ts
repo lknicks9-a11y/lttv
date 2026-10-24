@@ -122,6 +122,11 @@ test('one best-first stream list for a game: no broadcast question, both teams\'
   assert.equal(all[0].ch.originalName, 'MLB 05: Red Sox @ Yankees'); // the game's own event channel first
   assert.ok(all.some((p) => /YES/.test(p.ch.originalName)) && all.some((p) => /NESN/.test(p.ch.originalName)));
   assert.ok(!all.some((p) => /Sky Sports/.test(p.ch.originalName)));
+  // Spanish-language feeds of the game are left out when English ones exist.
+  const withEs = lineupOf([['US: YES Network HD', 'USA Sports'], ['MLB 05: Red Sox @ Yankees', 'LATINO | MLB'], ['MLB 06: Red Sox @ Yankees', 'MLB Extra Innings']]);
+  const esIndex = [1, 2].map((i) => ({ ch: withEs[i], text: withEs[i].originalName, start: 0, stop: Infinity, event: true }));
+  const en = bestStreams(g, withEs, 'baseball', esIndex);
+  assert.ok(en.length > 0 && !en.some((p) => /MLB 05/.test(p.ch.originalName)));
   // A Red Sox fan gets the NESN feed ahead of YES.
   const fan = bestStreams(g, lineup, 'baseball', index, (t) => t.short === 'Red Sox');
   assert.ok(fan.findIndex((p) => /NESN/.test(p.ch.originalName)) < fan.findIndex((p) => /YES/.test(p.ch.originalName)));

@@ -51,3 +51,17 @@ export function scriptName(text: string | undefined): string {
   if (/[\u3400-\u4dbf\u4e00-\u9fff]/.test(t)) return 'Chinese';
   return 'another language';
 }
+
+// Spanish-language US sports networks and other non-English feeds that carry English-speaking leagues.
+const NON_ENGLISH_FEED = /\b(deportes|espa[nñ]ol|en espanol|tudn|univision|unimas|uni\s?m[aá]s|telemundo|universo|galavision|azteca|telefe|tyc|win sports|claro sports|caliente|sap|dubbed|doblado|latino|latin|latam|french|fran[cç]ais|german|deutsch|spanish|portug|brasil|brazil|arab|arabic|turk|t[uü]rk|hindi|urdu|persian|farsi|polish|polska|dutch|greek|russian|ukrain|albania|romania|bulgar|serbia|croatia|bosnia|ex-?yu|hungar|czech|swed|norw|danish|finn|nordic|korean|chinese|japanese|thai|vietnam|hebrew)\b/i;
+
+/**
+ * The channel's commentary is in English: an English-speaking country (US, UK, CA, AU, IE, NZ) when the country is
+ * known, and no sign of another language in its name or group (ESPN Deportes, TUDN, "LATINO", Arabic script…).
+ */
+export function isEnglishChannel(ch: Pick<LineupChannel, 'country' | 'originalName' | 'group'>): boolean {
+  const text = `${ch.originalName} ${ch.group ?? ''}`;
+  // Any word in another script ("beIN Sports عربي") marks a foreign feed; English channel names never have one.
+  if (NON_ENGLISH_FEED.test(text) || (text.match(FOREIGN)?.length ?? 0) >= 2) return false;
+  return !ch.country || ENGLISH_COUNTRIES.has(ch.country);
+}

@@ -33,7 +33,7 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
   useEffect(() => {
     if (st.state === 'error' && /no free video decoder|needed this game's video decoder/i.test(st.error ?? '')) {
       const n = noteDecoderLimit();
-      toast(`This TV can play ${n} game${n === 1 ? '' : 's'} at once in Multiview (it has ${n === 1 ? 'one video decoder' : `${n} video decoders`} free).`, 'info', 9000);
+      toast(`This TV can play ${n} game${n === 1 ? '' : 's'} at once in Dual view (it has ${n === 1 ? 'one video decoder' : `${n} video decoders`} free).`, 'info', 9000);
     }
   }, [st.state, st.error]);
   // The name shows for a few seconds after the tile changes or is selected, then gets out of the way.
@@ -220,7 +220,7 @@ export function MultiviewScreen() {
   const [options, setOptions] = useState<number | null>(null);
   const [info, setInfo] = useState(false);
   // Asked each time Multiview opens (the last choice is selected); also from a tile's options.
-  const [choosing, setChoosing] = useState(true);
+  const [choosing, setChoosing] = useState(false); // (layout picker: Dual view has one layout)
   // Hints and notes at the bottom fade out after 15 s without a key press.
   const [quiet, setQuiet] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -264,7 +264,7 @@ export function MultiviewScreen() {
   const keys = mv.tiles.filter((t): t is MvTile => !!t).map((t) => t.key);
   const limit = connectionLimit(keys);
   return (
-    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label="Multiview">
+    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label="Dual view">
       <div class={`mv-grid mv-grid-${mv.layout}`} data-group="mv-grid">
         {Array.from({ length: mv.layout }, (_, i) => (
           <div class="mv-cell" data-tile={i} key={i}>
@@ -275,7 +275,7 @@ export function MultiviewScreen() {
       {limit !== undefined && keys.length > limit && (
         <div class="mv-note">Your provider allows {limit} stream{limit === 1 ? '' : 's'} at once — the extra tiles may not play or may buffer.</div>
       )}
-      <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (layout, full screen) · Back: full screen on the highlighted game</div>
+      <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (full screen, change game) · Back: full screen on the highlighted game</div>
       {info && <StreamInfo titles={mv.tiles.map((t) => t?.title)} onClose={() => setInfo(false)} />}
       {choosing && (
         <LayoutPicker
@@ -305,7 +305,6 @@ export function MultiviewScreen() {
           <div class="row gap modal-actions">
             <Button variant="primary" icon="fullscreen" data-autofocus onClick={() => { const i = options; setOptions(null); closeMultiview(i); }}>Full screen</Button>
             <Button icon="refresh" onClick={() => { const i = options; setOptions(null); setAdding(i); }}>Change game</Button>
-            <Button icon="multiview" onClick={() => { setOptions(null); setChoosing(true); }}>Layout</Button>
             <Button icon="info" onClick={() => { setOptions(null); setInfo(true); }}>Stream info</Button>
             <Button icon="close" onClick={() => { setTile(options, null); setOptions(null); }}>Remove</Button>
           </div>

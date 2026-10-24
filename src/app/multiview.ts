@@ -1,4 +1,5 @@
-// Sports Multiview: up to four games at once, each in its own player (Fire TV: native tiles 0–3).
+// Sports Dual view: two games side by side, each in its own player (Fire TV: native tiles 0–1).
+// (The code still says "multiview"; 3- and 4-game layouts were removed: a Fire TV stick can't play them smoothly.)
 // Sound follows the selected tile; leaving goes full screen on that game.
 import { PlayerController } from './player';
 import { channelByKey, getState, player, playRequest, setState, tune } from './state';
@@ -24,6 +25,10 @@ export const TILE_COUNT = 4;
 const LAYOUT_KEY = 'lttvMvLayout';
 /** The layout used last time (asked again each time Multiview opens, with this one selected). */
 export function lastLayout(): MvLayout {
+  return 2;
+}
+/** (Kept for reference: the old remembered 2/3/4 choice.) */
+export function rememberedLayout(): MvLayout {
   try {
     const n = Number(localStorage.getItem(LAYOUT_KEY));
     const lim = decoderLimit();
@@ -143,7 +148,8 @@ export function setTile(i: number, t: MvTile | null) {
 }
 
 /** Show 2, 3 or 4 games; games beyond the new count stop. */
-export function setLayout(layout: MvLayout) {
+export function setLayout(_want: MvLayout) {
+  const layout: MvLayout = 2; // Dual view only
   const mv = getState().multiview;
   if (!mv) return;
   try {

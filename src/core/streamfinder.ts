@@ -7,6 +7,7 @@ import type { LineupChannel } from './types';
 import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
+import { isEnglishChannel } from './lang';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
@@ -332,6 +333,7 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
 /**
  * The streams to offer for a game, best first: one list with no "which broadcast?" question. Event channels and
  * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
+ * English-commentary channels only (Spanish-language feeds like ESPN Deportes / TUDN are left out).
  */
 export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
   const picks = new Map<string, StreamPick>();
@@ -342,5 +344,8 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
-  return [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
+  const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
+  // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
+  const en = all.filter((p) => isEnglishChannel(p.ch));
+  return en.length ? en : all.map((p) => ({ ...p, reason: `Not in English · ${p.reason}` }));
 }
