@@ -153,9 +153,9 @@ export function ProfilesSection() {
         <div class="cloud-row signed-in">
           <span class="cloud-text">
             <b>Signed in as {sess.email ?? 'your account'}</b>
-            <small class="muted">{st.state === 'syncing' ? 'Saving to your account…' : st.state === 'error' ? `Not saved yet: ${st.message}` : st.at ? `Saved to your account ${ago(st.at)}. You stay signed in until you sign out.` : 'Your profiles, favorites and Continue watching are kept with your account. You stay signed in until you sign out.'}</small>
+            <small class="muted">{st.state === 'syncing' ? 'Saving to your account…' : st.state === 'error' ? `Not saved yet: ${st.message}` : st.at ? `Saved to your account ${ago(st.at)}. Saves automatically every hour and when something changes. You stay signed in until you sign out.` : 'Your profiles, favorites and Continue watching are kept with your account. You stay signed in until you sign out.'}</small>
           </span>
-          <Button small icon="refresh" onClick={() => void pushNow()}>Save now</Button>
+          <Button small icon="refresh" onClick={() => void pushNow(true)}>Save now</Button>
           <Button small variant="ghost" icon="close" onClick={() => setConfirmOut(true)}>Sign out</Button>
         </div>
       ) : (

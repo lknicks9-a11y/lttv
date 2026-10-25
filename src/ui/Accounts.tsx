@@ -194,7 +194,7 @@ function CloudRow() {
           {st.state === 'syncing' ? 'Saving to your account…' : st.state === 'error' ? `Not saved: ${st.message}` : st.at ? `Saved to your account ${ago(st.at)}` : 'Your playlists, guide and settings follow you to every device you sign in on.'}
         </small>
       </span>
-      <Button small icon="refresh" onClick={() => void pushNow()}>Save now</Button>
+      <Button small icon="refresh" onClick={() => void pushNow(true)}>Save now</Button>
       <Button small variant="ghost" icon="close" onClick={() => void signOut().then(() => { toast('Signed out. Your channels stay on this device.', 'success'); notifyAccountsChanged(); bump((n) => n + 1); })}>Sign out</Button>
     </div>
   );

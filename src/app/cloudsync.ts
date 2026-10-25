@@ -39,14 +39,18 @@ let pushTimer: ReturnType<typeof setTimeout> | undefined;
 let pushing = false;
 let lastPushed = '';
 
-export async function pushNow(): Promise<void> {
+/** Save to the account. Unchanged data is skipped unless `force` (Save now, the hourly save). */
+export async function pushNow(force = false): Promise<void> {
   if (!currentSession() || pushing) return;
   pushing = true;
   try {
     const data = await snapshot();
     // exportedAt changes every time; compare without it.
     const key = JSON.stringify({ ...data, export: { ...(data.export as ExportedSettings), exportedAt: '' } });
-    if (key === lastPushed) return;
+    if (key === lastPushed && !force) {
+      if (syncStatus().state !== 'ok') setStatus({ state: 'ok', at: Date.now() });
+      return;
+    }
     setStatus({ state: 'syncing' });
     await saveProfile(data);
     lastPushed = key;
@@ -150,5 +154,7 @@ export async function startCloudSync(): Promise<void> {
     prev = s;
   });
   setInterval(() => void pushNow(), 5 * 60_000);
+  // A full save every hour, whether or not anything changed.
+  setInterval(() => void pushNow(true), 60 * 60_000);
   schedulePush(2000);
 }
