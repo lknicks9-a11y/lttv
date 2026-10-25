@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { toast, useApp } from '../app/state';
 import { native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
-import { closeMultiview, connectionLimit, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
+import { closeMultiview, connectionLimit, isLimitError, providerUsage, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
@@ -75,13 +75,7 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
     >
       <TileVideo ctl={ctl} />
       {(st.state === 'loading' || st.state === 'buffering' || st.state === 'retrying') && <span class="spinner mv-spinner" />}
-      {st.state === 'error' && (
-        <span class="mv-error">
-          {/\b(40[13]|429|45\d|509)\b|connection|limit|too many/i.test(st.error ?? '')
-            ? 'Your provider refused another stream at once (connection limit). Remove a game, or press OK to try again.'
-            : `${st.error ?? 'This stream didn’t start.'} Press OK to try again.`}
-        </span>
-      )}
+      {st.state === 'error' && <TileError error={st.error} channelKey={tile.key} />}
       {label && (
         <span class="mv-label">
           {active && <Icon name="volume" size="1.1em" />}
@@ -91,6 +85,29 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
       )}
     </button>
   );
+}
+
+/**
+ * Why a game didn't play. When it could be the provider's limit (an "access denied" or a limit answer), LTTV asks
+ * the provider how many streams the plan allows and how many it counts as in use, and says so plainly.
+ */
+function TileError({ error, channelKey }: { error?: string; channelKey: string }) {
+  const maybeLimit = isLimitError(error) || /\b(401|403)\b/.test(error ?? '');
+  const [usage, setUsage] = useState<{ max?: number; active?: number } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!maybeLimit) return;
+    let alive = true;
+    void providerUsage(channelKey).then((u) => alive && setUsage(u));
+    return () => {
+      alive = false;
+    };
+  }, [error, channelKey]);
+  const full = usage?.max !== undefined && usage.active !== undefined && usage.active >= usage.max;
+  let text: string;
+  if (full) text = `Your provider allows ${usage!.max} stream${usage!.max === 1 ? '' : 's'} at once and says ${usage!.active} ${usage!.active === 1 ? 'is' : 'are'} in use right now (every device on your login counts). Remove a game or stop another device, then press OK.`;
+  else if (isLimitError(error)) text = `Your provider turned this stream away (too many at once${usage?.max ? ` — your plan allows ${usage.max}` : ''}). Remove a game, or press OK to try again.`;
+  else text = `${error ?? 'This stream didn’t start.'}${usage?.max ? ` (Your plan allows ${usage.max} streams; ${usage.active ?? '?'} in use.)` : ''} Press OK to try again.`;
+  return <span class="mv-error">{text}</span>;
 }
 
 /** Pick a game: league, then the league's games and their streams (the same screens as Sports). */

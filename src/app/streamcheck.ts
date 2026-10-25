@@ -26,15 +26,17 @@ export function cachedLiveness(key: string): Liveness | undefined {
 }
 
 /**
- * Checking opens one more connection to the provider. With a one-connection plan that would knock out what's playing,
- * so channels from that provider aren't checked while something of theirs is on.
+ * Checking opens one more connection to the provider. It only runs when that can't knock out something playing:
+ * fewer streams of that provider in use (main player + Multiview games) than the plan allows; with an unknown
+ * limit, only when nothing of theirs is playing.
  */
 export function canCheck(ch: LineupChannel): boolean {
   const s = getState();
+  const playlistOf = (key: string | undefined) => (key ? s.lineup.find((c) => c.key === key)?.playlistId : undefined);
+  let inUse = playlistOf(player.currentKey) === ch.playlistId ? 1 : 0;
+  for (const t of s.multiview?.tiles ?? []) if (t && playlistOf(t.key) === ch.playlistId) inUse++;
   const max = s.playlists.find((p) => p.id === ch.playlistId)?.maxConnections;
-  if (!max || max > 1) return true;
-  const playing = player.currentKey && s.lineup.find((c) => c.key === player.currentKey);
-  return !playing || playing.playlistId !== ch.playlistId;
+  return max ? inUse < max : inUse === 0;
 }
 
 /** 'live' / 'dead', or undefined when it can't be told here (no local helper, or the check was cancelled). */

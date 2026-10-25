@@ -19,19 +19,26 @@ export function startRemoteBridge() {
   if (started || native) return;
   started = true;
   void serverCaps().then((c) => {
-    if (!(c as { remote?: boolean }).remote || typeof EventSource === 'undefined') return;
-    const es = new EventSource('api/remote/events');
-    es.onmessage = (e) => void answer(e.data);
+    if (!(c as { remote?: boolean }).remote) return;
+    void poll();
   });
 }
 
-async function answer(data: string) {
-  let msg: { id: number; cmd: string; args: Args };
-  try {
-    msg = JSON.parse(data);
-  } catch {
-    return;
+/** Asks the helper for phone commands a few times a second (short requests: no browser connection held open). */
+async function poll() {
+  for (;;) {
+    try {
+      const r = await fetch('api/remote/next', { cache: 'no-store' });
+      const j = (await r.json()) as { cmds?: { id: number; cmd: string; args: Args }[] };
+      for (const m of j.cmds ?? []) void answer(m);
+    } catch {
+      /* helper restarting: keep trying */
+    }
+    await new Promise((ok) => setTimeout(ok, document.hidden ? 1000 : 250));
   }
+}
+
+async function answer(msg: { id: number; cmd: string; args: Args }) {
   let reply: { id: number; ok: boolean; result?: unknown; error?: string };
   try {
     reply = { id: msg.id, ok: true, result: await run(msg.cmd, msg.args ?? {}) };

@@ -24,16 +24,15 @@ test('phone remote: pairing code, key check, and commands relayed to the LTTV pa
   assert.equal((await post('/rapi/cmd', { cmd: 'state' }, auth)).status, 503);
   assert.equal((await post('/rapi/cmd', { cmd: 'shutdown' }, auth)).status, 400); // only the known commands
 
-  // A fake LTTV page: listens for commands and answers them.
-  const events = await new Promise<http.IncomingMessage>((ok) => http.get(`http://127.0.0.1:${mainPort}/api/remote/events`, ok));
-  events.setEncoding('utf8');
-  events.on('data', (chunk: string) => {
-    for (const line of chunk.split('\n')) {
-      if (!line.startsWith('data: ')) continue;
-      const m = JSON.parse(line.slice(6));
-      void fetch(`http://127.0.0.1:${mainPort}/api/remote/reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: m.id, ok: true, result: { echo: m.cmd, args: m.args } }) });
+  // A fake LTTV page: asks for commands a few times a second and answers them.
+  let stop = false;
+  const page = (async () => {
+    while (!stop) {
+      const j = await (await fetch(`http://127.0.0.1:${mainPort}/api/remote/next`)).json();
+      for (const m of j.cmds) await fetch(`http://127.0.0.1:${mainPort}/api/remote/reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: m.id, ok: true, result: { echo: m.cmd, args: m.args } }) });
+      await new Promise((r) => setTimeout(r, 30));
     }
-  });
+  })();
   await new Promise((r) => setTimeout(r, 50));
   const r = await post('/rapi/cmd', { cmd: 'key', args: { key: 'down' } }, auth);
   assert.equal(r.status, 200);
@@ -41,7 +40,8 @@ test('phone remote: pairing code, key check, and commands relayed to the LTTV pa
 
   // The pairing info is only for the computer itself, and the phone server never serves the fetch helper.
   assert.equal((await fetch(`http://127.0.0.1:${phonePort}/api/fetch?url=http://example.com`)).status, 404);
-  events.destroy();
+  stop = true;
+  await page;
   main.close();
   phone.close();
 });

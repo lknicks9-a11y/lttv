@@ -9,7 +9,7 @@
 //   GET /api/fetch?url=&h=&gunzip=auto&mode=hls
 //   GET /api/probe?url=&h=                -> { kind: 'hls'|'ts'|'progressive'|'unknown' }
 //   GET /api/remux?url=&h=                -> fragmented MP4 via ffmpeg (raw MPEG-TS channels)
-//   GET /api/remote/info | /api/remote/events (SSE) | POST /api/remote/reply   (phone remote, this computer only)
+//   GET /api/remote/info | GET /api/remote/next | POST /api/remote/reply   (phone remote, this computer only)
 //
 // Phone remote: a second, separate server on the home network (port + 1, --no-remote to turn off) serves only the
 // remote page and /rapi/* (paired with a code shown in LTTV). It can't use the fetch helper: that stays 127.0.0.1.
@@ -354,8 +354,10 @@ export const remote = {
   /** 6-digit code for typing in by hand. */
   pin: String(randomInt(0, 1_000_000)).padStart(6, '0'),
   pinFails: 0,
-  /** LTTV pages listening for commands (Server-Sent Events). */
-  pages: new Set(),
+  /** Commands waiting for the LTTV page, which asks for them a few times a second (a short request each time:
+   *  a held-open connection would take one of the browser's 6 connections to LTTV away from the video streams). */
+  queue: [],
+  lastPoll: 0,
   pending: new Map(),
   seq: 0,
 };
@@ -393,8 +395,7 @@ function readJson(req, max = 64 * 1024) {
 
 /** Send a command to the LTTV page and wait for its answer. */
 export function relay(cmd, cmdArgs, timeoutMs = 8000) {
-  const page = [...remote.pages].pop();
-  if (!page) return Promise.reject(Object.assign(new Error('LTTV isn’t open on the computer. Open it there (keep the window open), then try again.'), { status: 503 }));
+  if (Date.now() - remote.lastPoll > 3000) return Promise.reject(Object.assign(new Error('LTTV isn’t open on the computer. Open it there (keep the window open), then try again.'), { status: 503 }));
   const id = ++remote.seq;
   return new Promise((ok, fail) => {
     const timer = setTimeout(() => {
@@ -402,7 +403,7 @@ export function relay(cmd, cmdArgs, timeoutMs = 8000) {
       fail(Object.assign(new Error('LTTV on the computer didn’t answer.'), { status: 504 }));
     }, timeoutMs);
     remote.pending.set(id, { ok, fail, timer });
-    page.write(`data: ${JSON.stringify({ id, cmd, args: cmdArgs ?? {} })}\n\n`);
+    remote.queue.push({ id, cmd, args: cmdArgs ?? {} });
   });
 }
 
@@ -416,16 +417,9 @@ async function handleRemotePage(req, res, u) {
   const from = req.socket.remoteAddress || '';
   if (!(from === '127.0.0.1' || from === '::1' || from === '::ffff:127.0.0.1')) return sendJson(res, 403, { error: 'Only on this computer.' });
   if (u.pathname === '/api/remote/info') return sendJson(res, 200, remoteInfo());
-  if (u.pathname === '/api/remote/events') {
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
-    res.write(': hello\n\n');
-    remote.pages.add(res);
-    const beat = setInterval(() => res.write(': ping\n\n'), 20_000);
-    req.on('close', () => {
-      clearInterval(beat);
-      remote.pages.delete(res);
-    });
-    return;
+  if (u.pathname === '/api/remote/next') {
+    remote.lastPoll = Date.now();
+    return sendJson(res, 200, { cmds: remote.queue.splice(0) });
   }
   if (u.pathname === '/api/remote/reply' && req.method === 'POST') {
     const b = await readJson(req, 4 * 1024 * 1024);

@@ -2,6 +2,8 @@
 // Sound follows the selected tile; leaving goes full screen on that game.
 import { PlayerController } from './player';
 import { channelByKey, getState, player, playRequest, setState, tune } from './state';
+import { checkXtreamLogin } from './xtream-login';
+import { loginFor } from '../core/xtream';
 
 export interface MvTile {
   /** Channel key */
@@ -157,6 +159,34 @@ export function closeMultiview(fullscreenTile?: number) {
   setState({ multiview: undefined });
   const t = mv.tiles[fullscreenTile ?? mv.active];
   if (t) void tune(t.key, { fullscreen: true });
+}
+
+/**
+ * What the provider says right now about the channel's login: how many streams the plan allows and how many it
+ * counts as in use (every device on that login counts — a Fire TV or phone left playing too). Cached ~20 s.
+ */
+const usageCache = new Map<string, { at: number; v: { max?: number; active?: number } | null }>();
+export async function providerUsage(key: string): Promise<{ max?: number; active?: number } | null> {
+  const s = getState();
+  const pl = s.playlists.find((p) => p.id === s.lineup.find((c) => c.key === key)?.playlistId);
+  const login = pl && loginFor(pl);
+  if (!pl || !login) return null;
+  const hit = usageCache.get(pl.id);
+  if (hit && Date.now() - hit.at < 20_000) return hit.v;
+  let v: { max?: number; active?: number } | null = null;
+  try {
+    const a = await checkXtreamLogin(login, pl.userAgent);
+    v = a.maxConnections || a.activeConnections !== undefined ? { max: a.maxConnections || undefined, active: a.activeConnections } : null;
+  } catch {
+    v = null;
+  }
+  usageCache.set(pl.id, { at: Date.now(), v });
+  return v;
+}
+
+/** An error that really is the provider turning a stream away for the connection limit (not a dropout). */
+export function isLimitError(msg: string | undefined): boolean {
+  return /\b(429|458|509)\b|max(imum)?\s*connections?|too many (connections|streams|users)|connection limit|limit reached|already in use/i.test(msg ?? '');
 }
 
 /** Streams the provider of these channels allows at once (when known). */
