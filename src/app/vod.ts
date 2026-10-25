@@ -1,6 +1,7 @@
 // Movies and Shows from the user's own playlists: Xtream providers' movie and series lists
 // (loaded on demand, cached briefly) and movie/episode entries of plain M3U playlists.
 // Also: what to play, resume positions and "Continue watching".
+import { isAdult } from '../core/adult';
 import { useEffect, useState } from 'preact/hooks';
 import { loginFor, xtreamApiUrl, type XtreamLogin } from '../core/xtream';
 import {
@@ -88,7 +89,7 @@ export async function loadCategories(kind: VodKind): Promise<VodCat[]> {
   for (const src of sources()) {
     try {
       const cats = src.login ? parseCategories(await api(src, kind === 'movies' ? 'get_vod_categories' : 'get_series_categories')) : (kind === 'movies' ? (await m3u(src)).categories : (await m3u(src)).seriesCategories);
-      for (const c of cats) out.push({ ...c, key: `${src.playlistId}:${c.id}`, playlistId: src.playlistId, name: many ? `${c.name} · ${src.name}` : c.name });
+      for (const c of cats) if (!isAdult(c.name)) out.push({ ...c, key: `${src.playlistId}:${c.id}`, playlistId: src.playlistId, name: many ? `${c.name} · ${src.name}` : c.name });
     } catch {
       /* this playlist has none, or its server didn't answer */
     }
@@ -114,13 +115,24 @@ export async function loadSeries(cat: VodCat): Promise<VodSeries[]> {
   return (await m3u(src)).series.filter((s) => s.series.categoryId === cat.id).map((s) => s.series);
 }
 
+/** A playlist's adult movie / show categories (left out of search and every row). */
+async function adultCategoryIds(src: VodSource, kind: VodKind): Promise<Set<string>> {
+  try {
+    const cats = src.login ? parseCategories(await api(src, kind === 'movies' ? 'get_vod_categories' : 'get_series_categories')) : (kind === 'movies' ? (await m3u(src)).categories : (await m3u(src)).seriesCategories);
+    return new Set(cats.filter((c) => isAdult(c.name)).map((c) => String(c.id)));
+  } catch {
+    return new Set();
+  }
+}
+
 /** Every movie of a playlist (for searching across categories; big lists, so only on request). */
 export async function loadAllMovies(): Promise<(VodMovie & { playlistId: string })[]> {
   const out: (VodMovie & { playlistId: string })[] = [];
   for (const src of sources()) {
     try {
       const list = src.login ? await allViaWorker<VodMovie>(src, 'get_vod_streams', 'movies') : (await m3u(src)).movies;
-      for (const m of list) out.push({ ...m, playlistId: src.playlistId });
+      const adult = await adultCategoryIds(src, 'movies');
+      for (const m of list) if (!adult.has(String(m.categoryId)) && !isAdult(m.name)) out.push({ ...m, playlistId: src.playlistId });
     } catch {
       /* skip */
     }
@@ -133,7 +145,8 @@ export async function loadAllSeries(): Promise<(VodSeries & { playlistId: string
   for (const src of sources()) {
     try {
       const list = src.login ? await allViaWorker<VodSeries>(src, 'get_series', 'series') : (await m3u(src)).series.map((s) => s.series);
-      for (const s of list) out.push({ ...s, playlistId: src.playlistId });
+      const adult = await adultCategoryIds(src, 'shows');
+      for (const s of list) if (!adult.has(String(s.categoryId)) && !isAdult(s.name)) out.push({ ...s, playlistId: src.playlistId });
     } catch {
       /* skip */
     }

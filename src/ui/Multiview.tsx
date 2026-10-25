@@ -9,6 +9,7 @@ import { closeMultiview, connectionLimit, isLimitError, providerUsage, decoderLi
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
+import { currentBuild, versionOf } from '../app/updates';
 import { LeagueGrid } from './Sports';
 import { LeagueGames } from './Games';
 
@@ -220,7 +221,7 @@ function StreamInfo({ titles, onClose }: { titles: (string | undefined)[]; onClo
             </tbody>
           </table>
           <p class="muted mv-info-dec">
-            <b>{d.device}</b> · hardware video decoders:{' '}
+            <b>{d.device}</b> · LTTV {versionOf(currentBuild())} · hardware video decoders:{' '}
             {d.decoders.filter((x) => x.hardware).map((x) => `${x.name} (${x.type.replace('video/', '')}${x.maxInstances ? `, up to ${x.maxInstances}` : ''})`).join(' · ') || 'none listed'}
           </p>
         </>

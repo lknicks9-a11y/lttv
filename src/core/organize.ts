@@ -5,6 +5,7 @@ import { categorize, cleanChannelNames, normalizeGroupTitle, normalizeForMatch, 
 import { assignMyTv, channelCountry, portableName } from './mytv';
 import { countryName, countryFromTag, countryOfGroup, groupCountryCode } from './countries';
 import { getPrefixTag } from './normalize';
+import { isAdultChannel } from './adult';
 
 export interface DuplicateInfo {
   /** key -> key of the first channel it duplicates */
@@ -112,7 +113,9 @@ export function carryOverCustomizations(channels: ParsedChannel[], customization
 
 /** Combine parsed channels with user customisations into display channels. */
 export function buildLineup(input: LineupInput): LineupChannel[] {
-  const { channels, matches } = input;
+  // Adult (XXX) channels are left out of the lineup entirely.
+  const channels = input.channels.filter((c) => !isAdultChannel(c.groupTitle, c.originalName));
+  const { matches } = input;
   const customizations = carryOverCustomizations(channels, input.customizations);
   const order = input.playlistOrder ?? [];
   const sorted = [...channels].sort((a, b) => {
