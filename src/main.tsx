@@ -18,6 +18,7 @@ async function boot() {
   document.documentElement.classList.toggle('tv', isTV);
   document.documentElement.classList.toggle('native', isNative);
   installNavigation();
+  void import('./app/remote').then((m) => m.startRemoteBridge());
 
   // Keys forwarded by the Fire TV host (menu, media keys, back).
   window.lttvHost = window.lttvHost ?? ({} as NonNullable<Window['lttvHost']>);

@@ -9,6 +9,10 @@
 //   GET /api/fetch?url=&h=&gunzip=auto&mode=hls
 //   GET /api/probe?url=&h=                -> { kind: 'hls'|'ts'|'progressive'|'unknown' }
 //   GET /api/remux?url=&h=                -> fragmented MP4 via ffmpeg (raw MPEG-TS channels)
+//   GET /api/remote/info | /api/remote/events (SSE) | POST /api/remote/reply   (phone remote, this computer only)
+//
+// Phone remote: a second, separate server on the home network (port + 1, --no-remote to turn off) serves only the
+// remote page and /rapi/* (paired with a code shown in LTTV). It can't use the fetch helper: that stays 127.0.0.1.
 import http from 'node:http';
 import https from 'node:https';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
@@ -17,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
+import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { networkInterfaces } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -32,6 +38,8 @@ const PORT = Number(arg('--port', process.env.PORT || 8787));
 const HOST = arg('--host', process.env.HOST || '127.0.0.1');
 const OPEN = args.includes('--open');
 const UPSTREAM_TIMEOUT = 20000;
+const REMOTE = !args.includes('--no-remote');
+const REMOTE_PORT = Number(arg('--remote-port', process.env.REMOTE_PORT || PORT + 1));
 
 const hasFfmpeg = (() => {
   try {
@@ -337,13 +345,157 @@ function serveStatic(req, res, pathname) {
   createReadStream(file).pipe(res);
 }
 
+// ---------------------------------------------------------------------------
+// Phone remote: relay between the phone page (remote server) and the LTTV page open on this computer.
+
+export const remote = {
+  /** Long random key the phone keeps after pairing (in the QR code). */
+  token: randomBytes(16).toString('hex'),
+  /** 6-digit code for typing in by hand. */
+  pin: String(randomInt(0, 1_000_000)).padStart(6, '0'),
+  pinFails: 0,
+  /** LTTV pages listening for commands (Server-Sent Events). */
+  pages: new Set(),
+  pending: new Map(),
+  seq: 0,
+};
+
+export function lanAddresses() {
+  const out = [];
+  for (const list of Object.values(networkInterfaces())) {
+    for (const a of list || []) if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) out.push(a.address);
+  }
+  // Home networks first (192.168.x, 10.x), then the rest.
+  return out.sort((a, b) => Number(!/^(192\.168|10)\./.test(a)) - Number(!/^(192\.168|10)\./.test(b)));
+}
+
+function readJson(req, max = 64 * 1024) {
+  return new Promise((ok, fail) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > max) {
+        fail(Object.assign(new Error('Too large'), { status: 413 }));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on('end', () => {
+      try {
+        ok(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});
+      } catch {
+        fail(Object.assign(new Error('Bad JSON'), { status: 400 }));
+      }
+    });
+    req.on('error', fail);
+  });
+}
+
+/** Send a command to the LTTV page and wait for its answer. */
+export function relay(cmd, cmdArgs, timeoutMs = 8000) {
+  const page = [...remote.pages].pop();
+  if (!page) return Promise.reject(Object.assign(new Error('LTTV isn’t open on the computer. Open it there (keep the window open), then try again.'), { status: 503 }));
+  const id = ++remote.seq;
+  return new Promise((ok, fail) => {
+    const timer = setTimeout(() => {
+      remote.pending.delete(id);
+      fail(Object.assign(new Error('LTTV on the computer didn’t answer.'), { status: 504 }));
+    }, timeoutMs);
+    remote.pending.set(id, { ok, fail, timer });
+    page.write(`data: ${JSON.stringify({ id, cmd, args: cmdArgs ?? {} })}\n\n`);
+  });
+}
+
+function remoteInfo() {
+  return { pin: remote.pin, token: remote.token, port: REMOTE_PORT, enabled: REMOTE, urls: lanAddresses().map((ip) => `http://${ip}:${REMOTE_PORT}/?k=${remote.token}`) };
+}
+
+/** The LTTV page's side (on the 127.0.0.1 server). */
+async function handleRemotePage(req, res, u) {
+  // Only the computer itself (the pairing key must never reach another device through --host 0.0.0.0).
+  const from = req.socket.remoteAddress || '';
+  if (!(from === '127.0.0.1' || from === '::1' || from === '::ffff:127.0.0.1')) return sendJson(res, 403, { error: 'Only on this computer.' });
+  if (u.pathname === '/api/remote/info') return sendJson(res, 200, remoteInfo());
+  if (u.pathname === '/api/remote/events') {
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+    res.write(': hello\n\n');
+    remote.pages.add(res);
+    const beat = setInterval(() => res.write(': ping\n\n'), 20_000);
+    req.on('close', () => {
+      clearInterval(beat);
+      remote.pages.delete(res);
+    });
+    return;
+  }
+  if (u.pathname === '/api/remote/reply' && req.method === 'POST') {
+    const b = await readJson(req, 4 * 1024 * 1024);
+    const p = remote.pending.get(b.id);
+    if (p) {
+      remote.pending.delete(b.id);
+      clearTimeout(p.timer);
+      if (b.ok) p.ok(b.result);
+      else p.fail(Object.assign(new Error(b.error || 'Failed'), { status: 400 }));
+    }
+    return sendJson(res, 200, { ok: true });
+  }
+  return sendJson(res, 404, { error: 'Unknown endpoint' });
+}
+
+function sameKey(a, b) {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+const REMOTE_COMMANDS = new Set(['key', 'text', 'state', 'search', 'sportsNow', 'games', 'tune', 'stop', 'navigate', 'mvOpen', 'mvSet', 'mvSound', 'mvLayout', 'mvFull', 'mvClose']);
+
+/** The phone-facing server: only the remote page and its commands. */
+export function createRemoteServer() {
+  const page = join(here, 'remote.html');
+  return http.createServer(async (req, res) => {
+    const u = new URL(req.url, 'http://remote');
+    try {
+      if (req.method === 'GET' && (u.pathname === '/' || u.pathname === '/remote')) {
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+          'referrer-policy': 'no-referrer',
+          'content-security-policy': "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src * data:; connect-src 'self'",
+        });
+        return createReadStream(page).pipe(res);
+      }
+      if (u.pathname === '/rapi/pair' && req.method === 'POST') {
+        if (remote.pinFails >= 10) return sendJson(res, 429, { error: 'Too many wrong codes. Restart LTTV on the computer for a new code.' });
+        const b = await readJson(req);
+        if (!sameKey(String(b.pin || '').trim(), remote.pin)) {
+          remote.pinFails++;
+          return sendJson(res, 401, { error: 'That code isn’t right. It’s in LTTV on the computer: Settings → Phone remote.' });
+        }
+        return sendJson(res, 200, { token: remote.token });
+      }
+      if (u.pathname === '/rapi/cmd' && req.method === 'POST') {
+        if (!sameKey(req.headers['x-lttv-key'], remote.token)) return sendJson(res, 401, { error: 'Not paired. Scan the code in LTTV on the computer again.' });
+        const b = await readJson(req);
+        if (!REMOTE_COMMANDS.has(b.cmd)) return sendJson(res, 400, { error: 'Unknown command' });
+        return sendJson(res, 200, { result: await relay(b.cmd, b.args) });
+      }
+      sendJson(res, 404, { error: 'Not found' });
+    } catch (e) {
+      if (!res.headersSent) sendJson(res, e.status || 500, { error: e.message || 'Server error' });
+      else res.destroy();
+    }
+  });
+}
+
 export function createServer() {
   return http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     try {
       if (u.pathname.startsWith('/api/')) {
         if (!sameOriginOnly(req)) return sendJson(res, 403, { error: 'Cross-site requests are not allowed.' });
-        if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpeg, version: pkg.version, platform: `desktop (${process.platform})` });
+        if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpeg, version: pkg.version, platform: `desktop (${process.platform})`, remote: REMOTE });
+        if (u.pathname.startsWith('/api/remote/')) return await handleRemotePage(req, res, u);
         if (u.pathname === '/api/fetch') return await handleFetch(req, res, u.searchParams);
         if (u.pathname === '/api/probe') return await handleProbe(res, u.searchParams);
         if (u.pathname === '/api/remux') return handleRemux(req, res, u.searchParams);
@@ -371,6 +523,14 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const url = `http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/`;
     console.log(`\n  LTTV ${pkg.version} is running at ${url}`);
     console.log(`  ffmpeg: ${hasFfmpeg ? 'found (raw MPEG-TS channels can play)' : 'not found (HLS channels only in the browser)'}`);
+    if (REMOTE) {
+      const r = createRemoteServer();
+      r.listen(REMOTE_PORT, '0.0.0.0', () => {
+        const ip = lanAddresses()[0];
+        console.log(`  Phone remote: ${ip ? `http://${ip}:${REMOTE_PORT}/` : `port ${REMOTE_PORT}`}  (pairing code ${remote.pin}; QR in LTTV → Settings → Phone remote)`);
+      });
+      r.on('error', (e) => console.log(`  Phone remote not started: ${e.code === 'EADDRINUSE' ? `port ${REMOTE_PORT} is in use` : e.message}`));
+    }
     console.log('  Press Ctrl+C to stop.\n');
     if (OPEN) {
       const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';

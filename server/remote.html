@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0912">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>LTTV Remote</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #0b0912; --panel: #161221; --panel-2: #1f1930; --line: #2c2440; --text: #f3eefc; --muted: #a59cba;
+    --accent: #ff7a2f; --accent-2: #ff3d8b; --ok: #3ddc97; --radius: 16px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100dvh; padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); overscroll-behavior: none; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; touch-action: manipulation; }
+  input { font: inherit; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+  header .logo { font-weight: 800; letter-spacing: 0.12em; font-size: 20px; }
+  header .logo span { color: var(--accent); }
+  header .status { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  main { padding: 6px 16px 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  .now { display: flex; align-items: center; gap: 12px; min-height: 64px; }
+  .now img, .row img { width: 44px; height: 44px; object-fit: contain; border-radius: 10px; background: #0003; flex: none; }
+  .now .t { min-width: 0; }
+  .now b, .row b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  small, .muted { color: var(--muted); }
+  .pad { position: relative; width: min(78vw, 300px); aspect-ratio: 1; margin: 22px auto 14px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #241d37, #15111f); border: 1px solid var(--line); box-shadow: inset 0 2px 20px #0008, 0 10px 30px #0006; }
+  .pad button { position: absolute; display: grid; place-items: center; color: var(--muted); }
+  .pad button:active { color: var(--text); }
+  .pad .up, .pad .down { left: 33%; width: 34%; height: 30%; }
+  .pad .up { top: 0; } .pad .down { bottom: 0; }
+  .pad .left, .pad .right { top: 33%; width: 30%; height: 34%; }
+  .pad .left { left: 0; } .pad .right { right: 0; }
+  .pad .ok { left: 31%; top: 31%; width: 38%; height: 38%; border-radius: 50%; background: linear-gradient(145deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 800; font-size: 18px; box-shadow: 0 6px 18px #ff5a5a55; }
+  .pad .ok:active { transform: scale(0.96); }
+  .pad svg { width: 30px; height: 30px; }
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0 14px; }
+  .key { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+  .key svg { width: 22px; height: 22px; color: var(--text); }
+  .key:active, .chip:active, .btn:active, .row:active, .tile:active { filter: brightness(1.25); }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+  .btn.primary { background: linear-gradient(145deg, var(--accent), var(--accent-2)); border: 0; color: #fff; }
+  .btn.small { padding: 7px 10px; font-size: 13px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; text-align: left; width: 100%; }
+  .row .t { flex: 1; min-width: 0; }
+  .row .num { color: var(--muted); font-variant-numeric: tabular-nums; width: 34px; text-align: right; flex: none; font-size: 14px; }
+  .game { padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  .teams { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+  .teams .tm { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .teams img { width: 26px; height: 26px; object-fit: contain; }
+  .teams .sc { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .live { color: #ff5470; font-weight: 800; font-size: 12px; letter-spacing: 0.06em; }
+  .streams { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .stream { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--panel-2); }
+  .stream .t { flex: 1; min-width: 0; font-size: 14px; }
+  .stream .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+  .grid.l3 .tile:first-child { grid-row: span 2; }
+  .tile { position: relative; aspect-ratio: 16 / 10; border-radius: 14px; background: var(--panel); border: 2px solid var(--line); padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; text-align: left; }
+  .grid.l3 .tile:first-child { aspect-ratio: auto; }
+  .tile.sound { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .tile .n { position: absolute; top: 8px; left: 10px; font-size: 12px; color: var(--muted); }
+  .tile .snd { position: absolute; top: 8px; right: 10px; font-size: 12px; color: var(--accent); font-weight: 700; }
+  .tile.empty { align-items: center; justify-content: center; color: var(--muted); border-style: dashed; }
+  .search { display: flex; gap: 8px; margin-bottom: 10px; }
+  .search input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+  h2 { font-size: 15px; margin: 16px 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .banner { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: #ff7a2f22; border: 1px solid #ff7a2f66; margin-bottom: 10px; font-size: 14px; }
+  .banner button { margin-left: auto; }
+  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: #0e0b17ee; backdrop-filter: blur(12px); border-top: 1px solid var(--line); }
+  nav.tabs button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; font-size: 11px; color: var(--muted); }
+  nav.tabs button svg { width: 24px; height: 24px; }
+  nav.tabs button.on { color: var(--accent); }
+  .sheet-bg { position: fixed; inset: 0; background: #0009; display: flex; align-items: flex-end; z-index: 10; }
+  .sheet { width: 100%; background: var(--panel); border-radius: 20px 20px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .sheet h3 { margin: 0 0 12px; font-size: 17px; }
+  .sheet .list .row { background: var(--panel-2); }
+  .pair { max-width: 380px; margin: 12vh auto 0; text-align: center; padding: 0 20px; }
+  .pair input { width: 100%; text-align: center; font-size: 30px; letter-spacing: 0.3em; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--text); margin: 16px 0; }
+  .toast { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); padding: 12px 14px; border-radius: 12px; background: #2a2038; border: 1px solid var(--line); font-size: 14px; z-index: 20; }
+  .toast.err { border-color: #ff5470; }
+  .empty-msg { padding: 24px 8px; text-align: center; color: var(--muted); }
+  .spin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff2; border-top-color: var(--accent); animation: s 0.8s linear infinite; margin: 24px auto; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+// LTTV phone remote. Talks only to the LTTV helper on the computer (/rapi/*), which relays to LTTV there.
+const $app = document.getElementById('app');
+const KEY_STORE = 'lttvRemoteKey';
+let key = '';
+try { key = localStorage.getItem(KEY_STORE) || ''; } catch {}
+const fromUrl = new URLSearchParams(location.search).get('k');
+if (fromUrl) {
+  key = fromUrl;
+  try { localStorage.setItem(KEY_STORE, key); } catch {}
+  history.replaceState(null, '', location.pathname); // the key doesn't stay in the address bar
+}
+
+const state = { tab: 'remote', snap: null, online: false, league: 'nfl', target: null, games: null, leagues: null, results: null, q: '' };
+
+// ---------- tiny DOM helpers (all text goes through textContent) ----------
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'html') e.innerHTML = v; // only for our own static SVG icons
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return e;
+}
+const ICON = {
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>',
+  left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>',
+  right: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  guide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+  chup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 14l5-5 5 5"/><path d="M5 20h14"/></svg>',
+  chdown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/><path d="M5 4h14"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg>',
+  remote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="8" r="2"/><path d="M10 14h4M10 17h4"/></svg>',
+  multi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><rect x="13" y="13" width="8" height="7" rx="1.5"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H5a3 3 0 003 4M16 6h3a3 3 0 01-3 4M12 13v4M8 20h8"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+};
+const icon = (n) => el('span', { html: ICON[n] });
+const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch {} };
+
+let toastTimer;
+function toast(msg, err) {
+  document.querySelector('.toast')?.remove();
+  const t = el('div', { class: 'toast' + (err ? ' err' : '') }, msg);
+  document.body.append(t);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), err ? 5000 : 2200);
+}
+
+// ---------- talking to the computer ----------
+async function cmd(name, args) {
+  const r = await fetch('/rapi/cmd', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lttv-key': key }, body: JSON.stringify({ cmd: name, args: args || {} }) });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    key = '';
+    try { localStorage.removeItem(KEY_STORE); } catch {}
+    render();
+    throw new Error(j.error || 'Not paired');
+  }
+  if (!r.ok) {
+    state.online = r.status !== 503 ? state.online : false;
+    throw new Error(j.error || 'Something went wrong');
+  }
+  state.online = true;
+  return j.result;
+}
+async function act(name, args, okMsg) {
+  buzz();
+  try {
+    const res = await cmd(name, args);
+    if (res && typeof res === 'object' && 'screen' in res) state.snap = res;
+    if (okMsg) toast(okMsg);
+    render();
+    return res;
+  } catch (e) {
+    toast(e.message, true);
+    render();
+  }
+}
+async function refresh() {
+  if (!key || document.hidden) return;
+  try {
+    state.snap = await cmd('state');
+  } catch (e) {
+    state.online = false;
+  }
+  if (!document.querySelector('.sheet-bg') && !isTyping()) render();
+}
+const isTyping = () => document.activeElement && document.activeElement.tagName === 'INPUT';
+setInterval(refresh, 3000);
+document.addEventListener('visibilitychange', refresh);
+
+// ---------- screens ----------
+function header() {
+  return el('header', null,
+    el('div', { class: 'logo' }, 'LT', el('span', null, 'TV'), ' ', el('small', { class: 'muted', style: 'letter-spacing:0;font-weight:500;font-size:13px' }, 'Remote')),
+    el('div', { class: 'status' }, el('span', { class: 'dot' + (state.online ? ' on' : '') }), state.online ? 'Connected' : 'Not connected'));
+}
+
+function nowCard() {
+  const p = state.snap && state.snap.playing;
+  const mv = state.snap && state.snap.multiview;
+  return el('div', { class: 'card now' },
+    p && p.logo ? el('img', { src: p.logo, alt: '' }) : null,
+    el('div', { class: 't' },
+      mv ? el('b', null, `Multiview · ${mv.tiles.slice(0, mv.layout).filter(Boolean).length} of ${mv.layout} games`)
+        : p ? el('b', null, `${p.number} · ${p.name}`) : el('b', null, state.online ? 'Nothing playing' : 'Open LTTV on the computer'),
+      el('small', null, mv ? 'Sound: ' + ((mv.tiles[mv.active] && mv.tiles[mv.active].title) || '—') : p ? (p.now || (p.state === 'playing' ? 'Playing' : p.state)) : state.online ? 'Pick a game or channel below' : 'Keep LTTV open there and this phone on the same Wi-Fi')));
+}
+
+function keyBtn(k, label, ic) {
+  return el('button', { class: 'key', onclick: () => act('key', { key: k }) }, icon(ic || k), label);
+}
+
+function remoteTab() {
+  const pad = el('div', { class: 'pad' },
+    el('button', { class: 'up', 'aria-label': 'Up', onclick: () => act('key', { key: 'up' }), html: ICON.up }),
+    el('button', { class: 'down', 'aria-label': 'Down', onclick: () => act('key', { key: 'down' }), html: ICON.down }),
+    el('button', { class: 'left', 'aria-label': 'Left', onclick: () => act('key', { key: 'left' }), html: ICON.left }),
+    el('button', { class: 'right', 'aria-label': 'Right', onclick: () => act('key', { key: 'right' }), html: ICON.right }),
+    el('button', { class: 'ok', onclick: () => act('key', { key: 'ok' }) }, 'OK'));
+  const typing = el('input', { placeholder: 'Type into the selected box on the TV', enterkeyhint: 'send', autocapitalize: 'off', autocomplete: 'off' });
+  const send = () => { if (typing.value) act('text', { text: typing.value }, 'Sent'); };
+  typing.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+  return el('main', null,
+    nowCard(),
+    pad,
+    el('div', { class: 'keys' }, keyBtn('back', 'Back'), keyBtn('playpause', 'Play/Pause', 'play'), keyBtn('menu', 'Menu'), keyBtn('info', 'Info')),
+    el('div', { class: 'keys' }, keyBtn('chup', 'Ch +'), keyBtn('chdown', 'Ch −'), keyBtn('guide', 'Guide'),
+      el('button', { class: 'key', onclick: () => act('stop') }, icon('home'), 'Stop')),
+    el('h2', null, 'Go to'),
+    el('div', { class: 'chips' }, ...[['home', 'Live TV'], ['sports', 'Sports'], ['movies', 'Movies'], ['shows', 'Shows'], ['channels', 'Channels'], ['search', 'Search'], ['settings', 'Settings']]
+      .map(([s, l]) => el('button', { class: 'chip' + (state.snap && state.snap.screen === s && !state.snap.fullscreen && !state.snap.multiview ? ' on' : ''), onclick: () => act('navigate', { screen: s }) }, l))),
+    el('h2', null, 'Keyboard'),
+    el('div', { class: 'search' }, typing, el('button', { class: 'btn primary', onclick: send }, 'Send')));
+}
+
+function multiTab() {
+  const mv = state.snap && state.snap.multiview;
+  const layout = mv ? mv.layout : 4;
+  const tiles = Array.from({ length: layout }, (_, i) => (mv && mv.tiles[i]) || null);
+  const grid = el('div', { class: 'grid l' + layout },
+    ...tiles.map((t, i) => t
+      ? el('button', { class: 'tile' + (mv && mv.active === i ? ' sound' : ''), onclick: () => tileSheet(i, t) },
+          el('span', { class: 'n' }, `Game ${i + 1}`), mv && mv.active === i ? el('span', { class: 'snd' }, '🔊 Sound') : null, el('b', null, t.title))
+      : el('button', { class: 'tile empty', onclick: () => pickFor(i) }, el('span', null, '＋'), el('small', null, `Add game ${i + 1}`))));
+  return el('main', null,
+    el('div', { class: 'btns', style: 'align-items:center' },
+      el('span', { class: 'muted', style: 'font-size:14px' }, 'Games on screen:'),
+      ...[2, 3, 4].map((n) => el('button', { class: 'chip' + (layout === n ? ' on' : ''), onclick: () => act('mvLayout', { n }) }, String(n)))),
+    grid,
+    el('div', { class: 'btns' },
+      mv ? el('button', { class: 'btn', onclick: () => act('mvClose', null, 'Multiview closed') }, 'Close Multiview')
+        : el('button', { class: 'btn primary', onclick: () => act('mvOpen', null, 'Multiview open on the TV') }, 'Open Multiview on the TV')),
+    el('p', { class: 'muted', style: 'font-size:14px' }, 'Tap an empty game to add one, or a playing game for sound, full screen or another game.'));
+}
+
+function tileSheet(i, t) {
+  sheet(`Game ${i + 1}: ${t.title}`, [
+    ['🔊  Sound from this game', () => act('mvSound', { tile: i })],
+    ['⛶  Full screen on this game', () => act('mvFull', { tile: i })],
+    ['↻  Change game', () => pickFor(i)],
+  ]);
+}
+
+function pickFor(i) {
+  state.target = i;
+  state.tab = 'games';
+  render();
+  loadGames();
+}
+
+function sheet(title, items) {
+  const bg = el('div', { class: 'sheet-bg', onclick: (e) => { if (e.target === bg) bg.remove(); } },
+    el('div', { class: 'sheet' }, el('h3', null, title),
+      el('div', { class: 'list' }, ...items.map(([label, fn]) => el('button', { class: 'row', onclick: () => { bg.remove(); fn(); } }, el('span', { class: 't' }, label)))),
+      el('div', { style: 'margin-top:10px' }, el('button', { class: 'btn', style: 'width:100%', onclick: () => bg.remove() }, 'Cancel'))));
+  document.body.append(bg);
+}
+
+/** Watch or add to Multiview: with a target tile it goes straight there. */
+function choose(ch, title) {
+  if (state.target != null) {
+    const i = state.target;
+    state.target = null;
+    state.tab = 'multi';
+    act('mvSet', { tile: i, key: ch.key, title }, `Added to game ${i + 1}`);
+    return;
+  }
+  const mv = state.snap && state.snap.multiview;
+  const items = [['▶  Watch full screen', () => act('tune', { key: ch.key }, 'Playing on the TV')]];
+  const n = mv ? mv.layout : 4;
+  for (let i = 0; i < n; i++) {
+    const cur = mv && mv.tiles[i];
+    items.push([`▦  Multiview game ${i + 1}${cur ? ` (replaces ${cur.title})` : ''}`, () => { state.tab = 'multi'; act('mvSet', { tile: i, key: ch.key, title }, `Added to game ${i + 1}`); }]);
+  }
+  sheet(title, items);
+}
+
+function targetBanner() {
+  if (state.target == null) return null;
+  return el('div', { class: 'banner' }, `Choosing for Multiview game ${state.target + 1}`, el('button', { class: 'btn small', onclick: () => { state.target = null; state.tab = 'multi'; render(); } }, 'Cancel'));
+}
+
+async function loadGames() {
+  state.games = null;
+  render();
+  try {
+    const r = await cmd('games', { league: state.league });
+    state.games = r.games;
+    state.leagues = r.leagues;
+  } catch (e) {
+    state.games = [];
+    toast(e.message, true);
+  }
+  render();
+}
+
+function timeOf(ms) {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function gamesTab() {
+  const leagues = state.leagues || [{ id: 'nfl', name: 'NFL' }, { id: 'nba', name: 'NBA' }, { id: 'nhl', name: 'NHL' }, { id: 'mlb', name: 'MLB' }, { id: 'cfb', name: 'CFB' }, { id: 'cbb', name: 'CBB' }, { id: 'epl', name: 'EPL' }, { id: 'ucl', name: 'UCL' }, { id: 'mls', name: 'MLS' }];
+  const list = state.games;
+  return el('main', null,
+    targetBanner(),
+    el('div', { class: 'chips' }, ...leagues.map((l) => el('button', { class: 'chip' + (state.league === l.id ? ' on' : ''), onclick: () => { state.league = l.id; loadGames(); } }, l.name))),
+    list == null ? el('div', { class: 'spin' })
+      : !list.length ? el('div', { class: 'empty-msg' }, 'No games today in this league.')
+      : el('div', { class: 'list' }, ...list
+          .slice().sort((a, b) => (a.state === 'in' ? 0 : a.state === 'pre' ? 1 : 2) - (b.state === 'in' ? 0 : b.state === 'pre' ? 1 : 2) || a.start - b.start)
+          .map(gameCard)));
+}
+
+function gameCard(g) {
+  const side = (t) => el('div', { class: 'tm' }, t.logo ? el('img', { src: t.logo, alt: '' }) : null, el('span', null, t.name));
+  const status = g.state === 'in' ? el('span', { class: 'live' }, 'LIVE · ' + (g.detail || '')) : el('small', null, g.state === 'pre' ? timeOf(g.start) : g.detail || 'Final');
+  return el('div', { class: 'game' },
+    el('div', { class: 'teams' },
+      side(g.away), el('span', { class: 'sc' }, g.state === 'pre' ? '' : String(g.away.score ?? '')),
+      side(g.home), el('span', { class: 'sc' }, g.state === 'pre' ? '' : String(g.home.score ?? ''))),
+    el('div', { style: 'margin-top:6px' }, status),
+    el('div', { class: 'streams' }, ...(g.streams.length ? g.streams.map((s, i) =>
+      el('div', { class: 'stream' },
+        el('div', { class: 't' }, el('b', null, `${s.number} · ${s.name}`), el('small', null, (i === 0 ? 'Best · ' : '') + (s.reason || ''))),
+        el('button', { class: 'btn small primary', onclick: () => choose(s, g.title) }, state.target != null ? 'Add' : 'Play')))
+      : [el('small', { class: 'muted' }, 'No channel in your lineup carries this game yet.')])));
+}
+
+let searchTimer;
+function channelsTab() {
+  const input = el('input', { type: 'search', placeholder: 'Search channels (name or number)', value: state.q, enterkeyhint: 'search', autocapitalize: 'off', autocomplete: 'off' });
+  input.addEventListener('input', () => {
+    state.q = input.value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => searchChannels(true), 300);
+  });
+  const res = state.results;
+  return el('main', null,
+    targetBanner(),
+    el('div', { class: 'search' }, input),
+    el('h2', null, state.q ? 'Channels' : 'Sports on now'),
+    res == null ? el('div', { class: 'spin' })
+      : !res.length ? el('div', { class: 'empty-msg' }, state.q ? 'No channel matches.' : 'Nothing listed on sports channels right now.')
+      : el('div', { class: 'list' }, ...res.map((c) =>
+          el('button', { class: 'row', onclick: () => choose(c, c.name) },
+            el('span', { class: 'num' }, String(c.number)),
+            c.logo ? el('img', { src: c.logo, alt: '' }) : null,
+            el('span', { class: 't' }, el('b', null, c.name), c.now ? el('small', null, c.now) : null)))));
+}
+
+async function searchChannels(keepFocus) {
+  try {
+    state.results = state.q.trim() ? await cmd('search', { q: state.q }) : await cmd('sportsNow');
+  } catch (e) {
+    state.results = [];
+    toast(e.message, true);
+  }
+  render();
+  if (keepFocus) {
+    const i = document.querySelector('.search input');
+    if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+  }
+}
+
+function tabs() {
+  const t = (id, label, ic, onOpen) => el('button', { class: state.tab === id ? 'on' : '', onclick: () => { state.tab = id; render(); onOpen && onOpen(); } }, icon(ic), label);
+  return el('nav', { class: 'tabs' },
+    t('remote', 'Remote', 'remote'),
+    t('multi', 'Multiview', 'multi'),
+    t('games', 'Games', 'trophy', () => { if (!state.games) loadGames(); }),
+    t('channels', 'Channels', 'list', () => { if (!state.results) searchChannels(); }));
+}
+
+// ---------- pairing ----------
+function pairScreen() {
+  const input = el('input', { inputmode: 'numeric', maxlength: '6', placeholder: '000000', autocomplete: 'one-time-code' });
+  const go = async () => {
+    try {
+      const r = await fetch('/rapi/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pin: input.value }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Couldn’t pair');
+      key = j.token;
+      try { localStorage.setItem(KEY_STORE, key); } catch {}
+      render();
+      refresh();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  return el('div', { class: 'pair' },
+    el('div', { class: 'logo', style: 'font-weight:800;letter-spacing:.12em;font-size:30px' }, 'LT', el('span', { style: 'color:var(--accent)' }, 'TV')),
+    el('p', null, 'Pair this phone with LTTV on your computer.'),
+    el('p', { class: 'muted', style: 'font-size:14px' }, 'On the computer: LTTV → Settings → Phone remote. Scan the QR code, or type the 6-digit code here.'),
+    input,
+    el('button', { class: 'btn primary', style: 'width:100%;padding:14px', onclick: go }, 'Pair'));
+}
+
+function render() {
+  const y = window.scrollY;
+  $app.replaceChildren();
+  if (!key) {
+    $app.append(pairScreen());
+    return;
+  }
+  $app.append(header(), state.tab === 'remote' ? remoteTab() : state.tab === 'multi' ? multiTab() : state.tab === 'games' ? gamesTab() : channelsTab(), tabs());
+  window.scrollTo(0, y);
+}
+
+render();
+refresh();
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { WatchmodeSettings } from './WatchmodeSettings';
+import { PhoneRemoteSettings } from './PhoneRemote';
 
 
 import { h, Fragment } from 'preact';
@@ -87,6 +88,8 @@ export function SettingsScreen() {
         </div>
 
         <WatchmodeSettings />
+
+        <PhoneRemoteSettings />
 
         <div class="card settings-section" data-group="set-display">
           <h3>Display</h3>
