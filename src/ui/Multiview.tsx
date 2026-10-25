@@ -34,7 +34,7 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
   useEffect(() => {
     if (st.state === 'error' && /no free video decoder|needed this game's video decoder/i.test(st.error ?? '')) {
       const n = noteDecoderLimit();
-      toast(`This TV can play ${n} game${n === 1 ? '' : 's'} at once in Multiview (it has ${n === 1 ? 'one video decoder' : `${n} video decoders`} free).`, 'info', 9000);
+      toast(`This TV can play ${n} game${n === 1 ? '' : 's'} at once in Dual view (it has ${n === 1 ? 'one video decoder' : `${n} video decoders`} free).`, 'info', 9000);
     }
   }, [st.state, st.error]);
   // The name shows for a few seconds after the tile changes or is selected, then gets out of the way.
@@ -139,7 +139,7 @@ function MixCard({ m, onPick, onDelete }: { m: Mix; onPick: (m: Mix) => void; on
   return (
     <button type="button" class="f mix-card" onClick={() => onPick(m)} onKeyDown={(e) => { if (onDelete && (e.key === 'Delete' || e.key === 'ContextMenu')) { e.preventDefault(); onDelete(); } }}>
       <span class="mix-tiles" aria-hidden="true">
-        {Array.from({ length: 4 }, (_, i) => <span class={`mix-tile ${m.tiles[i] ? '' : 'empty'}`}>{m.tiles[i]?.title ?? ''}</span>)}
+        {Array.from({ length: 2 }, (_, i) => <span class={`mix-tile ${m.tiles[i] ? '' : 'empty'}`}>{m.tiles[i]?.title ?? ''}</span>)}
       </span>
       <b class="mix-name">{m.name}</b>
       {m.sub && <small class="muted mix-sub">{m.sub}</small>}
@@ -147,7 +147,7 @@ function MixCard({ m, onPick, onDelete }: { m: Mix; onPick: (m: Mix) => void; on
   );
 }
 
-/** DIRECTV-style mixes: today's games (live now, each league, your teams), channel sets, and your saved mixes. */
+/** DIRECTV-style mixes, as pairs for Dual view: today's games (live now, each league, your teams), channel pairs, and saved ones. */
 function MixPicker({ onPick, onClose }: { onPick: (m: Mix) => void; onClose: () => void }) {
   const [games, setGames] = useState<Mix[] | null>(null);
   const [mine, setMine] = useState(() => myMixes());
@@ -160,7 +160,7 @@ function MixPicker({ onPick, onClose }: { onPick: (m: Mix) => void; onClose: () 
     };
   }, []);
   return (
-    <Modal title="Multiview mixes" onClose={onClose} wide class="mix-modal">
+    <Modal title="Dual view mixes" onClose={onClose} wide class="mix-modal">
       <h3 class="mix-head">Games</h3>
       {games === null ? (
         <p class="muted row gap"><span class="spinner" /> Finding today’s games in your lineup…</p>
@@ -361,7 +361,7 @@ export function MultiviewScreen() {
   const keys = mv.tiles.filter((t): t is MvTile => !!t).map((t) => t.key);
   const limit = connectionLimit(keys);
   return (
-    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label="Multiview">
+    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label="Dual view">
       <div class={`mv-grid mv-grid-${mv.layout}`} data-group="mv-grid">
         {Array.from({ length: mv.layout }, (_, i) => (
           <div class="mv-cell" data-tile={i} key={i}>
@@ -372,7 +372,7 @@ export function MultiviewScreen() {
       {limit !== undefined && keys.length > limit && (
         <div class="mv-note">Your provider allows {limit} stream{limit === 1 ? '' : 's'} at once — the extra tiles may not play or may buffer.</div>
       )}
-      <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (layout, full screen) · Back: full screen on the highlighted game</div>
+      <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (full screen, mixes, change game) · Back: full screen on the highlighted game</div>
       {info && <StreamInfo titles={mv.tiles.map((t) => t?.title)} onClose={() => setInfo(false)} />}
       {mixing && (
         <MixPicker
@@ -417,7 +417,6 @@ export function MultiviewScreen() {
           <div class="row gap modal-actions">
             <Button variant="primary" icon="fullscreen" data-autofocus onClick={() => { const i = options; setOptions(null); closeMultiview(i); }}>Full screen</Button>
             <Button icon="refresh" onClick={() => { const i = options; setOptions(null); setAdding(i); }}>Change game</Button>
-            <Button icon="multiview" onClick={() => { setOptions(null); setChoosing(true); }}>Layout</Button>
             <Button icon="multiview" onClick={() => { setOptions(null); setMixing(true); }}>Mixes</Button>
             <Button icon="star" onClick={() => { setOptions(null); setSaving(true); }}>Save as mix</Button>
             <Button icon="info" onClick={() => { setOptions(null); setInfo(true); }}>Stream info</Button>

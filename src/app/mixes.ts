@@ -1,4 +1,4 @@
-// Multiview mixes (like DIRECTV's): ready-made sets of up to 4 that load in one go.
+// Dual view mixes (like DIRECTV's): ready-made pairs that load in one go.
 //  - Game mixes, built live from today's schedule: every live game, each league, your teams. Each game gets its best
 //    English stream from your lineup (the same pick as Sports).
 //  - Channel mixes: sports networks, news, business… matched to the channels in your lineup.
@@ -23,18 +23,21 @@ export interface Mix {
   tiles: MvTile[];
 }
 
+/** Dual view: two per mix. */
+const MIX_SIZE = 2;
+
 const GAME_LEAGUES: ScheduleLeagueId[] = ['nfl', 'nba', 'nhl', 'mlb', 'cfb', 'cbb', 'epl', 'ucl', 'mls'];
 
 /** Channel mixes: each slot is a list of names to try (first one found in the lineup wins). */
 const CHANNEL_MIXES: { id: string; name: string; slots: string[][] }[] = [
-  { id: 'ch-sports', name: 'Sports networks', slots: [['ESPN'], ['ESPN2'], ['FS1', 'Fox Sports 1'], ['NFL Network', 'NBA TV', 'MLB Network']] },
+  { id: 'ch-sports', name: 'Sports networks', slots: [['ESPN'], ['FS1', 'Fox Sports 1'], ['ESPN2'], ['NFL Network', 'NBA TV', 'MLB Network']] },
   { id: 'ch-espn', name: 'ESPN family', slots: [['ESPN'], ['ESPN2'], ['ESPNU'], ['ESPNews', 'SEC Network', 'ACC Network']] },
   { id: 'ch-college', name: 'College sports', slots: [['SEC Network'], ['ACC Network'], ['Big Ten Network'], ['ESPNU']] },
   { id: 'ch-leagues', name: 'League channels', slots: [['NFL Network'], ['NBA TV'], ['NHL Network'], ['MLB Network']] },
   { id: 'ch-redzone', name: 'Sunday football', slots: [['NFL RedZone', 'RedZone'], ['CBS'], ['FOX'], ['NFL Network']] },
   { id: 'ch-news', name: 'News', slots: [['CNN'], ['Fox News'], ['MSNBC'], ['CNBC', 'NewsNation']] },
   { id: 'ch-business', name: 'Business', slots: [['CNBC'], ['Fox Business'], ['Bloomberg'], ['Yahoo Finance', 'CNN']] },
-  { id: 'ch-broadcast', name: 'Broadcast networks', slots: [['ABC'], ['CBS'], ['NBC'], ['FOX']] },
+  { id: 'ch-broadcast', name: 'Broadcast networks', slots: [['CBS'], ['FOX'], ['NBC'], ['ABC']] },
   { id: 'ch-kids', name: 'Kids', slots: [['Disney Channel', 'Disney'], ['Nickelodeon', 'Nick'], ['Cartoon Network'], ['Disney Junior', 'Nick Jr']] },
 ];
 
@@ -56,12 +59,15 @@ export function channelMixes(): Mix[] {
     const used = new Set<string>();
     const tiles: MvTile[] = [];
     for (const slot of m.slots) {
+      if (tiles.length === MIX_SIZE) break;
       const ch = channelFor(slot, lineup, used);
       if (!ch) continue;
       used.add(ch.key);
       tiles.push({ key: ch.key, title: ch.name });
     }
-    // Only offer a mix that fills at least 2 games from this lineup.
+    // Only offer a mix that fills both sides, and not one identical to a mix already offered.
+    const sig = tiles.map((t) => t.key).sort().join('|');
+    if (out.some((o) => o.tiles.map((t) => t.key).sort().join('|') === sig)) continue;
     if (tiles.length >= 2) out.push({ id: m.id, name: m.name, kind: 'channels', tiles, sub: tiles.map((t) => t.title).join(' · ') });
   }
   return out;
@@ -112,7 +118,7 @@ async function playableGames(): Promise<PlayableGame[]> {
   return out.sort(order);
 }
 
-/** Up to 4 games on different channels (two games on one event channel would show the same picture twice). */
+/** Up to 2 games on different channels (two games on one event channel would show the same picture twice). */
 function pick4(list: PlayableGame[]): PlayableGame[] {
   const seen = new Set<string>();
   const out: PlayableGame[] = [];
@@ -120,7 +126,7 @@ function pick4(list: PlayableGame[]): PlayableGame[] {
     if (seen.has(x.tile.key)) continue;
     seen.add(x.tile.key);
     out.push(x);
-    if (out.length === 4) break;
+    if (out.length === MIX_SIZE) break;
   }
   return out;
 }
@@ -159,14 +165,14 @@ export function myMixes(): Mix[] {
     const list = JSON.parse(localStorage.getItem(MINE_KEY) || '[]') as Mix[];
     const keys = new Set(getState().lineup.map((c) => c.key));
     // Channels that left the lineup drop out of a saved mix.
-    return list.map((m) => ({ ...m, kind: 'mine' as const, tiles: m.tiles.filter((t) => keys.has(t.key)) })).filter((m) => m.tiles.length);
+    return list.map((m) => ({ ...m, kind: 'mine' as const, tiles: m.tiles.filter((t) => keys.has(t.key)).slice(0, MIX_SIZE) })).filter((m) => m.tiles.length);
   } catch {
     return [];
   }
 }
 
 export function saveMix(name: string, tiles: MvTile[]): Mix {
-  const m: Mix = { id: `mine-${Date.now().toString(36)}`, name: name.trim() || 'My mix', kind: 'mine', tiles: tiles.slice(0, 4), sub: tiles.map((t) => t.title).join(' · ') };
+  const m: Mix = { id: `mine-${Date.now().toString(36)}`, name: name.trim() || 'My mix', kind: 'mine', tiles: tiles.slice(0, MIX_SIZE), sub: tiles.map((t) => t.title).join(' · ') };
   try {
     const list = JSON.parse(localStorage.getItem(MINE_KEY) || '[]') as Mix[];
     localStorage.setItem(MINE_KEY, JSON.stringify([m, ...list].slice(0, 20)));

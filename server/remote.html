@@ -216,7 +216,7 @@ function nowCard() {
   return el('div', { class: 'card now' },
     p && p.logo ? el('img', { src: p.logo, alt: '' }) : null,
     el('div', { class: 't' },
-      mv ? el('b', null, `Multiview · ${mv.tiles.slice(0, mv.layout).filter(Boolean).length} of ${mv.layout} games`)
+      mv ? el('b', null, `Dual view · ${mv.tiles.slice(0, 2).filter(Boolean).length} of 2 games`)
         : p ? el('b', null, `${p.number} · ${p.name}`) : el('b', null, state.online ? 'Nothing playing' : 'Open LTTV on the computer'),
       el('small', null, mv ? 'Sound: ' + ((mv.tiles[mv.active] && mv.tiles[mv.active].title) || '—') : p ? (p.now || (p.state === 'playing' ? 'Playing' : p.state)) : state.online ? 'Pick a game or channel below' : 'Keep LTTV open there and this phone on the same Wi-Fi')));
 }
@@ -250,21 +250,18 @@ function remoteTab() {
 
 function multiTab() {
   const mv = state.snap && state.snap.multiview;
-  const layout = mv ? mv.layout : 4;
+  const layout = 2;
   const tiles = Array.from({ length: layout }, (_, i) => (mv && mv.tiles[i]) || null);
   const grid = el('div', { class: 'grid l' + layout },
     ...tiles.map((t, i) => t
       ? el('button', { class: 'tile' + (mv && mv.active === i ? ' sound' : ''), onclick: () => tileSheet(i, t) },
-          el('span', { class: 'n' }, `Game ${i + 1}`), mv && mv.active === i ? el('span', { class: 'snd' }, '🔊 Sound') : null, el('b', null, t.title))
-      : el('button', { class: 'tile empty', onclick: () => pickFor(i) }, el('span', null, '＋'), el('small', null, `Add game ${i + 1}`))));
+          el('span', { class: 'n' }, i === 0 ? 'Left' : 'Right'), mv && mv.active === i ? el('span', { class: 'snd' }, '🔊 Sound') : null, el('b', null, t.title))
+      : el('button', { class: 'tile empty', onclick: () => pickFor(i) }, el('span', null, '＋'), el('small', null, `Add ${i === 0 ? 'left' : 'right'} game`))));
   return el('main', null,
-    el('div', { class: 'btns', style: 'align-items:center' },
-      el('span', { class: 'muted', style: 'font-size:14px' }, 'Games on screen:'),
-      ...[2, 3, 4].map((n) => el('button', { class: 'chip' + (layout === n ? ' on' : ''), onclick: () => act('mvLayout', { n }) }, String(n)))),
     grid,
     el('div', { class: 'btns' },
-      mv ? el('button', { class: 'btn', onclick: () => act('mvClose', null, 'Multiview closed') }, 'Close Multiview')
-        : el('button', { class: 'btn primary', onclick: () => act('mvOpen', null, 'Multiview open on the TV') }, 'Open Multiview on the TV')),
+      mv ? el('button', { class: 'btn', onclick: () => act('mvClose', null, 'Dual view closed') }, 'Close Dual view')
+        : el('button', { class: 'btn primary', onclick: () => act('mvOpen', null, 'Dual view open on the TV') }, 'Open Dual view on the TV')),
     el('p', { class: 'muted', style: 'font-size:14px' }, 'Tap an empty game to add one, or a playing game for sound, full screen or another game.'),
     mixesSection());
 }
@@ -288,14 +285,14 @@ function mixCard(m) {
     if (r && r.limit && r.loaded < m.tiles.length) toast(`Loaded ${r.loaded} of ${m.tiles.length}: your provider allows ${r.limit} at once.`);
     else if (r) toast(`${m.name} is on the TV`);
   } },
-    el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:4px' }, ...Array.from({ length: 4 }, (_, i) =>
+    el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:4px' }, ...Array.from({ length: 2 }, (_, i) =>
       el('span', { style: 'font-size:12px;padding:6px;border-radius:8px;background:#0005;min-height:34px;overflow:hidden;color:var(--muted)' }, (m.tiles[i] && m.tiles[i].title) || ''))),
     el('b', null, m.name), m.sub ? el('small', null, m.sub) : null);
 }
 
 function mixesSection() {
   const mx = state.mixes;
-  if (mx == null) return el('div', { style: 'margin-top:16px' }, el('button', { class: 'btn primary', style: 'width:100%', onclick: loadMixes }, 'Show mixes (ready-made sets of 4)'));
+  if (mx == null) return el('div', { style: 'margin-top:16px' }, el('button', { class: 'btn primary', style: 'width:100%', onclick: loadMixes }, 'Show mixes (ready-made pairs)'));
   if (mx === 'loading') return el('div', null, el('h2', null, 'Mixes'), el('div', { class: 'spin' }));
   const group = (title, list) => list && list.length ? [el('h2', null, title), el('div', { class: 'list' }, ...list.map(mixCard))] : [];
   const all = [...group('Game mixes', mx.games), ...group('Channel mixes', mx.channels), ...group('Your mixes', mx.mine)];
@@ -304,7 +301,7 @@ function mixesSection() {
 }
 
 function tileSheet(i, t) {
-  sheet(`Game ${i + 1}: ${t.title}`, [
+  sheet(`${i === 0 ? 'Left' : 'Right'}: ${t.title}`, [
     ['🔊  Sound from this game', () => act('mvSound', { tile: i })],
     ['⛶  Full screen on this game', () => act('mvFull', { tile: i })],
     ['↻  Change game', () => pickFor(i)],
@@ -332,22 +329,22 @@ function choose(ch, title) {
     const i = state.target;
     state.target = null;
     state.tab = 'multi';
-    act('mvSet', { tile: i, key: ch.key, title }, `Added to game ${i + 1}`);
+    act('mvSet', { tile: i, key: ch.key, title }, `Added on the ${i === 0 ? 'left' : 'right'}`);
     return;
   }
   const mv = state.snap && state.snap.multiview;
   const items = [['▶  Watch full screen', () => act('tune', { key: ch.key }, 'Playing on the TV')]];
-  const n = mv ? mv.layout : 4;
+  const n = 2;
   for (let i = 0; i < n; i++) {
     const cur = mv && mv.tiles[i];
-    items.push([`▦  Multiview game ${i + 1}${cur ? ` (replaces ${cur.title})` : ''}`, () => { state.tab = 'multi'; act('mvSet', { tile: i, key: ch.key, title }, `Added to game ${i + 1}`); }]);
+    items.push([`▦  Dual view ${i === 0 ? 'left' : 'right'}${cur ? ` (replaces ${cur.title})` : ''}`, () => { state.tab = 'multi'; act('mvSet', { tile: i, key: ch.key, title }, `Added on the ${i === 0 ? 'left' : 'right'}`); }]);
   }
   sheet(title, items);
 }
 
 function targetBanner() {
   if (state.target == null) return null;
-  return el('div', { class: 'banner' }, `Choosing for Multiview game ${state.target + 1}`, el('button', { class: 'btn small', onclick: () => { state.target = null; state.tab = 'multi'; render(); } }, 'Cancel'));
+  return el('div', { class: 'banner' }, `Choosing for Dual view ${state.target === 0 ? 'left' : 'right'}`, el('button', { class: 'btn small', onclick: () => { state.target = null; state.tab = 'multi'; render(); } }, 'Cancel'));
 }
 
 async function loadGames() {
@@ -436,7 +433,7 @@ function tabs() {
   const t = (id, label, ic, onOpen) => el('button', { class: state.tab === id ? 'on' : '', onclick: () => { state.tab = id; render(); onOpen && onOpen(); } }, icon(ic), label);
   return el('nav', { class: 'tabs' },
     t('remote', 'Remote', 'remote'),
-    t('multi', 'Multiview', 'multi', () => { if (state.mixes == null) loadMixes(); }),
+    t('multi', 'Dual view', 'multi', () => { if (state.mixes == null) loadMixes(); }),
     t('games', 'Games', 'trophy', () => { if (!state.games) loadGames(); }),
     t('channels', 'Channels', 'list', () => { if (!state.results) searchChannels(); }));
 }

@@ -1,4 +1,5 @@
-// Sports Multiview: up to four games at once, each in its own player (Fire TV: native tiles 0–3).
+// Sports Dual view: two games side by side, each in its own player (Fire TV: native tiles 0–1).
+// (The code still says "multiview"; the 3- and 4-game layouts were removed.)
 // Sound follows the selected tile; leaving goes full screen on that game.
 import { PlayerController } from './player';
 import { channelByKey, getState, player, playRequest, setState, tune } from './state';
@@ -25,6 +26,10 @@ export const TILE_COUNT = 4;
 const LAYOUT_KEY = 'lttvMvLayout';
 /** The layout used last time (asked again each time Multiview opens, with this one selected). */
 export function lastLayout(): MvLayout {
+  return 2;
+}
+/** (The old remembered 2/3/4 choice; unused since Dual view.) */
+export function rememberedLayout(): MvLayout {
   try {
     const n = Number(localStorage.getItem(LAYOUT_KEY));
     const lim = decoderLimit();
@@ -111,7 +116,7 @@ export function openMultiview(first?: MvTile) {
   // The main player stops: most providers allow only a few streams at once.
   player.stop();
   // Opens straight into 4 games (2 or 3 from a tile's options → Layout).
-  const mv: MultiviewState = { tiles: [t0, null, null, null], active: 0, layout: 4 };
+  const mv: MultiviewState = { tiles: [t0, null, null, null], active: 0, layout: 2 };
   setState({ fullscreen: false, currentKey: undefined });
   apply(mv);
   start(0, t0);
@@ -131,7 +136,8 @@ export function setTile(i: number, t: MvTile | null) {
 }
 
 /** Show 2, 3 or 4 games; games beyond the new count stop. */
-export function setLayout(layout: MvLayout) {
+export function setLayout(_want: MvLayout) {
+  const layout: MvLayout = 2; // Dual view only
   const mv = getState().multiview;
   if (!mv) return;
   try {
@@ -205,8 +211,8 @@ export function connectionLimit(keys: string[]): number | undefined {
  */
 export function loadMix(tiles: MvTile[]): { loaded: number; limit?: number } {
   const limit = connectionLimit(tiles.map((t) => t.key));
-  const use = tiles.slice(0, Math.max(1, Math.min(TILE_COUNT, limit ?? TILE_COUNT)));
-  const layout: MvLayout = use.length <= 2 ? 2 : use.length === 3 ? 3 : 4;
+  const use = tiles.slice(0, Math.max(1, Math.min(2, limit ?? 2)));
+  const layout: MvLayout = 2;
   if (!getState().multiview) {
     openMultiview(use[0]);
     setLayout(layout);
