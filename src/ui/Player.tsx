@@ -260,7 +260,7 @@ export function PlayerOverlay() {
             <Button small icon="rewind" onClick={() => skip(-1)} aria-label="Rewind 10 seconds">10s</Button>
             <Button small data-autofocus icon={status.state === 'paused' ? 'play' : 'pause'} onClick={() => { player.togglePause(); poke(); }} aria-label="Play/pause" />
             <Button small icon="ffwd" onClick={() => skip(1)} aria-label="Fast forward 10 seconds">10s</Button>
-            {watchingSports() && <Button small icon="multiview" class="mv-btn" onClick={() => openMultiview()}>Dual view</Button>}
+            {watchingSports() && <Button small icon="multiview" class="mv-btn" onClick={() => openMultiview()}>Multiview</Button>}
             {status.textTracks ? (
               <Button small class={`cc-btn ${settings.captions ? 'cc-on' : ''}`} aria-pressed={!!settings.captions} onClick={() => { const on = !settings.captions; void updateSettings({ captions: on }); player.setCaptions(on); poke(); }}>CC {settings.captions ? 'On' : 'Off'}</Button>
             ) : null}

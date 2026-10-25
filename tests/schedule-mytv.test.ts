@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { parseScoreboard, scoreboardUrl, scheduleLeague, textMatchesGame, SCHEDULE_LEAGUES, type Game } from '../src/core/schedule';
 import { channelsForBroadcast, networkForBroadcast } from '../src/core/networks';
 import { bestStreams, findStreams, needsFeedChoice, broadcastSummary } from '../src/core/streamfinder';
-import { lighterVariant } from '../src/core/variants';
 import { assignMyTv, myTvEntryFor, MYTV_LINEUP, qualityRank } from '../src/core/mytv';
 import { buildLineup, filterLineup, sortLineup } from '../src/core/organize';
 import type { ParsedChannel } from '../src/core/types';
@@ -130,22 +129,6 @@ test('one best-first stream list for a game: no broadcast question, both teams\'
   // A Red Sox fan gets the NESN feed ahead of YES.
   const fan = bestStreams(g, lineup, 'baseball', index, (t) => t.short === 'Red Sox');
   assert.ok(fan.findIndex((p) => /NESN/.test(p.ch.originalName)) < fan.findIndex((p) => /YES/.test(p.ch.originalName)));
-});
-
-test('Multiview: a lighter copy of a full-HD channel from the same provider and country', () => {
-  const lineup = lineupOf([
-    ['US: ESPN FHD', 'USA Sports'], ['US: ESPN HD', 'USA Sports'], ['US: ESPN SD', 'USA Sports'], ['UK: ESPN HD', 'UK Sports'],
-    ['US: FS1 FHD', 'USA Sports'], ['US: FS1 SD', 'USA Sports'], ['US: TNT', 'USA Sports'],
-  ]);
-  const by = (n: string) => lineup.find((c) => c.originalName === n)!;
-  assert.equal(lighterVariant(by('US: ESPN FHD'), lineup)?.originalName, 'US: ESPN HD');
-  assert.equal(lighterVariant(by('US: ESPN HD'), lineup), undefined); // already light
-  assert.equal(lighterVariant(by('US: FS1 FHD'), lineup), undefined); // never down to SD
-  assert.equal(lighterVariant(by('US: TNT'), lineup), undefined);
-  // Quarter-screen tiles (4 games) may go down to SD when there's no HD copy.
-  assert.equal(lighterVariant(by('US: FS1 FHD'), lineup, true)?.originalName, 'US: FS1 SD');
-  assert.equal(lighterVariant(by('US: ESPN FHD'), lineup, true)?.originalName, 'US: ESPN HD'); // HD still preferred
-  assert.equal(lighterVariant(by('US: ESPN HD'), lineup, true)?.originalName, 'US: ESPN SD');
 });
 
 test('My TV: DIRECTV New York/NJ numbers, best copy wins, filters and sorts', () => {

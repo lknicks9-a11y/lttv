@@ -193,7 +193,7 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
           <h1>Sports</h1>
           <p class="muted">Choose a league to see today’s games and the best channels for each one in your lineup.</p>
         </div>
-        <Button icon="multiview" onClick={() => openMultiview()}>Dual view</Button>
+        <Button icon="multiview" onClick={() => openMultiview()}>Multiview</Button>
       </header>
       <LeagueGrid onPick={onPick} />
     </section>
