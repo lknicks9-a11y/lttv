@@ -441,9 +441,9 @@ function sameKey(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-const REMOTE_COMMANDS = new Set(['key', 'text', 'state', 'search', 'sportsNow', 'games', 'tune', 'stop', 'navigate', 'mvOpen', 'mvSet', 'mvSound', 'mvLayout', 'mvFull', 'mvClose', 'mixes', 'mvMix']);
-/** Commands that look up today's schedule (several leagues) get longer to answer. */
-const SLOW_COMMANDS = new Set(['games', 'mixes']);
+const REMOTE_COMMANDS = new Set(['key', 'text', 'state', 'search', 'sportsNow', 'games', 'tune', 'stop', 'navigate', 'mvOpen', 'mvSet', 'mvSound', 'mvLayout', 'mvFull', 'mvClose']);
+/** Commands that look up today's schedule get longer to answer. */
+const SLOW_COMMANDS = new Set(['games']);
 
 /** The phone-facing server: only the remote page and its commands. */
 export function createRemoteServer() {

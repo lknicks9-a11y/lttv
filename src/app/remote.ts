@@ -3,8 +3,7 @@
 import { dispatchAppKey, type AppKey } from './nav';
 import { native, serverCaps } from './platform';
 import { getState, navigate, player, stopPlayback, tune, type Screen } from './state';
-import { closeMultiview, loadMix, openMultiview, setActiveTile, setLayout, setTile, type MvLayout, type MvTile } from './multiview';
-import { channelMixes, gameMixes, myMixes } from './mixes';
+import { closeMultiview, openMultiview, setActiveTile, setLayout, setTile, type MvLayout } from './multiview';
 import { loadGames } from './schedule';
 import { scheduleDay, scheduleLeague, SCHEDULE_LEAGUES, type ScheduleLeagueId } from '../core/schedule';
 import { bestStreams, buildGameIndexAsync } from '../core/streamfinder';
@@ -109,17 +108,6 @@ async function run(cmd: string, a: Args): Promise<unknown> {
     case 'mvClose':
       closeMultiview();
       return snapshot();
-    case 'mixes':
-      return { games: await gameMixes().catch(() => []), channels: channelMixes(), mine: myMixes() };
-    case 'mvMix': {
-      const tiles = (Array.isArray(a.tiles) ? a.tiles : []).slice(0, 4).map((t: { key?: unknown; title?: unknown }) => {
-        const ch = channel(String(t?.key));
-        return { key: ch.key, title: String(t?.title || ch.name) } as MvTile;
-      });
-      if (!tiles.length) throw new Error('That mix is empty.');
-      const r = loadMix(tiles);
-      return { ...snapshot(), loaded: r.loaded, limit: r.limit };
-    }
   }
   throw new Error('Unknown command');
 }

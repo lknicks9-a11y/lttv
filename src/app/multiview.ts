@@ -205,26 +205,3 @@ export function connectionLimit(keys: string[]): number | undefined {
   return limits.length ? Math.min(...limits) : undefined;
 }
 
-/**
- * Load a mix (up to 4 games/channels) into Multiview in one go. Never more than the provider allows at once:
- * a 4-game mix on a 2-stream plan loads the first 2.
- */
-export function loadMix(tiles: MvTile[]): { loaded: number; limit?: number } {
-  const limit = connectionLimit(tiles.map((t) => t.key));
-  const use = tiles.slice(0, Math.max(1, Math.min(2, limit ?? 2)));
-  const layout: MvLayout = 2;
-  if (!getState().multiview) {
-    openMultiview(use[0]);
-    setLayout(layout);
-    for (let i = 1; i < TILE_COUNT; i++) if (use[i]) setTile(i, use[i]);
-  } else {
-    setLayout(layout);
-    const cur = getState().multiview!.tiles;
-    for (let i = 0; i < TILE_COUNT; i++) {
-      const want = use[i] ?? null;
-      if ((cur[i]?.key ?? null) !== (want?.key ?? null)) setTile(i, want);
-    }
-  }
-  setActiveTile(0);
-  return { loaded: use.length, limit };
-}

@@ -1357,15 +1357,3 @@ small, .small { font-size: 1.15rem; }
 :root.tv[data-theme='autosix'] { --panel: #180a2e; --panel-2: #24103e; --panel-3: #3a1858; --focus: 0 0 0 0.16rem #fff4fb, 0 0 0 0.42rem #ff3d8b; }
 :root.tv[data-theme='autosix'] h1 { text-shadow: none; }
 :root.tv[data-theme='autosix'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #ff3d8b; }
-
-/* Multiview mixes */
-.mix-modal .modal-body, .mix-modal { max-height: 86vh; }
-.mix-head { margin: 0.6rem 0 0.5rem; font-size: 1.15rem; }
-.mix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.8rem; margin-bottom: 0.6rem; }
-.mix-card { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.7rem; border-radius: var(--radius); border: 0.15rem solid var(--line); background: var(--panel-2); color: var(--text); text-align: left; cursor: pointer; min-width: 0; }
-.mix-card:focus { border-color: var(--accent); box-shadow: 0 0 0 0.2rem var(--accent); }
-.mix-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; aspect-ratio: 16 / 9; }
-.mix-tile { display: flex; align-items: flex-end; padding: 0.25rem 0.35rem; border-radius: 0.3rem; background: #0006; font-size: 0.78rem; line-height: 1.15; overflow: hidden; color: var(--text-2, #ccc); }
-.mix-tile.empty { background: #0002; }
-.mix-name { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mix-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
