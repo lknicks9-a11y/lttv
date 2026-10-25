@@ -287,17 +287,28 @@ function feedNames(t: GameTeam): string[] {
   return [...out].sort((a, b) => b.length - a.length);
 }
 
+/** Leagues whose teams have their own channels in playlists. */
+const TEAM_FEED_LEAGUES = new Set(['nba', 'wnba', 'mlb', 'nhl']);
+const TEAM_GROUP_WORDS = / (team|teams|ppv|league pass|extra innings|center ice|feed|feeds|local|locals|regional|regionals|rsn|rsns|club|clubs) /;
+
+/**
+ * A channel that can be a team's own: in a team group of the league ("NBA Team PPV", "NBA Teams", "US | NHL Team Feeds",
+ * "MLB Extra Innings", "NBA League Pass"…), or named with the league ("NBA: Detroit Pistons", "US NHL Red Wings HD").
+ * The league is a whole word, so "WNBA Team PPV" isn't an NBA group.
+ */
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
-  const want = TEAM_PPV_GROUPS[league];
-  if (!want) return false;
-  const g = foldText(ch.group ?? '');
-  // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
-  return ` ${g} `.includes(` ${want} `);
+  if (!TEAM_FEED_LEAGUES.has(league)) return false;
+  const lw = ` ${league} `;
+  const g = ` ${foldText(ch.group ?? '')} `;
+  if (g.includes(lw) && TEAM_GROUP_WORDS.test(g)) return true;
+  // Event groups rename their channels game by game: a team name there isn't the team's own channel.
+  if (/ (event|events|ppv events|live events) /.test(g)) return false;
+  return ` ${foldText(ch.originalName)} `.includes(lw);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
 export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineup: LineupChannel[]): LineupChannel[] {
-  if (!TEAM_PPV_GROUPS[league]) return [];
+  if (!TEAM_FEED_LEAGUES.has(league)) return [];
   const m = teamFeedCache.get(lineup) ?? new Map<string, LineupChannel[]>();
   teamFeedCache.set(lineup, m);
   const key = `${league}|${t.name}|${other.name}`;
@@ -319,14 +330,14 @@ export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineu
   return out;
 }
 
-/** Each team's own broadcast for a game, from the league's Team PPV channels (NBA, WNBA, MLB, NHL only). */
+/** Each team's own channels for a game (NBA, WNBA, MLB, NHL), best quality first, up to 3 per team. */
 export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel }[] {
   const out: { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel }[] = [];
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
     const other = teamOfSide(game, side === 'home' ? 'away' : 'home');
-    const own = teamChannels(team, other, game.league, lineup)[0];
-    if (own) out.push({ side, team, ch: own });
+    // Up to 3 per team (playlists often carry a team in HD, SD and a backup); each is checked against tonight's guide.
+    for (const own of teamChannels(team, other, game.league, lineup).slice(0, 3)) out.push({ side, team, ch: own });
   }
   return out;
 }
@@ -342,28 +353,53 @@ const RSN_SCORE = 120;
 export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
   const picks = new Map<string, StreamPick>();
   for (const p of findStreams(game, lineup, { sport, index })) picks.set(p.ch.key, { ...p });
-  for (const t of teamBroadcasts(game, lineup)) {
-    // The team's own channel ("NBA: Charlotte Hornets") is its local feed too: right under the regional networks.
-    const score = RSN_SCORE - 3 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
-    const cur = picks.get(t.ch.key);
-    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
-  }
-  // Each team's regional sports network goes to the top. ESPN's local listing for this game first; the built-in
-  // team list fills in for a side ESPN doesn't list — unless the game is a national exclusive (national TV only).
+  // Every channel that is one of the teams' own — ESPN's local listing for this game, the built-in regional network
+  // list (unless the game is national-only), the team's own channels — is ranked as that team's channel, however it
+  // was found above (a guide listing, a network match…). Regional networks sit at the very top.
   const hasLocal = (side: 'home' | 'away') => game.broadcasts.some((b) => b.market === side);
   const nationalOnly = game.broadcasts.some((b) => b.market === 'national' && b.kind === 'tv') && !hasLocal('home') && !hasLocal('away');
-  for (const p of picks.values()) if (p.kind === 'local' && p.side && hasLocal(p.side)) p.score = RSN_SCORE + qualityRank(p.ch.originalName) + (p.side === 'home' ? 1 : 0);
-  if (!nationalOnly) {
-    for (const side of ['home', 'away'] as const) {
-      if (hasLocal(side)) continue;
-      const gt = teamOfSide(game, side);
-      const team = teamForGame(game.league, gt);
-      if (!team) continue;
-      for (const { ch, network } of rsnChannels(team.id, lineup)) {
-        const score = RSN_SCORE - 2 + qualityRank(ch.originalName) + (side === 'home' ? 1 : 0);
-        const cur = picks.get(ch.key);
-        if (!cur || cur.score < score) picks.set(ch.key, { ch, score, kind: 'local', side, broadcast: network, reason: `${network} · ${gt.short} regional network` });
-      }
+  const own = new Map<string, { ch: LineupChannel; side: 'home' | 'away'; network: string; rank: number }>();
+  const offer = (ch: LineupChannel, side: 'home' | 'away', network: string, rank: number) => {
+    const cur = own.get(ch.key);
+    if (!cur || cur.rank < rank) own.set(ch.key, { ch, side, network, rank });
+  };
+  for (const side of ['home', 'away'] as const) {
+    for (const b of game.broadcasts) {
+      if (b.market !== side) continue;
+      for (const { ch, fit } of channelsForBroadcast(b.name, lineup)) if (fit !== 'affiliate') offer(ch, side, b.name, 0);
+    }
+    if (nationalOnly) continue;
+    const team = teamForGame(game.league, teamOfSide(game, side));
+    if (team) for (const { ch, network } of rsnChannels(team.id, lineup)) offer(ch, side, network, -2);
+  }
+  for (const t of teamBroadcasts(game, lineup)) offer(t.ch, t.side, `${t.team.short} team channel`, -3);
+  for (const { ch, side, network, rank } of own.values()) {
+    picks.set(ch.key, {
+      ch,
+      score: RSN_SCORE + rank + qualityRank(ch.originalName) + (side === 'home' ? 1 : 0) + (ch.favorite ? 1 : 0),
+      kind: 'local',
+      side,
+      broadcast: network,
+      reason: `${network} · ${teamOfSide(game, side).short} ${rank === -3 ? 'channel' : 'regional network'}`,
+    });
+  }
+  // Is each team channel really showing this game tonight? Its guide 10 minutes into the game decides: the game
+  // (names either team) → the very top; something else → down the list (the game is elsewhere); no guide → kept.
+  const at = game.start + 10 * 60_000;
+  for (const p of picks.values()) {
+    if (p.kind !== 'local') continue;
+    const now = index.filter((e) => e.ch.key === p.ch.key && e.text !== e.ch.originalName && e.start <= at && e.stop > at);
+    if (!now.length) continue;
+    const showing = now.find((e) => {
+      const t = gameText(e.text);
+      return !t.other && (mentionsFolded(t.f, teamNames(game.home, sport)) || mentionsFolded(t.f, teamNames(game.away, sport)));
+    });
+    if (showing) {
+      p.score += 10;
+      p.reason = `${p.broadcast ?? 'Team channel'} · on tonight: ${showing.text}`;
+    } else {
+      p.score = 40;
+      p.reason = `${p.broadcast ?? 'Team channel'} · guide shows “${now[0].text}” then, not this game`;
     }
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;

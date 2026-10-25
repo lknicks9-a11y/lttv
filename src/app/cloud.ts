@@ -245,10 +245,43 @@ export async function loadProfile(): Promise<CloudProfile | null> {
 export async function saveProfile(data: Record<string, unknown>): Promise<void> {
   const s = currentSession();
   if (!s) return;
-  const r = await rest('lttv_profiles', {
+  const r = await rest('lttv_profiles?on_conflict=user_id', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ user_id: s.userId, data, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ user_id: s.userId, data, updated_at: new Date().toISOString() }, cleanForDb),
   });
-  if (!r.ok) throw new Error(`Couldn’t save to your account (HTTP ${r.status}).`);
+  if (!r.ok) {
+    // Say what the database objected to (PostgREST answers { message, code, hint }).
+    const j = (await r.json().catch(() => ({}))) as { message?: string; code?: string; hint?: string };
+    const why = j.message ? `: ${j.message}${j.code ? ` (${j.code})` : ''}` : '';
+    if (/column .* does not exist|could not find the .* column|PGRST204|42703/i.test(`${j.message} ${j.code}`)) {
+      throw new Error(`The account table is missing a column${why}. Run the SQL from docs/accounts.md again in Supabase.`);
+    }
+    throw new Error(`Couldn’t save to your account (HTTP ${r.status}${why}).`);
+  }
+}
+
+/**
+ * Text Postgres refuses to keep in a JSON column: the NUL character and half an emoji (a lone surrogate) — both turn up
+ * in IPTV channel / programme names and made the whole save fail with HTTP 400. Left out of what's saved.
+ */
+export function cleanForDb(_key: string, v: unknown): unknown {
+  if (typeof v !== 'string') return v;
+  // (A plain loop: older Fire TV web engines don't support every regex feature.)
+  let out = '';
+  for (let i = 0; i < v.length; i++) {
+    const c = v.charCodeAt(i);
+    if (c === 0) continue;
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const n = v.charCodeAt(i + 1);
+      if (n >= 0xdc00 && n <= 0xdfff) {
+        out += v[i] + v[i + 1];
+        i++;
+      }
+      continue;
+    }
+    if (c >= 0xdc00 && c <= 0xdfff) continue;
+    out += v[i];
+  }
+  return out;
 }

@@ -1357,17 +1357,5 @@ small, .small { font-size: 1.15rem; }
 :root.tv[data-theme='autosix'] { --panel: #180a2e; --panel-2: #24103e; --panel-3: #3a1858; --focus: 0 0 0 0.16rem #fff4fb, 0 0 0 0.42rem #ff3d8b; }
 :root.tv[data-theme='autosix'] h1 { text-shadow: none; }
 :root.tv[data-theme='autosix'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #ff3d8b; }
-
-/* Sports → Regional networks */
-.rsn-head { align-items: center; margin-bottom: 0.8rem; }
-.rsn-list { display: flex; flex-direction: column; gap: 0.4rem; }
-.rsn-row { display: grid; grid-template-columns: 2.6rem minmax(12rem, 1.2fr) minmax(12rem, 1.4fr) 11rem auto; align-items: center; gap: 0.9rem; padding: 0.5rem 0.8rem; border-radius: var(--radius-sm, 0.6rem); background: var(--panel-2); border: 1px solid var(--line); }
-.rsn-logo { width: 2.4rem; height: 2.4rem; object-fit: contain; }
-.rsn-team, .rsn-ch { display: flex; flex-direction: column; min-width: 0; }
-.rsn-ch { flex-direction: row; align-items: center; gap: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rsn-team b, .rsn-team small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rsn-status { font-size: 0.95rem; color: var(--text-2, #bbb); display: flex; align-items: center; gap: 0.3rem; }
-.rsn-status.live { color: #3ddc97; }
-.rsn-status.dead { color: #ff6b6b; }
 .sidebar-profile { margin-top: auto; }
 .sidebar-profile .avatar { box-shadow: 0 0 0 2px rgba(255,255,255,.25); }

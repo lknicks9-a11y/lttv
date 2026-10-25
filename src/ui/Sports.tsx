@@ -13,7 +13,6 @@ import { LeagueGames, TeamLogo } from './Games';
 import { BetsScreen, FantasyScreen } from './Fantasy';
 import { liveLeague } from '../core/livestats';
 import { openMultiview } from '../app/multiview';
-import { RsnScreen } from './RsnScreen';
 import { fallbackTeamLogo } from '../core/schedule';
 import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams, useLiveGames } from '../app/schedule';
 import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
@@ -115,7 +114,7 @@ function ListingRow({ l, now }: { l: TeamListing; now: number }) {
   );
 }
 
-export type SportsView = 'home' | 'teams' | 'rsn' | 'fantasy' | 'bets' | ScheduleLeagueId;
+export type SportsView = 'home' | 'teams' | 'fantasy' | 'bets' | ScheduleLeagueId;
 
 /** Sports: pick a league (or My Teams), then today's games, then the streams for a game. */
 export function SportsScreen() {
@@ -165,14 +164,14 @@ export function SportsScreen() {
   }, [view]);
 
   if (view === 'home' || view === 'fantasy' || view === 'bets') return <LeaguePicker onPick={setView} />;
-  const league = view === 'teams' || view === 'rsn' ? undefined : scheduleLeague(view);
+  const league = view === 'teams' ? undefined : scheduleLeague(view);
   const live = league ? liveLeague(league.id) : undefined;
   return (
     <section class="screen sports">
       <div class="row gap sports-crumbs" data-group="sports-crumbs">
         <Button small icon="back" onClick={() => setView('home')}>Sports</Button>
         {league && leagueLogo(league.id) && <img class="league-logo-sm" src={leagueLogo(league.id)} alt="" />}
-        <h1>{league ? league.name : view === 'rsn' ? 'Regional networks' : 'My Teams'}</h1>
+        <h1>{league ? league.name : 'My Teams'}</h1>
         {live && (
           <div class="chips compact league-tabs" data-group="league-tabs" role="tablist">
             {(live.fantasy === false ? (['games', 'bets'] as const) : (['games', 'fantasy', 'bets'] as const)).map((t) => (
@@ -181,7 +180,7 @@ export function SportsScreen() {
           </div>
         )}
       </div>
-      {view === 'rsn' ? <RsnScreen /> : view === 'teams' ? <MyTeams /> : live && tab === 'fantasy' && live.fantasy !== false ? <FantasyScreen key={`f-${live.id}`} league={live.id} /> : live && tab === 'bets' ? <BetsScreen key={`b-${live.id}`} league={live.id} /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
+      {view === 'teams' ? <MyTeams /> : live && tab === 'fantasy' && live.fantasy !== false ? <FantasyScreen key={`f-${live.id}`} league={live.id} /> : live && tab === 'bets' ? <BetsScreen key={`b-${live.id}`} league={live.id} /> : <LeagueGames key={view} leagueId={view as ScheduleLeagueId} />}
     </section>
   );
 }
@@ -194,10 +193,7 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
           <h1>Sports</h1>
           <p class="muted">Choose a league to see today’s games and the best channels for each one in your lineup.</p>
         </div>
-        <div class="row gap" data-group="sports-head-btns">
-          <Button icon="tv" onClick={() => onPick('rsn')}>Regional networks</Button>
-          <Button icon="multiview" onClick={() => openMultiview()}>Dual view</Button>
-        </div>
+        <Button icon="multiview" onClick={() => openMultiview()}>Dual view</Button>
       </header>
       <LeagueGrid onPick={onPick} />
     </section>

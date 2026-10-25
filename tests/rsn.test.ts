@@ -50,3 +50,25 @@ test('regional networks go to the top of a game, filled in from the team list wh
   assert.ok(!n.includes('US: Bally Sports Ohio'));
   assert.ok(!n.includes('US: ESPN Deportes'));
 });
+
+test('a team channel goes on top only when tonight\'s guide shows the game; otherwise the game is found elsewhere', () => {
+  const lineup = lineupOf(['US: FanDuel Sports Network Detroit HD', 'US: Bally Sports Ohio', 'NBA 03: Cavaliers @ Pistons']);
+  const det = lineup.find((c) => /Detroit/.test(c.originalName))!;
+  const ohio = lineup.find((c) => /Ohio/.test(c.originalName))!;
+  const evt = lineup.find((c) => /NBA 03/.test(c.originalName))!;
+  const start = Date.UTC(2026, 10, 1, 23, 0);
+  const g = { ...game('nba', team('Detroit Pistons', 'Pistons', 'DET'), team('Cleveland Cavaliers', 'Cavaliers', 'CLE'), [
+    { name: 'FDSN Detroit', market: 'home', kind: 'tv' }, { name: 'FDSN Ohio', market: 'away', kind: 'tv' },
+  ]), start } as Game;
+  const index = [
+    { ch: det, text: 'NBA Basketball: Cavaliers at Pistons', start: start - 30 * 60_000, stop: start + 3 * 3600_000, event: false },
+    { ch: ohio, text: 'Guardians Classics', start: start - 3600_000, stop: start + 2 * 3600_000, event: false },
+    { ch: evt, text: evt.originalName, start: start - 3600_000, stop: start + 5 * 3600_000, event: true },
+  ];
+  const list = bestStreams(g, lineup, 'basketball', index);
+  assert.equal(list[0].ch.key, det.key);
+  assert.match(list[0].reason, /on tonight/);
+  // Ohio's channel shows something else then: below the game's event channel.
+  assert.ok(list.findIndex((p) => p.ch.key === evt.key) < list.findIndex((p) => p.ch.key === ohio.key));
+  assert.match(list.find((p) => p.ch.key === ohio.key)!.reason, /not this game/);
+});
