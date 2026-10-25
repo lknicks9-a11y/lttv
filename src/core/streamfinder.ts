@@ -8,7 +8,6 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
-import { rsnChannels, teamForGame } from './rsn';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
@@ -287,28 +286,17 @@ function feedNames(t: GameTeam): string[] {
   return [...out].sort((a, b) => b.length - a.length);
 }
 
-/** Leagues whose teams have their own channels in playlists. */
-const TEAM_FEED_LEAGUES = new Set(['nba', 'wnba', 'mlb', 'nhl']);
-const TEAM_GROUP_WORDS = / (team|teams|ppv|league pass|extra innings|center ice|feed|feeds|local|locals|regional|regionals|rsn|rsns|club|clubs) /;
-
-/**
- * A channel that can be a team's own: in a team group of the league ("NBA Team PPV", "NBA Teams", "US | NHL Team Feeds",
- * "MLB Extra Innings", "NBA League Pass"…), or named with the league ("NBA: Detroit Pistons", "US NHL Red Wings HD").
- * The league is a whole word, so "WNBA Team PPV" isn't an NBA group.
- */
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
-  if (!TEAM_FEED_LEAGUES.has(league)) return false;
-  const lw = ` ${league} `;
-  const g = ` ${foldText(ch.group ?? '')} `;
-  if (g.includes(lw) && TEAM_GROUP_WORDS.test(g)) return true;
-  // Event groups rename their channels game by game: a team name there isn't the team's own channel.
-  if (/ (event|events|ppv events|live events) /.test(g)) return false;
-  return ` ${foldText(ch.originalName)} `.includes(lw);
+  const want = TEAM_PPV_GROUPS[league];
+  if (!want) return false;
+  const g = foldText(ch.group ?? '');
+  // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
+  return ` ${g} `.includes(` ${want} `);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
 export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineup: LineupChannel[]): LineupChannel[] {
-  if (!TEAM_FEED_LEAGUES.has(league)) return [];
+  if (!TEAM_PPV_GROUPS[league]) return [];
   const m = teamFeedCache.get(lineup) ?? new Map<string, LineupChannel[]>();
   teamFeedCache.set(lineup, m);
   const key = `${league}|${t.name}|${other.name}`;
@@ -330,14 +318,14 @@ export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineu
   return out;
 }
 
-/** Each team's own channels for a game (NBA, WNBA, MLB, NHL), best quality first, up to 3 per team. */
+/** Each team's own broadcast for a game, from the league's Team PPV channels (NBA, WNBA, MLB, NHL only). */
 export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel }[] {
   const out: { side: 'home' | 'away'; team: GameTeam; ch: LineupChannel }[] = [];
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
     const other = teamOfSide(game, side === 'home' ? 'away' : 'home');
-    // Up to 3 per team (playlists often carry a team in HD, SD and a backup); each is checked against tonight's guide.
-    for (const own of teamChannels(team, other, game.league, lineup).slice(0, 3)) out.push({ side, team, ch: own });
+    const own = teamChannels(team, other, game.league, lineup)[0];
+    if (own) out.push({ side, team, ch: own });
   }
   return out;
 }
@@ -347,74 +335,15 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
  * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
  * English-commentary channels only (Spanish-language feeds like ESPN Deportes / TUDN are left out).
  */
-/** Networks that no longer exist (FanDuel Sports Network / Bally Sports, shut down April 2026). */
-export function isDefunctNetwork(name: string | undefined): boolean {
-  return !!name && /\b(fan ?duel( sports| sn)?|bally sports|bally sn|fdsn)\b/i.test(name);
-}
-
-/** Regional sports networks rank above everything else in a game's list (event channels are ~100). */
-const RSN_SCORE = 120;
-
 export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
   const picks = new Map<string, StreamPick>();
   for (const p of findStreams(game, lineup, { sport, index })) picks.set(p.ch.key, { ...p });
-  // Every channel that is one of the teams' own — ESPN's local listing for this game, the built-in regional network
-  // list (unless the game is national-only), the team's own channels — is ranked as that team's channel, however it
-  // was found above (a guide listing, a network match…). Regional networks sit at the very top.
-  const hasLocal = (side: 'home' | 'away') => game.broadcasts.some((b) => b.market === side);
-  const nationalOnly = game.broadcasts.some((b) => b.market === 'national' && b.kind === 'tv') && !hasLocal('home') && !hasLocal('away');
-  const own = new Map<string, { ch: LineupChannel; side: 'home' | 'away'; network: string; rank: number }>();
-  const offer = (ch: LineupChannel, side: 'home' | 'away', network: string, rank: number) => {
-    const cur = own.get(ch.key);
-    if (!cur || cur.rank < rank) own.set(ch.key, { ch, side, network, rank });
-  };
-  for (const side of ['home', 'away'] as const) {
-    for (const b of game.broadcasts) {
-      if (b.market !== side) continue;
-      for (const { ch, fit } of channelsForBroadcast(b.name, lineup)) if (fit !== 'affiliate') offer(ch, side, b.name, 0);
-    }
-    if (nationalOnly) continue;
-    const team = teamForGame(game.league, teamOfSide(game, side));
-    if (team) for (const { ch, network } of rsnChannels(team.id, lineup)) offer(ch, side, network, -2);
-  }
-  for (const t of teamBroadcasts(game, lineup)) offer(t.ch, t.side, `${t.team.short} team channel`, -3);
-  for (const { ch, side, network, rank } of own.values()) {
-    picks.set(ch.key, {
-      ch,
-      score: RSN_SCORE + rank + qualityRank(ch.originalName) + (side === 'home' ? 1 : 0) + (ch.favorite ? 1 : 0),
-      kind: 'local',
-      side,
-      broadcast: network,
-      reason: `${network} · ${teamOfSide(game, side).short} ${rank === -3 ? 'channel' : 'regional network'}`,
-    });
-  }
-  // Is each channel really showing this game? Its guide decides — right now for a live game, 10 minutes into it for
-  // one still to come: the game (names either team) → up ("on now" / "on tonight"); something else → down the list
-  // (the game is elsewhere); no guide → kept as it is. Event channels are named for the game and guide picks already
-  // matched it, so this is for the teams' channels and the networks.
-  const live = game.state === 'in';
-  const at = live ? Math.max(Date.now(), game.start) : game.start + 10 * 60_000;
-  for (const p of picks.values()) {
-    if (p.kind !== 'local' && p.kind !== 'national') continue;
-    const now = index.filter((e) => e.ch.key === p.ch.key && e.text !== e.ch.originalName && e.start <= at && e.stop > at);
-    if (!now.length) continue;
-    const showing = now.find((e) => {
-      const t = gameText(e.text);
-      return !t.other && (mentionsFolded(t.f, teamNames(game.home, sport)) || mentionsFolded(t.f, teamNames(game.away, sport)));
-    });
-    const label = p.broadcast ?? (p.kind === 'local' ? 'Team channel' : 'Network');
-    if (showing) {
-      p.score += 10;
-      p.reason = `${label} · ${live ? 'on now' : 'on tonight'}: ${showing.text}`;
-    } else {
-      p.score = 40;
-      p.reason = `${label} · guide shows “${now[0].text}” ${live ? 'right now' : 'then'}, not this game`;
-    }
+  for (const t of teamBroadcasts(game, lineup)) {
+    const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
+    const cur = picks.get(t.ch.key);
+    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
-  // FanDuel Sports Network (ex-Bally Sports) shut down in April 2026: its channels in playlists are dead or show
-  // something else, so they're never offered for a game.
-  for (const [key, p] of picks) if (isDefunctNetwork(p.ch.originalName) || isDefunctNetwork(p.broadcast)) picks.delete(key);
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => isEnglishChannel(p.ch));

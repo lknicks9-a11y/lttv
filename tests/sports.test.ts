@@ -142,7 +142,7 @@ test('streaming-only games offer the provider\'s channels for that service until
 
 import { teamBroadcasts, teamChannels as teamFeedChannels } from '../src/core/streamfinder';
 
-test('team channels: the league\'s team groups (Team PPV, Teams, Team Feeds…) or named with the league, by team name', () => {
+test('team channels come only from the league\'s "Team PPV" group, by team name', () => {
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
   const hornets = t('Charlotte Hornets', 'Hornets', 'Charlotte', 'CHA') as never;
   const heat = t('Miami Heat', 'Heat', 'Miami', 'MIA') as never;
@@ -157,19 +157,7 @@ test('team channels: the league\'s team groups (Team PPV, Teams, Team Feeds…) 
     ch('e', 'Heat vs Hornets', 700, 'NBA Team PPV'),
   ];
   assert.deepEqual((teamFeedChannels(hornets, heat, 'nba', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
-  assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'home:Hornets:h2', 'away:Heat:m']);
-  // Other playlists' team groups and league-named channels count; NHL too.
-  const more = [
-    ch('a', 'Detroit Pistons HD', 601, 'US | NBA TEAMS'),
-    ch('b', 'NBA: Detroit Pistons', 602, 'USA Sports'),
-    ch('c', 'Detroit Pistons', 603, 'NBA League Pass'),
-    ch('d', 'Detroit Pistons', 604, 'Movies'),
-    ch('r', 'Detroit Red Wings', 605, 'NHL Team Feeds'),
-  ];
-  const pistons = t('Detroit Pistons', 'Pistons', 'Detroit', 'DET') as never;
-  const wings = t('Detroit Red Wings', 'Red Wings', 'Detroit', 'DET') as never;
-  assert.deepEqual((teamFeedChannels(pistons, heat, 'nba', more as never) as { key: string }[]).map((c) => c.key).sort(), ['a', 'b', 'c']);
-  assert.deepEqual((teamFeedChannels(wings, heat, 'nhl', more as never) as { key: string }[]).map((c) => c.key), ['r']);
+  assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
   // Other sports: no team broadcasts.
   assert.deepEqual(teamFeedChannels(hornets, heat, 'nfl', lineup as never), []);
 });
