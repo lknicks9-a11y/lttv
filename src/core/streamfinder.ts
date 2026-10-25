@@ -347,6 +347,11 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
  * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
  * English-commentary channels only (Spanish-language feeds like ESPN Deportes / TUDN are left out).
  */
+/** Networks that no longer exist (FanDuel Sports Network / Bally Sports, shut down April 2026). */
+export function isDefunctNetwork(name: string | undefined): boolean {
+  return !!name && /\b(fan ?duel( sports| sn)?|bally sports|bally sn|fdsn)\b/i.test(name);
+}
+
 /** Regional sports networks rank above everything else in a game's list (event channels are ~100). */
 const RSN_SCORE = 120;
 
@@ -383,26 +388,33 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
       reason: `${network} · ${teamOfSide(game, side).short} ${rank === -3 ? 'channel' : 'regional network'}`,
     });
   }
-  // Is each team channel really showing this game tonight? Its guide 10 minutes into the game decides: the game
-  // (names either team) → the very top; something else → down the list (the game is elsewhere); no guide → kept.
-  const at = game.start + 10 * 60_000;
+  // Is each channel really showing this game? Its guide decides — right now for a live game, 10 minutes into it for
+  // one still to come: the game (names either team) → up ("on now" / "on tonight"); something else → down the list
+  // (the game is elsewhere); no guide → kept as it is. Event channels are named for the game and guide picks already
+  // matched it, so this is for the teams' channels and the networks.
+  const live = game.state === 'in';
+  const at = live ? Math.max(Date.now(), game.start) : game.start + 10 * 60_000;
   for (const p of picks.values()) {
-    if (p.kind !== 'local') continue;
+    if (p.kind !== 'local' && p.kind !== 'national') continue;
     const now = index.filter((e) => e.ch.key === p.ch.key && e.text !== e.ch.originalName && e.start <= at && e.stop > at);
     if (!now.length) continue;
     const showing = now.find((e) => {
       const t = gameText(e.text);
       return !t.other && (mentionsFolded(t.f, teamNames(game.home, sport)) || mentionsFolded(t.f, teamNames(game.away, sport)));
     });
+    const label = p.broadcast ?? (p.kind === 'local' ? 'Team channel' : 'Network');
     if (showing) {
       p.score += 10;
-      p.reason = `${p.broadcast ?? 'Team channel'} · on tonight: ${showing.text}`;
+      p.reason = `${label} · ${live ? 'on now' : 'on tonight'}: ${showing.text}`;
     } else {
       p.score = 40;
-      p.reason = `${p.broadcast ?? 'Team channel'} · guide shows “${now[0].text}” then, not this game`;
+      p.reason = `${label} · guide shows “${now[0].text}” ${live ? 'right now' : 'then'}, not this game`;
     }
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
+  // FanDuel Sports Network (ex-Bally Sports) shut down in April 2026: its channels in playlists are dead or show
+  // something else, so they're never offered for a game.
+  for (const [key, p] of picks) if (isDefunctNetwork(p.ch.originalName) || isDefunctNetwork(p.broadcast)) picks.delete(key);
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => isEnglishChannel(p.ch));
