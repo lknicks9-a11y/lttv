@@ -441,7 +441,9 @@ function sameKey(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-const REMOTE_COMMANDS = new Set(['key', 'text', 'state', 'search', 'sportsNow', 'games', 'tune', 'stop', 'navigate', 'mvOpen', 'mvSet', 'mvSound', 'mvLayout', 'mvFull', 'mvClose']);
+const REMOTE_COMMANDS = new Set(['key', 'text', 'state', 'search', 'sportsNow', 'games', 'tune', 'stop', 'navigate', 'mvOpen', 'mvSet', 'mvSound', 'mvLayout', 'mvFull', 'mvClose', 'mixes', 'mvMix']);
+/** Commands that look up today's schedule (several leagues) get longer to answer. */
+const SLOW_COMMANDS = new Set(['games', 'mixes']);
 
 /** The phone-facing server: only the remote page and its commands. */
 export function createRemoteServer() {
@@ -472,7 +474,7 @@ export function createRemoteServer() {
         if (!sameKey(req.headers['x-lttv-key'], remote.token)) return sendJson(res, 401, { error: 'Not paired. Scan the code in LTTV on the computer again.' });
         const b = await readJson(req);
         if (!REMOTE_COMMANDS.has(b.cmd)) return sendJson(res, 400, { error: 'Unknown command' });
-        return sendJson(res, 200, { result: await relay(b.cmd, b.args) });
+        return sendJson(res, 200, { result: await relay(b.cmd, b.args, SLOW_COMMANDS.has(b.cmd) ? 30_000 : 8000) });
       }
       sendJson(res, 404, { error: 'Not found' });
     } catch (e) {

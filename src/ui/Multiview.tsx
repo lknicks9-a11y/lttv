@@ -5,12 +5,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { toast, useApp } from '../app/state';
 import { native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
-import { closeMultiview, connectionLimit, isLimitError, providerUsage, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
+import { closeMultiview, connectionLimit, loadMix, isLimitError, providerUsage, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
 import { LeagueGrid } from './Sports';
 import { LeagueGames } from './Games';
+import { channelMixes, deleteMix, gameMixes, myMixes, saveMix, type Mix } from '../app/mixes';
 
 function TileVideo({ ctl }: { ctl: PlayerController }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -134,6 +135,82 @@ function GamePicker({ onPick, onClose }: { onPick: (t: MvTile) => void; onClose:
   );
 }
 
+function MixCard({ m, onPick, onDelete }: { m: Mix; onPick: (m: Mix) => void; onDelete?: () => void }) {
+  return (
+    <button type="button" class="f mix-card" onClick={() => onPick(m)} onKeyDown={(e) => { if (onDelete && (e.key === 'Delete' || e.key === 'ContextMenu')) { e.preventDefault(); onDelete(); } }}>
+      <span class="mix-tiles" aria-hidden="true">
+        {Array.from({ length: 4 }, (_, i) => <span class={`mix-tile ${m.tiles[i] ? '' : 'empty'}`}>{m.tiles[i]?.title ?? ''}</span>)}
+      </span>
+      <b class="mix-name">{m.name}</b>
+      {m.sub && <small class="muted mix-sub">{m.sub}</small>}
+    </button>
+  );
+}
+
+/** DIRECTV-style mixes: today's games (live now, each league, your teams), channel sets, and your saved mixes. */
+function MixPicker({ onPick, onClose }: { onPick: (m: Mix) => void; onClose: () => void }) {
+  const [games, setGames] = useState<Mix[] | null>(null);
+  const [mine, setMine] = useState(() => myMixes());
+  const channels = useState(() => channelMixes())[0];
+  useEffect(() => {
+    let alive = true;
+    gameMixes().then((g) => alive && setGames(g), () => alive && setGames([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <Modal title="Multiview mixes" onClose={onClose} wide class="mix-modal">
+      <h3 class="mix-head">Games</h3>
+      {games === null ? (
+        <p class="muted row gap"><span class="spinner" /> Finding today’s games in your lineup…</p>
+      ) : games.length ? (
+        <div class="mix-grid" data-group="mix-games">{games.map((m) => <MixCard m={m} onPick={onPick} />)}</div>
+      ) : (
+        <p class="muted">No games with a stream in your lineup right now.</p>
+      )}
+      {channels.length > 0 && (
+        <>
+          <h3 class="mix-head">Channels</h3>
+          <div class="mix-grid" data-group="mix-channels">{channels.map((m) => <MixCard m={m} onPick={onPick} />)}</div>
+        </>
+      )}
+      {mine.length > 0 && (
+        <>
+          <h3 class="mix-head">Your mixes <small class="muted">(Menu on one to delete it)</small></h3>
+          <div class="mix-grid" data-group="mix-mine">{mine.map((m) => <MixCard m={m} onPick={onPick} onDelete={() => { deleteMix(m.id); setMine(myMixes()); }} />)}</div>
+        </>
+      )}
+      <div class="row gap modal-actions">
+        <Button data-autofocus={games !== null && !games.length ? '' : undefined} icon="add" onClick={onClose}>Build my own</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function SaveMix({ tiles, onClose }: { tiles: MvTile[]; onClose: () => void }) {
+  const [name, setName] = useState('');
+  return (
+    <Modal title="Save as a mix" onClose={onClose}>
+      {tiles.length ? (
+        <>
+          <p class="muted">{tiles.map((t) => t.title).join(' · ')}</p>
+          <label class="field">
+            <span>Name</span>
+            <input class="f input" data-autofocus maxLength={30} value={name} placeholder="e.g. Sunday games" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
+          </label>
+          <div class="row gap modal-actions">
+            <Button variant="primary" icon="check" onClick={() => { const m = saveMix(name, tiles); toast(`Saved “${m.name}” — it’s under Mixes.`, 'success'); onClose(); }}>Save</Button>
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          </div>
+        </>
+      ) : (
+        <p class="muted">Add a game first, then save the set as a mix.</p>
+      )}
+    </Modal>
+  );
+}
+
 const LAYOUTS: { n: MvLayout; label: string }[] = [
   { n: 2, label: '2 games' },
   { n: 3, label: '3 games' },
@@ -235,6 +312,9 @@ export function MultiviewScreen() {
   const [adding, setAdding] = useState<number | null>(null);
   const [options, setOptions] = useState<number | null>(null);
   const [info, setInfo] = useState(false);
+  // Mixes (ready-made sets of 4): offered straight away when Multiview opens empty.
+  const [mixing, setMixing] = useState(() => mv.tiles.every((t) => !t));
+  const [saving, setSaving] = useState(false);
   // Asked each time Multiview opens (the last choice is selected); also from a tile's options.
   // The layout picker opens only from a tile's options (Multiview starts with 4 games).
   const [choosing, setChoosing] = useState(false);
@@ -259,7 +339,7 @@ export function MultiviewScreen() {
     requestAnimationFrame(() => focusFirst(rootRef.current));
   }, []);
   useEffect(() => {
-    if (adding !== null || options !== null || choosing || info) return;
+    if (adding !== null || options !== null || choosing || info || mixing || saving) return;
     const offBack = onBack(() => {
       closeMultiview();
       return true;
@@ -276,7 +356,7 @@ export function MultiviewScreen() {
       offBack();
       offKeys();
     };
-  }, [adding, options, choosing, info, mv]);
+  }, [adding, options, choosing, info, mixing, saving, mv]);
 
   const keys = mv.tiles.filter((t): t is MvTile => !!t).map((t) => t.key);
   const limit = connectionLimit(keys);
@@ -294,6 +374,21 @@ export function MultiviewScreen() {
       )}
       <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (layout, full screen) · Back: full screen on the highlighted game</div>
       {info && <StreamInfo titles={mv.tiles.map((t) => t?.title)} onClose={() => setInfo(false)} />}
+      {mixing && (
+        <MixPicker
+          onClose={() => {
+            setMixing(false);
+            requestAnimationFrame(() => focusFirst(rootRef.current));
+          }}
+          onPick={(m) => {
+            const r = loadMix(m.tiles);
+            setMixing(false);
+            if (r.limit && r.loaded < m.tiles.length) toast(`Loaded ${r.loaded} of ${m.tiles.length}: your provider allows ${r.limit} stream${r.limit === 1 ? '' : 's'} at once.`, 'info', 8000);
+            requestAnimationFrame(() => focusFirst(rootRef.current));
+          }}
+        />
+      )}
+      {saving && <SaveMix tiles={mv.tiles.slice(0, mv.layout).filter((t): t is MvTile => !!t)} onClose={() => setSaving(false)} />}
       {choosing && (
         <LayoutPicker
           current={mv.layout}
@@ -323,6 +418,8 @@ export function MultiviewScreen() {
             <Button variant="primary" icon="fullscreen" data-autofocus onClick={() => { const i = options; setOptions(null); closeMultiview(i); }}>Full screen</Button>
             <Button icon="refresh" onClick={() => { const i = options; setOptions(null); setAdding(i); }}>Change game</Button>
             <Button icon="multiview" onClick={() => { setOptions(null); setChoosing(true); }}>Layout</Button>
+            <Button icon="multiview" onClick={() => { setOptions(null); setMixing(true); }}>Mixes</Button>
+            <Button icon="star" onClick={() => { setOptions(null); setSaving(true); }}>Save as mix</Button>
             <Button icon="info" onClick={() => { setOptions(null); setInfo(true); }}>Stream info</Button>
             <Button icon="close" onClick={() => { setTile(options, null); setOptions(null); }}>Remove</Button>
           </div>

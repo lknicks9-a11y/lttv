@@ -115,7 +115,7 @@ if (fromUrl) {
   history.replaceState(null, '', location.pathname); // the key doesn't stay in the address bar
 }
 
-const state = { tab: 'remote', snap: null, online: false, league: 'nfl', target: null, games: null, leagues: null, results: null, q: '' };
+const state = { tab: 'remote', snap: null, online: false, league: 'nfl', target: null, games: null, leagues: null, results: null, q: '', mixes: null };
 
 // ---------- tiny DOM helpers (all text goes through textContent) ----------
 function el(tag, props, ...kids) {
@@ -265,7 +265,42 @@ function multiTab() {
     el('div', { class: 'btns' },
       mv ? el('button', { class: 'btn', onclick: () => act('mvClose', null, 'Multiview closed') }, 'Close Multiview')
         : el('button', { class: 'btn primary', onclick: () => act('mvOpen', null, 'Multiview open on the TV') }, 'Open Multiview on the TV')),
-    el('p', { class: 'muted', style: 'font-size:14px' }, 'Tap an empty game to add one, or a playing game for sound, full screen or another game.'));
+    el('p', { class: 'muted', style: 'font-size:14px' }, 'Tap an empty game to add one, or a playing game for sound, full screen or another game.'),
+    mixesSection());
+}
+
+// ---------- mixes (ready-made sets of 4) ----------
+async function loadMixes() {
+  state.mixes = 'loading';
+  render();
+  try {
+    state.mixes = await cmd('mixes');
+  } catch (e) {
+    state.mixes = null;
+    toast(e.message, true);
+  }
+  render();
+}
+
+function mixCard(m) {
+  return el('button', { class: 'row', style: 'flex-direction:column;align-items:stretch;gap:6px', onclick: async () => {
+    const r = await act('mvMix', { tiles: m.tiles });
+    if (r && r.limit && r.loaded < m.tiles.length) toast(`Loaded ${r.loaded} of ${m.tiles.length}: your provider allows ${r.limit} at once.`);
+    else if (r) toast(`${m.name} is on the TV`);
+  } },
+    el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:4px' }, ...Array.from({ length: 4 }, (_, i) =>
+      el('span', { style: 'font-size:12px;padding:6px;border-radius:8px;background:#0005;min-height:34px;overflow:hidden;color:var(--muted)' }, (m.tiles[i] && m.tiles[i].title) || ''))),
+    el('b', null, m.name), m.sub ? el('small', null, m.sub) : null);
+}
+
+function mixesSection() {
+  const mx = state.mixes;
+  if (mx == null) return el('div', { style: 'margin-top:16px' }, el('button', { class: 'btn primary', style: 'width:100%', onclick: loadMixes }, 'Show mixes (ready-made sets of 4)'));
+  if (mx === 'loading') return el('div', null, el('h2', null, 'Mixes'), el('div', { class: 'spin' }));
+  const group = (title, list) => list && list.length ? [el('h2', null, title), el('div', { class: 'list' }, ...list.map(mixCard))] : [];
+  const all = [...group('Game mixes', mx.games), ...group('Channel mixes', mx.channels), ...group('Your mixes', mx.mine)];
+  return el('div', null, ...(all.length ? all : [el('div', { class: 'empty-msg' }, 'No mixes right now.')]),
+    el('button', { class: 'btn', style: 'width:100%;margin-top:10px', onclick: loadMixes }, 'Refresh mixes'));
 }
 
 function tileSheet(i, t) {
@@ -401,7 +436,7 @@ function tabs() {
   const t = (id, label, ic, onOpen) => el('button', { class: state.tab === id ? 'on' : '', onclick: () => { state.tab = id; render(); onOpen && onOpen(); } }, icon(ic), label);
   return el('nav', { class: 'tabs' },
     t('remote', 'Remote', 'remote'),
-    t('multi', 'Multiview', 'multi'),
+    t('multi', 'Multiview', 'multi', () => { if (state.mixes == null) loadMixes(); }),
     t('games', 'Games', 'trophy', () => { if (!state.games) loadGames(); }),
     t('channels', 'Channels', 'list', () => { if (!state.results) searchChannels(); }));
 }
