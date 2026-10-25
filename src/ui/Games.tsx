@@ -165,7 +165,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 
 /** The best streams for a game, best first (event channels, team channels, networks), from the user's lineup. */
 /** How many of a game's top streams are checked for being on the air. */
-const CHECK_TOP = 6;
+const CHECK_TOP = 4;
 
 export function WatchGame({ game, index, onClose, onPick }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler }) {
   const lineup = useApp((s) => s.lineup);

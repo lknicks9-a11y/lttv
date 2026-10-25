@@ -14,6 +14,7 @@ import { LogoMark, Wordmark } from './Logo';
 import { LiveTeamBanner } from './Sports';
 import { SetupServerModal } from './PhoneSetup';
 import { native } from '../app/platform';
+import { providerUsage } from '../app/multiview';
 import { currentAccount, listAccounts } from '../app/accounts';
 
 /** Tabs: one per country in the playlists (most channels first, United States first), then "Other". */
@@ -329,6 +330,7 @@ export function PlayerBadge({ status }: { status: ReturnType<typeof usePlayerSta
         <Icon name="warn" size="2.5rem" />
         <span>Can’t play this channel</span>
         <small>{status.error}</small>
+        {status.key && /\b(401|403)\b|access denied/i.test(status.error ?? '') && <ProviderUsageNote channelKey={status.key} />}
         <Button small icon="refresh" onClick={() => player.reload()}>Retry</Button>
       </div>
     );
@@ -372,5 +374,25 @@ function ImportBusy() {
       ) : null}
       <p class="hint">This can take a minute or two for a big provider. Keep the app open.</p>
     </div>
+  );
+}
+
+/** After an "access denied": what the provider says about the plan's streams right now (Xtream logins). */
+function ProviderUsageNote({ channelKey }: { channelKey: string }) {
+  const [u, setU] = useState<{ max?: number; active?: number } | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    void providerUsage(channelKey).then((v) => alive && setU(v));
+    return () => {
+      alive = false;
+    };
+  }, [channelKey]);
+  if (!u || u.max === undefined) return null;
+  const full = u.active !== undefined && u.active >= u.max;
+  return (
+    <small>
+      Your provider: {u.max} stream{u.max === 1 ? '' : 's'} allowed, {u.active ?? '?'} in use right now
+      {full ? ' — that’s the limit. Stop another device on your login (or a Multiview game), then press Retry.' : ' — not the limit, so the provider is refusing this channel or this player.'}
+    </small>
   );
 }

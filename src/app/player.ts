@@ -618,6 +618,45 @@ function applyHoles() {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Player identities (computer only). Many IPTV providers refuse streams to anything that looks like a web browser
+// (the computer helper's default) but accept Android / VLC players — the same channel plays on the Fire TV and
+// says "access denied (403)" on the computer. On a 401/403 the player tries these, and remembers what works.
+
+const STREAM_IDENTITIES: (string | undefined)[] = [
+  undefined, // the helper's default
+  'LTTV/1.1 (Android TV; ExoPlayer)', // what the Fire TV app sends
+  'VLC/3.0.20 LibVLC/3.0.20',
+  'okhttp/4.12.0',
+];
+const UA_KEY = 'lttvStreamUa';
+function hostOfUrl(u: string): string {
+  try {
+    return new URL(u).host;
+  } catch {
+    return '';
+  }
+}
+function rememberedUa(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(UA_KEY) || '{}') as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+function rememberUa(host: string, i: number) {
+  if (!host) return;
+  try {
+    const m = rememberedUa();
+    if (i) m[host] = i;
+    else delete m[host];
+    localStorage.setItem(UA_KEY, JSON.stringify(m));
+  } catch {
+    /* not remembered */
+  }
+}
+const accessDenied = (e: string | undefined) => /\b(401|403)\b|access denied/i.test(e ?? '');
+
 export class PlayerController {
   private backend: Backend;
   private listeners = new Set<Listener>();
@@ -627,6 +666,8 @@ export class PlayerController {
   /** Index into [req.url, ...req.alternates] currently playing. */
   private urlIndex = 0;
   private workingIndex: number | undefined;
+  /** Index into STREAM_IDENTITIES (computer only; a channel with its own User-Agent keeps it). */
+  private uaIndex = 0;
   private retryTimer: number | undefined;
   private stallTimer: number | undefined;
   private lastPos = -1;
@@ -669,7 +710,13 @@ export class PlayerController {
   /** The request for the URL variant currently being tried (same key, so the backend treats it as one channel). */
   private variant(req: PlayRequest): PlayRequest {
     const list = this.urls(req);
-    return { ...req, url: list[this.urlIndex % list.length] };
+    const url = list[this.urlIndex % list.length];
+    const ua = native || this.ownUa(req) ? undefined : STREAM_IDENTITIES[this.uaIndex];
+    return { ...req, url, ...(ua ? { headers: { ...(req.headers ?? {}), 'User-Agent': ua } } : {}) };
+  }
+
+  private ownUa(req: PlayRequest): boolean {
+    return Object.keys(req.headers ?? {}).some((k) => k.toLowerCase() === 'user-agent');
   }
 
   private onBackendStatus(s: Partial<PlayerStatus>) {
@@ -686,6 +733,14 @@ export class PlayerController {
     if (s.state === 'error') {
       const req = this.req;
       const list = this.urls(req);
+      // Refused (401/403) on the computer: try the next player identity right away before anything else.
+      if (!native && !this.ownUa(req) && accessDenied(s.error) && this.uaIndex < STREAM_IDENTITIES.length - 1) {
+        this.uaIndex++;
+        this.set({ ...s, state: 'retrying', error: 'The provider refused this player — trying another player identity…', attempt: this.attempt, maxAttempts: this.getSettings().playbackRetries });
+        window.clearTimeout(this.retryTimer);
+        this.retryTimer = window.setTimeout(() => this.req === req && this.backend.load(this.variant(req), this.attempt), 200);
+        return;
+      }
       // First try the channel's other formats straight away (also for "unsupported format").
       if (this.urlIndex < list.length - 1) {
         this.urlIndex++;
@@ -695,7 +750,10 @@ export class PlayerController {
         return;
       }
       const max = this.getSettings().playbackRetries;
-      if (this.attempt < max && !s.noRetry) {
+      // Still refused with every player identity: stop. Retrying a refusal only keeps a provider's block going
+      // (many temporarily ban a login or address that keeps knocking).
+      const refused = accessDenied(s.error);
+      if (this.attempt < max && !s.noRetry && !refused) {
         this.attempt++;
         if (list.length > 1) this.urlIndex = this.workingIndex ?? 0;
         const delay = Math.min(8000, 1000 * 2 ** (this.attempt - 1));
@@ -708,6 +766,7 @@ export class PlayerController {
       return;
     }
     if (s.state === 'playing') {
+      if (!native && !this.ownUa(this.req)) rememberUa(hostOfUrl(this.req.url), this.uaIndex);
       if (this.workingIndex !== this.urlIndex) {
         this.workingIndex = this.urlIndex;
         this.req.onWorking?.(this.variant(this.req).url);
@@ -742,6 +801,8 @@ export class PlayerController {
     this.attempt = 0;
     this.urlIndex = 0;
     this.workingIndex = undefined;
+    // Start with the identity that worked for this provider before (computer only).
+    this.uaIndex = native ? 0 : Math.min(rememberedUa()[hostOfUrl(req.url)] ?? 0, STREAM_IDENTITIES.length - 1);
     this.lastPos = -1;
     this.lastProgressAt = Date.now();
     this.set({ state: 'loading', key: req.key, error: undefined, attempt: undefined, noRetry: undefined, videoWidth: undefined, videoHeight: undefined, textTracks: undefined });
