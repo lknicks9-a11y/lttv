@@ -97,8 +97,7 @@ class PlayerController(
     private var currentUrl: String? = null
     private var hasRendered = false
     private var size: VideoSize = VideoSize.UNKNOWN
-    /** Read by a tile's video renderer on the playback thread (muted tiles skip frames nothing depends on). */
-    @Volatile private var volume = 1f
+    private var volume = 1f
 
     // ---- live rewind ----
     /** Minutes of a raw MPEG-TS channel kept on the device for pausing / rewinding (0 = off). */
@@ -211,42 +210,7 @@ class PlayerController(
         }
     }
 
-    // ---- Multiview: smooth first, lighter only while a tile can't keep up ----
-    /** 0 = every frame; 1 = skip frames nothing depends on; 2 = also at most ~30 fps. Muted tiles only. */
-    @Volatile private var lightLevel = 0
-    private var lastDropped = 0
-    private var lastRendered = 0
-    private var calmTicks = 0
-    /** How long (2 s ticks) a tile must play cleanly before trying a smoother level again; doubles after each failed try. */
-    private var calmNeeded = 5
-
-    private val adaptLight = object : Runnable {
-        override fun run() {
-            main.postDelayed(this, 2000)
-            val c = exo?.videoDecoderCounters ?: return
-            c.ensureUpdated()
-            val dropped = c.droppedBufferCount - lastDropped
-            val rendered = c.renderedOutputBufferCount - lastRendered
-            lastDropped = c.droppedBufferCount
-            lastRendered = c.renderedOutputBufferCount
-            if (currentUrl == null || exo?.isPlaying != true) return
-            // Falling behind: more than a few late frames in 2 s (a smooth tile drops none).
-            if (dropped > maxOf(3, rendered / 25)) {
-                calmTicks = 0
-                if (lightLevel < 2 && volume == 0f) {
-                    lightLevel++
-                    calmNeeded = (calmNeeded * 2).coerceAtMost(60)
-                }
-            } else if (lightLevel > 0 && ++calmTicks >= calmNeeded) {
-                // Played cleanly for a while: try one step smoother.
-                lightLevel--
-                calmTicks = 0
-            }
-        }
-    }
-
     init {
-        if (!audioFocus) main.postDelayed(adaptLight, 2000)
         view.addOnLayoutChangeListener { _, l, t, rr, b, ol, ot, or2, ob -> if (rr - l != or2 - ol || b - t != ob - ot) applySdFrame() }
         // Only the main player reports its live-rewind position (Multiview tiles are plain live).
         if (audioFocus) main.postDelayed(liveTicker, 1000)
@@ -270,9 +234,7 @@ class PlayerController(
         // Multiview tiles: hardware video decoders only. When the TV ran out of hardware decoders, a tile
         // quietly fell back to software decoding on the TV's small CPU, and every game (and the remote) lagged.
         // Tiles may still try every hardware decoder the TV lists (not just the first).
-        // Tiles: full frame rate; a muted tile that falls behind steps down (see TileRenderers / adaptLight).
-        val renderers = (if (audioFocus) DefaultRenderersFactory(activity) else TileRenderersFactory(activity) { if (volume == 0f) lightLevel else 0 })
-            .setEnableDecoderFallback(true)
+        val renderers = DefaultRenderersFactory(activity).setEnableDecoderFallback(true)
         if (!audioFocus) {
             renderers.setMediaCodecSelector { mime, secure, tunneling ->
                 val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
@@ -330,8 +292,6 @@ class PlayerController(
             .put("decoder", decoderName)
             .put("format", videoFormat)
             .put("dropped", droppedFrames)
-            .put("skipped", p?.videoDecoderCounters?.skippedInputBufferCount ?: 0)
-            .put("light", lightLevel)
             .put("bufferedMs", p?.totalBufferedDuration ?: 0L)
             .put("audio", volume > 0f)
             .put("error", lastError)
@@ -459,7 +419,6 @@ class PlayerController(
             size = VideoSize.UNKNOWN
             view.setPadding(0, 0, 0, 0)
             droppedFrames = 0L
-            if (!audioFocus) { lightLevel = 0; calmTicks = 0; calmNeeded = 5; lastDropped = 0; lastRendered = 0 }
             lastError = ""
             liveLagMs = -1L
             hlsGapMs = -1L
@@ -729,7 +688,6 @@ class PlayerController(
 
     fun release() {
         main.removeCallbacks(liveTicker)
-        main.removeCallbacks(adaptLight)
         stopTimeshift()
         io.shutdownNow()
         exo?.release()
