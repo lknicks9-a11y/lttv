@@ -8,6 +8,7 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
+import { rsnChannels, teamForGame } from './rsn';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
@@ -335,13 +336,35 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
  * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
  * English-commentary channels only (Spanish-language feeds like ESPN Deportes / TUDN are left out).
  */
+/** Regional sports networks rank above everything else in a game's list (event channels are ~100). */
+const RSN_SCORE = 120;
+
 export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
   const picks = new Map<string, StreamPick>();
   for (const p of findStreams(game, lineup, { sport, index })) picks.set(p.ch.key, { ...p });
   for (const t of teamBroadcasts(game, lineup)) {
-    const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
+    // The team's own channel ("NBA: Charlotte Hornets") is its local feed too: right under the regional networks.
+    const score = RSN_SCORE - 3 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
     const cur = picks.get(t.ch.key);
     if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
+  }
+  // Each team's regional sports network goes to the top. ESPN's local listing for this game first; the built-in
+  // team list fills in for a side ESPN doesn't list — unless the game is a national exclusive (national TV only).
+  const hasLocal = (side: 'home' | 'away') => game.broadcasts.some((b) => b.market === side);
+  const nationalOnly = game.broadcasts.some((b) => b.market === 'national' && b.kind === 'tv') && !hasLocal('home') && !hasLocal('away');
+  for (const p of picks.values()) if (p.kind === 'local' && p.side && hasLocal(p.side)) p.score = RSN_SCORE + qualityRank(p.ch.originalName) + (p.side === 'home' ? 1 : 0);
+  if (!nationalOnly) {
+    for (const side of ['home', 'away'] as const) {
+      if (hasLocal(side)) continue;
+      const gt = teamOfSide(game, side);
+      const team = teamForGame(game.league, gt);
+      if (!team) continue;
+      for (const { ch, network } of rsnChannels(team.id, lineup)) {
+        const score = RSN_SCORE - 2 + qualityRank(ch.originalName) + (side === 'home' ? 1 : 0);
+        const cur = picks.get(ch.key);
+        if (!cur || cur.score < score) picks.set(ch.key, { ch, score, kind: 'local', side, broadcast: network, reason: `${network} · ${gt.short} regional network` });
+      }
+    }
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);

@@ -61,7 +61,7 @@ test('ESPN scoreboard parsed into games with logos, scores and broadcasts', () =
 });
 
 test('league tabs and scoreboard URLs', () => {
-  assert.deepEqual(SCHEDULE_LEAGUES.map((l) => l.tab), ['NBA', 'NFL', 'MLB', 'NHL', 'UCL', 'EPL', 'Bundesliga', 'Serie A', 'Ligue 1', 'LaLiga', 'MLS', 'CBB', 'CFB']);
+  assert.deepEqual(SCHEDULE_LEAGUES.map((l) => l.tab), ['NBA', 'WNBA', 'NFL', 'MLB', 'NHL', 'UCL', 'EPL', 'Bundesliga', 'Serie A', 'Ligue 1', 'LaLiga', 'MLS', 'CBB', 'CFB']);
   assert.equal(scoreboardUrl(scheduleLeague('cbb')!, '20261115'), 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?dates=20261115&groups=50&limit=400');
   assert.equal(scoreboardUrl(scheduleLeague('epl')!, '20261018'), 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261018');
 });
@@ -118,7 +118,10 @@ test('one best-first stream list for a game: no broadcast question, both teams\'
   ]);
   const index = [{ ch: lineup[2], text: lineup[2].originalName, start: 0, stop: Infinity, event: true }];
   const all = bestStreams(g, lineup, 'baseball', index);
-  assert.equal(all[0].ch.originalName, 'MLB 05: Red Sox @ Yankees'); // the game's own event channel first
+  // The teams' regional networks first (YES for the home Yankees, then NESN), then the game's event channel.
+  assert.equal(all[0].ch.originalName, 'US: YES Network HD');
+  assert.equal(all[1].ch.originalName, 'US: NESN FHD');
+  assert.equal(all[2].ch.originalName, 'MLB 05: Red Sox @ Yankees');
   assert.ok(all.some((p) => /YES/.test(p.ch.originalName)) && all.some((p) => /NESN/.test(p.ch.originalName)));
   assert.ok(!all.some((p) => /Sky Sports/.test(p.ch.originalName)));
   // Spanish-language feeds of the game are left out when English ones exist.

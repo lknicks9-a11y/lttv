@@ -4,7 +4,7 @@
 // home and away local broadcasts (RSNs). LTTV only uses it as a schedule; the
 // streams always come from the user's own playlist.
 
-export type ScheduleLeagueId = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ucl' | 'epl' | 'bundesliga' | 'seriea' | 'ligue1' | 'laliga' | 'mls' | 'cbb' | 'cfb';
+export type ScheduleLeagueId = 'nba' | 'wnba' | 'nfl' | 'mlb' | 'nhl' | 'ucl' | 'epl' | 'bundesliga' | 'seriea' | 'ligue1' | 'laliga' | 'mls' | 'cbb' | 'cfb';
 
 export interface ScheduleLeague {
   id: ScheduleLeagueId;
@@ -20,6 +20,7 @@ export interface ScheduleLeague {
 
 export const SCHEDULE_LEAGUES: ScheduleLeague[] = [
   { id: 'nba', tab: 'NBA', name: 'NBA', path: 'basketball/nba', sport: 'basketball', words: /\bnba\b|basketball/i },
+  { id: 'wnba', tab: 'WNBA', name: 'WNBA', path: 'basketball/wnba', sport: 'basketball', words: /\bwnba\b|women'?s basketball/i },
   { id: 'nfl', tab: 'NFL', name: 'NFL', path: 'football/nfl', sport: 'football', words: /\bnfl\b|football/i },
   { id: 'mlb', tab: 'MLB', name: 'MLB', path: 'baseball/mlb', sport: 'baseball', words: /\bmlb\b|baseball/i },
   { id: 'nhl', tab: 'NHL', name: 'NHL', path: 'hockey/nhl', sport: 'hockey', words: /\bnhl\b|hockey/i },
@@ -379,6 +380,7 @@ export function parseTeams(json: unknown, league?: string): DirTeam[] {
 /** League logos ESPN uses on its scoreboards (shown before a league's schedule has loaded). */
 export const LEAGUE_LOGO_FALLBACK: Record<ScheduleLeagueId, string> = {
   nba: 'https://a.espncdn.com/i/teamlogos/leagues/500/nba.png',
+  wnba: 'https://a.espncdn.com/i/teamlogos/leagues/500/wnba.png',
   nfl: 'https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png',
   mlb: 'https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png',
   nhl: 'https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png',
