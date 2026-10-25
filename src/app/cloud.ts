@@ -233,31 +233,58 @@ async function rest(path: string, init: RequestInit = {}): Promise<Response> {
   });
 }
 
+/** What PostgREST said was wrong ({ message, code, hint }), for messages people can act on. */
+async function dbWhy(r: Response): Promise<{ text: string; missingColumn: boolean; missingTable: boolean }> {
+  const j = (await r.json().catch(() => ({}))) as { message?: string; code?: string; hint?: string; details?: string };
+  const all = `${j.message ?? ''} ${j.code ?? ''} ${j.details ?? ''}`;
+  return {
+    text: j.message ? `${j.message}${j.code ? ` (${j.code})` : ''}` : `HTTP ${r.status}`,
+    missingColumn: /column .* does not exist|could not find the .* column|PGRST204|42703/i.test(all),
+    missingTable: r.status === 404 || /relation .* does not exist|could not find the table|PGRST205|42P01/i.test(all),
+  };
+}
+const FIX_SQL_HINT = 'Run the account table SQL from LTTV’s setup (docs/accounts.md) in Supabase → SQL Editor.';
+
 export async function loadProfile(): Promise<CloudProfile | null> {
   const s = currentSession();
   if (!s) return null;
-  const r = await rest(`lttv_profiles?select=data,updated_at&user_id=eq.${encodeURIComponent(s.userId)}`);
-  if (!r.ok) throw new Error(r.status === 404 ? 'The account database isn’t set up yet (table lttv_profiles is missing).' : `Couldn’t load your account (HTTP ${r.status}).`);
-  const rows = (await r.json()) as { data: Record<string, unknown>; updated_at: string }[];
-  return rows[0] ? { data: rows[0].data ?? {}, updatedAt: rows[0].updated_at } : null;
+  // select=* so a table that lacks updated_at (or has extra columns) still loads.
+  const r = await rest(`lttv_profiles?select=*&user_id=eq.${encodeURIComponent(s.userId)}`);
+  if (!r.ok) {
+    const w = await dbWhy(r);
+    if (w.missingTable) throw new Error(`The account table (lttv_profiles) isn’t set up in Supabase. ${FIX_SQL_HINT}`);
+    if (w.missingColumn) throw new Error(`The account table is missing a column: ${w.text}. ${FIX_SQL_HINT}`);
+    throw new Error(`Couldn’t load your account: ${w.text}`);
+  }
+  const rows = (await r.json()) as { data?: Record<string, unknown>; updated_at?: string }[];
+  if (rows[0] && rows[0].data === undefined) throw new Error(`The account table has no “data” column. ${FIX_SQL_HINT}`);
+  return rows[0] ? { data: rows[0].data ?? {}, updatedAt: rows[0].updated_at ?? '' } : null;
 }
 
+let noUpdatedAt = false;
 export async function saveProfile(data: Record<string, unknown>): Promise<void> {
   const s = currentSession();
   if (!s) return;
-  const r = await rest('lttv_profiles?on_conflict=user_id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ user_id: s.userId, data, updated_at: new Date().toISOString() }, cleanForDb),
-  });
+  const send = (withTime: boolean) =>
+    rest('lttv_profiles?on_conflict=user_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(withTime ? { user_id: s.userId, data, updated_at: new Date().toISOString() } : { user_id: s.userId, data }, cleanForDb),
+    });
+  let r = await send(!noUpdatedAt);
   if (!r.ok) {
-    // Say what the database objected to (PostgREST answers { message, code, hint }).
-    const j = (await r.json().catch(() => ({}))) as { message?: string; code?: string; hint?: string };
-    const why = j.message ? `: ${j.message}${j.code ? ` (${j.code})` : ''}` : '';
-    if (/column .* does not exist|could not find the .* column|PGRST204|42703/i.test(`${j.message} ${j.code}`)) {
-      throw new Error(`The account table is missing a column${why}. Run the SQL from docs/accounts.md again in Supabase.`);
+    let w = await dbWhy(r);
+    // A table made without updated_at: save without it (and remember not to send it).
+    if (w.missingColumn && /updated_at/i.test(w.text) && !noUpdatedAt) {
+      noUpdatedAt = true;
+      r = await send(false);
+      if (r.ok) return;
+      w = await dbWhy(r);
     }
-    throw new Error(`Couldn’t save to your account (HTTP ${r.status}${why}).`);
+    if (w.missingTable) throw new Error(`The account table (lttv_profiles) isn’t set up in Supabase. ${FIX_SQL_HINT}`);
+    if (w.missingColumn) throw new Error(`The account table is missing a column: ${w.text}. ${FIX_SQL_HINT}`);
+    if (/no unique or exclusion constraint|42P10/i.test(w.text)) throw new Error(`The account table needs user_id to be unique: ${w.text}. ${FIX_SQL_HINT}`);
+    throw new Error(`Couldn’t save to your account: ${w.text}`);
   }
 }
 

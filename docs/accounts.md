@@ -14,19 +14,32 @@ own Supabase project** (free plan). Nothing is shared with anyone else.
 ## 2. Create the table (SQL Editor → New query → Run)
 
 ```sql
+-- Safe to run more than once: creates the table, or repairs one made earlier with other columns.
 create table if not exists public.lttv_profiles (
   user_id    uuid primary key references auth.users(id) on delete cascade,
   data       jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
+alter table public.lttv_profiles add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.lttv_profiles add column if not exists data jsonb not null default '{}'::jsonb;
+alter table public.lttv_profiles add column if not exists updated_at timestamptz not null default now();
+create unique index if not exists lttv_profiles_user_id_key on public.lttv_profiles (user_id);
 
 alter table public.lttv_profiles enable row level security;
 
 -- Each person can only see and change their own row.
+drop policy if exists "read own"   on public.lttv_profiles;
+drop policy if exists "insert own" on public.lttv_profiles;
+drop policy if exists "update own" on public.lttv_profiles;
+drop policy if exists "delete own" on public.lttv_profiles;
 create policy "read own"   on public.lttv_profiles for select using (auth.uid() = user_id);
 create policy "insert own" on public.lttv_profiles for insert with check (auth.uid() = user_id);
 create policy "update own" on public.lttv_profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "delete own" on public.lttv_profiles for delete using (auth.uid() = user_id);
+grant select, insert, update, delete on public.lttv_profiles to authenticated;
+
+-- Make the API see the changes right away.
+notify pgrst, 'reload schema';
 ```
 
 ## 3. Sign-in settings (Authentication)
