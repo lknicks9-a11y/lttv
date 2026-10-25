@@ -1369,3 +1369,5 @@ small, .small { font-size: 1.15rem; }
 .rsn-status { font-size: 0.95rem; color: var(--text-2, #bbb); display: flex; align-items: center; gap: 0.3rem; }
 .rsn-status.live { color: #3ddc97; }
 .rsn-status.dead { color: #ff6b6b; }
+.sidebar-profile { margin-top: auto; }
+.sidebar-profile .avatar { box-shadow: 0 0 0 2px rgba(255,255,255,.25); }

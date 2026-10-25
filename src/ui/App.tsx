@@ -23,6 +23,8 @@ import { VodScreen, VodPlayer, useVodNav } from './Vod';
 import { MultiviewScreen } from './Multiview';
 import { SignInScreen } from './SignIn';
 import { OnboardingScreen } from './Onboarding';
+import { SidebarProfile, WhoIsWatching } from './Profiles';
+import { needsProfilePick, onProfilesChanged } from '../app/profiles';
 
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
@@ -62,6 +64,7 @@ function Sidebar() {
           </button>
         ))}
       </div>
+      <SidebarProfile />
       <div class="sidebar-clock">{clock(now)}</div>
     </nav>
   );
@@ -197,7 +200,12 @@ export function App() {
   const multiview = useApp((s) => !!s.multiview);
   const signIn = useApp((s) => !!s.signIn);
   const onboarding = useApp((s) => !!s.onboarding);
-  const covered = fullscreen || vodPlaying || multiview || signIn || onboarding;
+  const pickerOpen = useApp((s) => !!s.profilePicker);
+  // "Who's watching?" at startup when there are several profiles (and from the sidebar avatar).
+  const [, bumpProfiles] = useState(0);
+  useEffect(() => onProfilesChanged(() => bumpProfiles((n) => n + 1)), []);
+  const picker = pickerOpen || (ready && !onboarding && needsProfilePick());
+  const covered = fullscreen || vodPlaying || multiview || signIn || onboarding || picker;
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -240,6 +248,7 @@ export function App() {
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
+      {picker && !onboarding && !signIn && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ profilePicker: false })} /></div>}
       {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn && <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div>}
       {onboarding || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
       <LiveNotices />

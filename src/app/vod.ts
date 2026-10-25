@@ -1,6 +1,7 @@
 // Movies and Shows from the user's own playlists: Xtream providers' movie and series lists
 // (loaded on demand, cached briefly) and movie/episode entries of plain M3U playlists.
 // Also: what to play, resume positions and "Continue watching".
+import { resumeKey, touchProfile } from './profiles';
 import { isAdult } from '../core/adult';
 import { useEffect, useState } from 'preact/hooks';
 import { loginFor, xtreamApiUrl, type XtreamLogin } from '../core/xtream';
@@ -245,12 +246,17 @@ export interface VodPlay {
 
 
 
-const RESUME_KV = 'vodResume';
+/** Continue watching belongs to the profile watching (profiles.ts). */
 let resume: Record<string, ResumeEntry> | null = null;
+/** Another device's progress for this profile arrived: read it again. */
+export function resetResumeCache() {
+  resume = null;
+  resumeListeners.forEach((l) => l());
+}
 const resumeListeners = new Set<() => void>();
 
 async function resumeStore(): Promise<Record<string, ResumeEntry>> {
-  if (!resume) resume = (await repo.getKv<Record<string, ResumeEntry>>(RESUME_KV).catch(() => undefined)) ?? {};
+  if (!resume) resume = (await repo.getKv<Record<string, ResumeEntry>>(resumeKey()).catch(() => undefined)) ?? {};
   return resume;
 }
 
@@ -304,7 +310,8 @@ export async function saveProgress(e: Omit<ResumeEntry, 'at'>) {
   else store[e.key] = { ...e, at: Date.now() };
   const keys = Object.keys(store).sort((a, b) => store[b].at - store[a].at);
   for (const k of keys.slice(150)) delete store[k];
-  await repo.setKv(RESUME_KV, store).catch(() => undefined);
+  await repo.setKv(resumeKey(), store).catch(() => undefined);
+  void touchProfile().catch(() => undefined);
   resumeListeners.forEach((l) => l());
 }
 

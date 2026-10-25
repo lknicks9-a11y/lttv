@@ -1,4 +1,5 @@
-import { accountKey, currentDbName } from './accounts';
+import { accountKey, currentAccount, currentDbName } from './accounts';
+import { addProfileRecent, initProfiles, profileRecents, setFavorite, isFavorite, withProfileFavorites } from './profiles';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type {
   ChannelCustomization, EpgSource, LineupChannel, MatchResult, PlaylistSource, Programme, RecentEntry, Reminder, Settings,
@@ -73,6 +74,8 @@ export interface AppState {
   accountPicker?: boolean;
   /** The sign-in screen is showing. */
   signIn?: boolean;
+  /** "Who's watching?" opened from the sidebar avatar. */
+  profilePicker?: boolean;
   /** Which on-demand screens exist (the playlists have movies / shows). */
   vodAvail?: { movies: boolean; shows: boolean };
   /** The movie / episode playing full screen. */
@@ -223,7 +226,7 @@ export function screenBack(): boolean {
 function rebuildLineup(data: LoadedData, matches: Map<string, MatchResult>, customizations: Map<string, ChannelCustomization>, settings: Settings, recents: RecentEntry[]) {
   const uas = new Map(data.playlists.filter((p) => p.userAgent).map((p) => [p.id, p.userAgent!]));
   setProviderOrder(data.playlists.map((p) => p.id));
-  const lineup = buildLineup({ channels: data.channels, customizations, matches, playlistOrder: data.playlists.map((p) => p.id), playlistUserAgents: uas, myTvNumbers: settings.sortMode === 'mytv', epgNames: epgNamesOf(data), myTvPins: settings.myTvPins });
+  const lineup = buildLineup({ channels: data.channels, customizations: withProfileFavorites(customizations), matches, playlistOrder: data.playlists.map((p) => p.id), playlistUserAgents: uas, myTvNumbers: settings.sortMode === 'mytv', epgNames: epgNamesOf(data), myTvPins: settings.myTvPins });
   return sortLineup(lineup, settings.sortMode, recents);
 }
 
@@ -405,17 +408,19 @@ export async function reloadAll() {
   if (!known && data.epgChannels.length) setTimeout(() => void matchMissingAndReload(), 1500);
   setState({ loadingPhase: 'Organizing channels' });
   const customizations = await repo.getCustomizations();
+  // Profiles: this profile's favorites, recents and Continue watching (the first time, the account's own become the first profile's).
+  await initProfiles(repo, customizations, currentAccount().name);
   // Remember what each customized channel is, so changes can follow it to another provider.
   const byKey = new Map(data.channels.map((c) => [c.key, c]));
   const fixed = [...customizations.values()].filter((c) => !c.ident && byKey.has(c.key));
   for (const c of fixed) c.ident = { name: byKey.get(c.key)!.originalName, tvgId: byKey.get(c.key)!.tvgId };
   if (fixed.length) await repo.saveCustomizations(fixed).catch(() => undefined);
-  const recents = await repo.getRecents();
+  const recents = await profileRecents();
   const reminders = ((await repo.getKv<Reminder[]>('reminders')) ?? []).filter((r) => r.stop > Date.now());
   await breathe();
   setProviderOrder(data.playlists.map((p) => p.id));
   const uas = new Map(data.playlists.filter((p) => p.userAgent).map((p) => [p.id, p.userAgent!]));
-  const built = buildLineup({ channels: data.channels, customizations, matches, playlistOrder: data.playlists.map((p) => p.id), playlistUserAgents: uas, myTvNumbers: settings.sortMode === 'mytv', epgNames: epgNamesOf(data), myTvPins: settings.myTvPins });
+  const built = buildLineup({ channels: data.channels, customizations: withProfileFavorites(customizations), matches, playlistOrder: data.playlists.map((p) => p.id), playlistUserAgents: uas, myTvNumbers: settings.sortMode === 'mytv', epgNames: epgNamesOf(data), myTvPins: settings.myTvPins });
   await breathe();
   baseLineup = sortLineup(built, settings.sortMode, recents);
   if (!providerInit) providerInit = initProviderGuide(repo, refreshExtras);
@@ -562,8 +567,11 @@ export async function setOrder(order: Map<string, number>) {
 }
 
 export async function toggleFavorite(key: string) {
-  const fav = !state.customizations.get(key)?.favorite;
-  await customize(key, { favorite: fav || undefined });
+  // Favorites belong to the profile watching (profiles.ts), not to the whole account.
+  const fav = !isFavorite(key);
+  const ch = lastData?.channels.find((c) => c.key === key);
+  await setFavorite(key, fav, ch ? { name: ch.originalName, tvgId: ch.tvgId } : undefined);
+  refreshLineupLocal();
   toast(fav ? 'Added to favorites' : 'Removed from favorites', 'success', 2000);
 }
 
@@ -637,7 +645,7 @@ export async function tune(key: string, opts: { fullscreen?: boolean } = {}) {
   if (player.currentKey !== key || player.status.state === 'error') player.play(playRequest(ch));
   wantGuideFor(ch);
   setState({ currentKey: key, ...(opts.fullscreen !== undefined ? { fullscreen: opts.fullscreen } : {}) });
-  const recents = await repo.addRecent(key);
+  const recents = await addProfileRecent(key);
   await repo.setKv('lastChannel', key);
   setState({ recents });
 }

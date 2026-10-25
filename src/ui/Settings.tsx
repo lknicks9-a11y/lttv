@@ -1,5 +1,6 @@
 import { WatchmodeSettings } from './WatchmodeSettings';
 import { PhoneRemoteSettings } from './PhoneRemote';
+import { ProfilesSection } from './Profiles';
 
 
 import { h, Fragment } from 'preact';
@@ -81,6 +82,7 @@ export function SettingsScreen() {
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
         <UpdateCenter />
+        <ProfilesSection />
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />

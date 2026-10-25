@@ -141,16 +141,23 @@ export async function signInWithRefreshToken(refreshToken: string): Promise<Clou
   return s;
 }
 
+let refreshing: Promise<CloudSession> | null = null;
+
 /** A valid access token for the open account (refreshed when it's about to expire). */
 export async function accessToken(): Promise<string | null> {
   const s = currentSession();
   if (!s) return null;
   if (s.expiresAt - Date.now() > 60_000) return s.accessToken;
   try {
-    return (await signInWithRefreshToken(s.refreshToken)).accessToken;
+    // One refresh at a time: two at once with the same token makes the server refuse the second ("already used").
+    refreshing ??= signInWithRefreshToken(s.refreshToken).finally(() => {
+      refreshing = null;
+    });
+    return (await refreshing).accessToken;
   } catch (e) {
-    // Revoked / expired for good: forget it (the account asks to sign in again).
-    if (/HTTP 4|invalid|not found|revoked/i.test((e as Error).message)) {
+    // Only a sign-in the server says is gone for good is forgotten (signed out elsewhere, password changed, account
+    // deleted). Offline, a server hiccup, "too many requests" or any other error keeps you signed in: try again later.
+    if (/invalid_grant|invalid refresh token|refresh[_ ]token[_ ]not[_ ]found|session[_ ]not[_ ]found|session_expired|user[_ ]not[_ ]found|refresh_token_already_used/i.test((e as Error).message)) {
       const all = readSessions();
       delete all[s.userId];
       writeSessions(all);

@@ -4,9 +4,11 @@
 import { cloudConfig, currentSession, loadProfile, saveProfile } from './cloud';
 import { getState, refreshAll, reloadAll, repo, showTask, finishTask, subscribe, toast } from './state';
 import type { ExportedSettings } from '../core/storage';
+import { exportProfiles, mergeProfiles, onProfilesChanged, type ProfilesBundle } from './profiles';
+import { resetResumeCache } from './vod';
 
-/** Per-account values outside the settings export that should follow the account. */
-const KV_KEYS = ['liveSports', 'vodResume', 'reminders'];
+/** Per-account values outside the settings export that should follow the account (profiles travel separately). */
+const KV_KEYS = ['liveSports', 'reminders'];
 
 export type SyncStatus = { state: 'off' | 'syncing' | 'ok' | 'error'; at?: number; message?: string };
 let status: SyncStatus = { state: 'off' };
@@ -30,7 +32,7 @@ async function snapshot(): Promise<Record<string, unknown>> {
     const v = await repo.getKv(k).catch(() => undefined);
     if (v !== undefined) kv[k] = v;
   }
-  return { export: exp, kv, savedFrom: navigator.userAgent.includes('LTTV') || /Android/.test(navigator.userAgent) ? 'tv' : 'browser' };
+  return { export: exp, kv, profiles: await exportProfiles(), savedFrom: navigator.userAgent.includes('LTTV') || /Android/.test(navigator.userAgent) ? 'tv' : 'browser' };
 }
 
 let pushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -64,6 +66,10 @@ function schedulePush(ms = 5000) {
 /** Bring down what the account has that this device doesn't (sources are added by id / address). */
 async function pull(): Promise<boolean> {
   const prof = await loadProfile();
+  // Profiles (favorites, Continue watching, recents for each one) merge on every start, deletions included.
+  const m = await mergeProfiles(prof?.data.profiles as ProfilesBundle | undefined);
+  if (m.currentChanged) resetResumeCache();
+  const profilesChanged = m.currentChanged;
   const exp = prof?.data.export as ExportedSettings | undefined;
   if (!exp || exp.app !== 'lttv') return false;
   const localPl = await repo.listPlaylists();
@@ -72,7 +78,7 @@ async function pull(): Promise<boolean> {
   const same = (a: { id: string; url?: string }, b: { id: string; url?: string }) => a.id === b.id || (!!a.url && a.url === b.url);
   const newPl = (exp.playlists ?? []).filter((p) => p.kind !== 'file' && !localPl.some((l) => same(l, p)));
   const newEpg = (exp.epgSources ?? []).filter((e) => e.kind !== 'file' && !localEpg.some((l) => same(l, e)));
-  if (!fresh && !newPl.length && !newEpg.length) return false;
+  if (!fresh && !newPl.length && !newEpg.length) return profilesChanged;
   await repo.importSettings({
     ...exp,
     // On a device that already has channels, only add the missing sources; keep its own settings.
@@ -113,9 +119,10 @@ export async function startCloudSync(): Promise<void> {
   }
   // Upload when sources, settings or channel names/favorites change, and every few minutes (bets, progress).
   let prev = getState();
+  onProfilesChanged(() => schedulePush(3000));
   subscribe(() => {
     const s = getState();
-    if (s.playlists !== prev.playlists || s.epgSources !== prev.epgSources || s.settings !== prev.settings || s.lineup !== prev.lineup) schedulePush();
+    if (s.playlists !== prev.playlists || s.epgSources !== prev.epgSources || s.settings !== prev.settings || s.lineup !== prev.lineup || s.recents !== prev.recents) schedulePush();
     prev = s;
   });
   setInterval(() => void pushNow(), 5 * 60_000);
