@@ -207,5 +207,18 @@ function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): Ne
       if (re.test(ch.originalName) && (OTHER_CITY.test(ch.originalName) || /\b[KW][A-Z]{2,3}\b/.test(ch.originalName))) push(ch, 'affiliate');
     }
   }
+  // A local station or network not in the list above ("KTLA", "WFAA", "Peachtree Sports Network"): channels whose
+  // name has the broadcast's name as whole words.
+  if (!out.length && !network) {
+    const want = normalizeForMatch(name.replace(/\(local\)|\blocal\b/gi, ' ')).trim();
+    if (want.length >= 4 && !/^(tv|local tv|streaming|radio|regional)$/.test(want)) {
+      const re = new RegExp(`(^| )${want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
+      for (const ch of lineup) {
+        const country = channelCountry(ch);
+        if ((country && country !== 'us') || /\+\s?\d/.test(ch.originalName)) continue;
+        if (re.test(normalizeForMatch(ch.cleanedName || ch.originalName))) push(ch, 'exact');
+      }
+    }
+  }
   return out;
 }

@@ -344,9 +344,11 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     const cur = picks.get(t.ch.key);
     if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
   }
-  // Each team's local TV (regional sports network / local station) from the user's playlist (NBA, NHL).
+  // A team whose local TV the schedule doesn't name (or names a channel the playlist doesn't have): its usual local
+  // channels (regional sports network / local station, NBA and NHL).
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
+    if ([...picks.values()].some((p) => p.kind === 'local' && p.side === side && p.broadcast)) continue;
     for (const l of teamLocalChannels(game.league, team, lineup)) {
       const score = 86 - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0);
       const cur = picks.get(l.ch.key);

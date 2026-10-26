@@ -24,3 +24,12 @@ test('team local networks: each team finds its own channels', () => {
   assert.equal(teamStations('nfl', { name: 'New York Jets', short: 'Jets' }).length, 0);
   assert.equal(teamStations('nba', { name: 'Portland Trail Blazers', short: 'Trail Blazers' })[0].label, 'KUNP');
 });
+
+import { channelsForBroadcast } from '../src/core/networks';
+
+test('a local station the schedule names is found by its call sign', () => {
+  const l = [ch('US: KTLA 5 Los Angeles HD', 1), ch('US: Peachtree Sports Network', 2), ch('US: KTLAX Movies', 3)];
+  assert.deepEqual(channelsForBroadcast('KTLA', l).map((x) => x.ch.originalName), ['US: KTLA 5 Los Angeles HD']);
+  assert.deepEqual(channelsForBroadcast('Peachtree Sports Network', l).map((x) => x.ch.originalName), ['US: Peachtree Sports Network']);
+  assert.equal(channelsForBroadcast('Local TV', l).length, 0);
+});

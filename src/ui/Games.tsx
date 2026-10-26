@@ -89,7 +89,10 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
       const m = new Map<string, StreamPick | undefined>(latest.current);
       for (let i = 0; i < games.length; i++) {
         const g = games[i];
-        m.set(g.id, bestStreams(g, lineup, league.sport, idx)[0]);
+        {
+          const list = bestStreams(g, lineup, league.sport, idx);
+          m.set(g.id, list.find((p) => cachedLiveness(p.ch.key) !== 'dead') ?? list[0]);
+        }
         latest.current = m;
         if (i % 6 === 5) {
           if (!openRef.current) setBest(new Map(m));

@@ -2,6 +2,7 @@ import { h, Fragment } from 'preact';
 import { startUpdateChecks } from './app/updates';
 import { prefetchVodHomes, startVodDetection, saveProgress } from './app/vod';
 import { pollLive, startLiveSports, addBet, addParlay, watchingSports } from './app/livesports';
+import { startGameWatch } from './app/gamewatch';
 import { render } from 'preact';
 import { App } from './ui/App';
 import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/nav';
@@ -58,6 +59,7 @@ async function boot() {
     else if (!signInSkipped()) setState({ signIn: true });
   }
   void startLiveSports();
+  startGameWatch();
   startUpdateChecks();
   startVodDetection();
   prefetchVodHomes();
