@@ -3,6 +3,32 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ESPN_BASE, LEAGUE_LOGO_FALLBACK, SCHEDULE_LEAGUES, TEAM_DIRECTORY, parseLeagueLogo, parseScoreboard, parseStandingsTeams, parseTeams, scheduleDay, standingsUrl, scheduleLeague, scoreboardUrl, teamsUrl, type DirTeam, type Game, type ScheduleLeagueId } from '../core/schedule';
 import { openRemote } from './platform';
+import { LISTING_LEAGUES, listingFor, listingUrl, parseListings, type ListingLeague, type TvListing } from '../core/tvlistings';
+
+// Which channels each game is on comes from the league's own feed (tvlistings.ts), not from ESPN's scoreboard.
+const listingCache = new Map<string, { at: number; json: unknown }>();
+const LISTING_TTL = 3 * 3600_000;
+async function officialListings(league: ListingLeague, day: string, from: number, to: number, force: boolean): Promise<TvListing[] | undefined> {
+  let url = listingUrl(league, day);
+  try {
+    const base = localStorage.getItem('lttvListingBase'); // tests point this at a local mock
+    if (base) url = `${base}/${league}`;
+  } catch {
+    /* storage blocked */
+  }
+  const hit = listingCache.get(url);
+  let json = hit && !force && Date.now() - hit.at < LISTING_TTL ? hit.json : undefined;
+  if (json === undefined) {
+    try {
+      const { stream } = await openRemote(url, AbortSignal.timeout?.(30_000));
+      json = JSON.parse(await new Response(stream).text());
+      listingCache.set(url, { at: Date.now(), json });
+    } catch {
+      json = hit?.json; // the last copy, if any
+    }
+  }
+  return json === undefined ? undefined : parseListings(league, json, from, to);
+}
 
 interface Entry {
   at: number;
@@ -82,6 +108,13 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
     const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase()), AbortSignal.timeout?.(20_000));
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
+    if ((LISTING_LEAGUES as string[]).includes(leagueId) && games.length) {
+      const from = Math.min(...games.map((g) => g.start)) - 6 * 3600_000;
+      const to = Math.max(...games.map((g) => g.start)) + 6 * 3600_000;
+      const listings = await officialListings(leagueId as ListingLeague, day, from, to, force);
+      // Only the league's own listing says what channel a game is on (nothing from ESPN's scoreboard).
+      for (const g of games) g.broadcasts = (listings && listingFor(g, listings)?.broadcasts) || [];
+    }
     const logo = parseLeagueLogo(json);
     if (logo) leagueLogos.set(leagueId, logo);
     cache.set(k, { at: Date.now(), games });

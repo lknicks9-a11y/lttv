@@ -87,6 +87,7 @@ export const NETWORKS: Network[] = [
   N('yes', 'YES Network', ['yesnetwork', 'yes'], { local: [631], rsn: true }),
   N('sny', 'SNY', ['sny', 'sportsnetnewyork'], { local: [639], rsn: true }),
   N('msg', 'MSG', ['msg', 'msgnetwork'], { local: [634], rsn: true }),
+  N('msgb', 'MSG Buffalo', ['msgbuffalo', 'msgb'], { rsn: true }),
   N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2'], { local: [635], rsn: true }),
   // Other RSNs
   N('nesn', 'NESN', ['nesn', 'newenglandsportsnetwork'], { local: [628], rsn: true }),
@@ -100,8 +101,8 @@ export const NETWORKS: Network[] = [
   N('marquee', 'Marquee Sports Network', ['marqueesportsnetwork', 'marquee'], { rsn: true }),
   N('masn', 'MASN', ['masn', 'midatlanticsportsnetwork'], { rsn: true }),
   N('masn2', 'MASN2', ['masn2'], { rsn: true }),
-  N('monumental', 'Monumental Sports Network', ['monumentalsportsnetwork', 'monumental', 'monumentalsports'], { rsn: true }),
-  N('altitude', 'Altitude', ['altitude', 'altitudesports'], { rsn: true }),
+  N('monumental', 'Monumental Sports Network', ['monumentalsportsnetwork', 'monumental', 'monumentalsports', 'mnmt'], { rsn: true }),
+  N('altitude', 'Altitude', ['altitude', 'altitudesports', 'alt', 'altitudesportsandentertainment'], { rsn: true }),
   N('schn', 'Space City Home Network', ['spacecityhomenetwork', 'schn', 'spacecity'], { rsn: true }),
   N('spectrumsn', 'Spectrum SportsNet', ['spectrumsportsnet'], { rsn: true }),
   N('snla', 'SportsNet LA', ['spectrumsportsnetla', 'spectrumsportsnetlosangeles', 'sportsnetla', 'snla'], { rsn: true }),
