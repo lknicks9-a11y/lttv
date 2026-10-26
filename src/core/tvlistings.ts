@@ -1,6 +1,7 @@
 // Which channels a game is on, from each league's own official schedule feed (not ESPN):
 //   NHL  — api-web.nhle.com schedule: tvBroadcasts per game (network, market H/A/N, country)
-//   NBA / WNBA — cdn.nba.com / cdn.wnba.com league schedule: national, home and away TV broadcasters
+//   NBA  — Sports Media Watch's NBA TV schedule (the NBA's own feed refuses apps): national and each team's local TV
+//   WNBA — cdn.wnba.com league schedule: national, home and away TV broadcasters
 //   MLB  — statsapi.mlb.com schedule with broadcasts: TV name, home/away, national
 // Each game's listing is matched to the schedule's game by the two teams and the start time.
 import type { Broadcast, Game, GameTeam } from './schedule';
@@ -25,7 +26,7 @@ export function listingUrl(league: ListingLeague, day: string): string {
     case 'mlb':
       return `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${iso}&hydrate=broadcasts(all),team`;
     case 'nba':
-      return 'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json';
+      return SMW_NBA_URL;
     case 'wnba':
       return 'https://cdn.wnba.com/static/json/staticData/scheduleLeagueV2_1.json';
   }
@@ -145,6 +146,7 @@ export function parseMlbListings(json: unknown): TvListing[] {
 }
 
 export function parseListings(league: ListingLeague, json: unknown, from: number, to: number): TvListing[] {
+  if (typeof json === 'string') return parseSmwListings(json);
   if (league === 'nhl') return parseNhlListings(json);
   if (league === 'mlb') return parseMlbListings(json);
   return parseNbaListings(json, from, to);
@@ -158,4 +160,121 @@ function sameTeam(t: GameTeam, names: string[]): boolean {
 /** The official listing for a game: same two teams, starting within three hours of each other. */
 export function listingFor(game: Game, listings: TvListing[]): TvListing | undefined {
   return listings.find((l) => Math.abs(l.start - game.start) < 3 * 3600_000 && sameTeam(game.home, l.home) && sameTeam(game.away, l.away));
+}
+
+// ---------------------------------------------------------------------------
+// NBA: Sports Media Watch's NBA TV schedule (sportsmediawatch.com/tv-schedules/nba-tv-schedule/) lists every game
+// with its national TV and each team's local channels: "Detroit Pistons vs New York Knicks · NBC, Peacock; H: MSG,
+// DAZN; TSN1/4". The first team is the away team; "A:" / "H:" are the away and home teams' local channels.
+
+export const SMW_NBA_URL = 'https://www.sportsmediawatch.com/tv-schedules/nba-tv-schedule/';
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+/** Not channels in a playlist: streaming apps, League Pass, Spanish feeds. */
+const SMW_SKIP = /^watch on:?$|league pass|peacock|dazn|\+$|\bapp\b|unlimited|premium|deportes|prime|youtube|clippervision|max\b|^tbd$|^n\/?a$/i;
+const SMW_NAMES: Record<string, string> = {
+  NBCSB: 'NBC Sports Boston', NBCSBA: 'NBC Sports Bay Area', NBCSCA: 'NBC Sports California', NBCSP: 'NBC Sports Philadelphia', SPECSN: 'Spectrum SportsNet',
+  MNMT: 'Monumental Sports Network', MNMT2: 'Monumental Sports Network', ALT: 'Altitude', ALT2: 'Altitude', GCSEN: 'Gulf Coast Sports & Entertainment Network',
+  SCHN: 'Space City Home Network', CHSN: 'Chicago Sports Network', MSG: 'MSG', MSGSN: 'MSG SportsNet', YES: 'YES Network', WPCH: 'Peachtree Sports Network',
+};
+
+/** One TV item ("WOAI.2-CW", "WCGV-My24", "TSN1/4") as the names a playlist might use. */
+function smwItems(item: string): string[] {
+  const t = item.replace(/^watch on:?\s*/i, '').trim();
+  if (!t || SMW_SKIP.test(t)) return [];
+  const tsn = /^TSN\s*(\d(?:\s*\/\s*\d)*)$/i.exec(t);
+  if (tsn) return tsn[1].split('/').map((n) => `TSN${n.trim()}`);
+  if (SMW_NAMES[t.toUpperCase()]) return [SMW_NAMES[t.toUpperCase()]];
+  // "KARE-NBC", "WMYD-IND", "WOAI.2-CW": the station; "WCGV-My24", "WAXN-TV64": the station and its brand.
+  const [station, brand] = t.split('-').map((x) => x.replace(/\.\d+$/, '').trim());
+  const out = [station];
+  if (brand && !/^(ind|nbc|cbs|abc|fox|cw|tv)$/i.test(brand) && !SMW_SKIP.test(brand)) out.push(brand.replace(/^tv(\d+)$/i, 'TV$1'));
+  return out.filter((x) => x.length >= 2);
+}
+
+/** Text lines of an HTML page (block elements break lines). */
+export function htmlLines(html: string): string[] {
+  return html
+    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<\/?(div|p|li|ul|ol|tr|td|th|table|tbody|thead|h[1-6]|br|section|article|header|footer)\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#0?39;|&#8217;|&rsquo;/g, "'").replace(/&#8211;|&ndash;/g, '-').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+/** Eastern time on that calendar day → epoch ms (DST: mid-March to early November). */
+function easternMs(y: number, m: number, d: number, h: number, mi: number): number {
+  const dst = (m > 2 && m < 10) || (m === 2 && d >= 8) || (m === 10 && d < 7);
+  return Date.UTC(y, m, d, h + (dst ? 4 : 5), mi);
+}
+
+export function parseSmwListings(html: string, now = Date.now()): TvListing[] {
+  const today = new Date(now - 5 * 3600_000);
+  let y = today.getUTCFullYear(), m = today.getUTCMonth(), d = today.getUTCDate();
+  let time: [number, number] | undefined;
+  const byKey = new Map<string, TvListing & { tv: string }>();
+  let cur: (TvListing & { tv: string }) | undefined;
+  const finish = () => {
+    if (!cur) return;
+    const key = `${cur.start}|${cur.away[0]}|${cur.home[0]}`.toLowerCase();
+    const prev = byKey.get(key);
+    if (!prev || cur.tv.length > prev.tv.length) byKey.set(key, cur);
+    cur = undefined;
+  };
+  for (const line of htmlLines(html)) {
+    const date = /^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+([a-z]{3})[a-z]*\.?\s+(\d{1,2})\b/i.exec(line);
+    if (date && MONTHS.includes(date[1].toLowerCase())) {
+      finish();
+      const mm = MONTHS.indexOf(date[1].toLowerCase());
+      y = today.getUTCFullYear() + (mm < today.getUTCMonth() - 6 ? 1 : mm > today.getUTCMonth() + 6 ? -1 : 0);
+      m = mm;
+      d = Number(date[2]);
+      time = undefined;
+      continue;
+    }
+    if (/^today\b/i.test(line)) {
+      finish();
+      y = today.getUTCFullYear(); m = today.getUTCMonth(); d = today.getUTCDate();
+      continue;
+    }
+    if (/^(time|game|tv|game \/ tv|matchup|network|load more|key dates|how to watch|\d+ games?)$/i.test(line)) {
+      finish();
+      continue;
+    }
+    let rest = line;
+    const t = /^(\d{1,2}):(\d{2})\s*([ap])\.?m\.?\b\s*(?:et\b)?\s*[|·-]?\s*/i.exec(rest);
+    if (t) {
+      finish();
+      time = [(Number(t[1]) % 12) + (t[3].toLowerCase() === 'p' ? 12 : 0), Number(t[2])];
+      rest = rest.slice(t[0].length);
+      if (!rest) continue;
+    }
+    const mu = /^([A-Z][A-Za-z0-9.' ]{2,40}?)\s+(?:vs\.?|at|@)\s+([A-Z][A-Za-z0-9.' ]{2,40}?)(?:\s*[|·]\s*(.*))?$/.exec(rest);
+    if (mu && time) {
+      finish();
+      cur = { start: easternMs(y, m, d, time[0], time[1]), away: [mu[1].trim()], home: [mu[2].trim()], broadcasts: [], tv: '' };
+      rest = mu[3] ?? '';
+      if (!rest) continue;
+    }
+    if (cur && rest) {
+      // Pieces of one TV line can arrive on separate lines ("A:" then "NBCSP"); keep the segments apart.
+      const sep = !cur.tv ? '' : /:\s*$/.test(cur.tv) ? ' ' : /^[AH]:/i.test(rest) ? '; ' : ', ';
+      cur.tv += sep + rest;
+    }
+  }
+  finish();
+  const out: TvListing[] = [];
+  for (const g of byKey.values()) {
+    const broadcasts: Broadcast[] = [];
+    for (const seg of g.tv.split(/;|,\s*(?=[AH]:)/)) {
+      const s = seg.trim();
+      const side = /^([AH]):\s*/i.exec(s);
+      const market: Broadcast['market'] = side ? (side[1].toUpperCase() === 'H' ? 'home' : 'away') : 'national';
+      for (const item of s.slice(side ? side[0].length : 0).split(',')) for (const n of smwItems(item)) add(broadcasts, n, market);
+    }
+    out.push({ start: g.start, home: g.home, away: g.away, broadcasts });
+  }
+  return out;
 }

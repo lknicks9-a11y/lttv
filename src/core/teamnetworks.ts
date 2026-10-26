@@ -34,7 +34,7 @@ const S: Record<string, Station> = {
   ktla: { label: 'KTLA 5', re: /\bKTLA\b/ },
   spectrumsn: { label: 'Spectrum SportsNet', re: /\bspectrum\s*sports\s*net\b(?!\s*(la|los angeles))/i },
   wplg: { label: 'WPLG Local 10', re: /\bWPLG\b/ },
-  wvtv: { label: 'WVTV My24 (Bucks TV Network)', re: /\bbucks\s*(tv|television)\b|\bWVTV\b|\bmy\s*24\b|\bmy\s*network\s*tv\s*24\b|\bcw\s*24\s*milwaukee\b/i },
+  wvtv: { label: 'WVTV My24 (Bucks TV Network)', re: /\bbucks\s*(tv|television)\b|\bWCGV\b|\bWVTV\b|\bmy\s*24\b|\bmy\s*network\s*tv\s*24\b|\bcw\s*24\s*milwaukee\b/i },
   wttv: { label: 'CBS4 Indianapolis (WTTV)', re: /\bWTTV\b|\bcbs\s*4\s*indianapolis\b|\bcbs4\s*indy\b/i },
   wxin: { label: 'FOX59 Indianapolis (WXIN)', re: /\bWXIN\b|\bfox\s*59\b/i },
   wtvw: { label: 'WTVW Evansville', re: /\bWTVW\b/ },

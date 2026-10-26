@@ -21,7 +21,8 @@ async function officialListings(league: ListingLeague, day: string, from: number
   if (json === undefined) {
     try {
       const { stream } = await openRemote(url, AbortSignal.timeout?.(30_000));
-      json = JSON.parse(await new Response(stream).text());
+      const text = await new Response(stream).text();
+      json = league === 'nba' ? text : JSON.parse(text); // NBA: a web page (Sports Media Watch)
       listingCache.set(url, { at: Date.now(), json });
     } catch {
       json = hit?.json; // the last copy, if any

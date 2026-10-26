@@ -69,3 +69,40 @@ test('NHL with the real feed codes: both teams local channels on top', () => {
   const b = show(game('2026-10-26T02:00:00Z', team('Vancouver Canucks', 'Canucks', 'Vancouver', 'VAN', 'home'), team('Minnesota Wild', 'Wild', 'Minnesota', 'MIN', 'away')));
   assert.ok(b.includes('away:Minnesota Wild') && b.includes('home:Vancouver Canucks') && b.includes('home:CA: Sportsnet Pacific'), b.join(' | '));
 });
+
+import { parseSmwListings } from '../src/core/tvlistings';
+
+test('NBA from Sports Media Watch: national plus each team\'s locals, list and table layouts', () => {
+  const html = `<html><body><script>var x = "Monday, October 1";</script>
+  <h3>Today <span>9 games</span></h3>
+  <div class="g"><div class="t">8:00 pm</div><div class="m">Golden State Warriors vs Denver Nuggets</div><div class="w">Watch on: <a>NBCSN</a>, <a>Peacock</a></div></div>
+  <h3>Wednesday, October 28 <span>12 games</span></h3>
+  <div class="g"><div class="t">7:00 pm</div><div class="m">Philadelphia 76ers vs Indiana Pacers</div><div class="w">ESPN, ESPN Deportes, ESPN Unlimited; A: NBCSP, Peacock; H: DAZN</div></div>
+  <table><tr><th>Time</th><th>Game / TV</th></tr>
+  <tr><td colspan=2>Wednesday, October 28</td></tr>
+  <tr><td>7:00 pm</td><td>Philadelphia 76ers vs Indiana Pacers<br>ESPN, ESPN Deportes, ESPN Unlimited; A: NBCSP, Peacock; H: DAZN</td></tr>
+  <tr><td>8:00 pm</td><td>Houston Rockets vs Milwaukee Bucks<br>NBA League Pass; A: SCHN, SCHN+; H: WCGV-My24, Bucks+</td></tr>
+  <tr><td>8:00 pm</td><td>Charlotte Hornets vs Detroit Pistons<br>NBA League Pass; A: WAXN-TV64, DAZN; H: WMYD-IND, DAZN</td></tr>
+  <tr><td>7:30 pm</td><td>Orlando Magic vs Toronto Raptors<br>NBA League Pass; A: WRDQ-IND, DAZN; TSN1/4, TSN Premium</td></tr>
+  </table></body></html>`;
+  const now = Date.parse('2026-10-26T22:00:00Z');
+  const l = parseSmwListings(html, now);
+  const f = (away: string) => l.find((x) => x.away[0] === away);
+  assert.equal(l.length, 5);
+  assert.deepEqual(f('Golden State Warriors')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['national:NBCSN']);
+  assert.equal(new Date(f('Golden State Warriors')!.start).toISOString(), '2026-10-27T00:00:00.000Z');
+  assert.deepEqual(f('Philadelphia 76ers')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['national:ESPN', 'away:NBC Sports Philadelphia']);
+  assert.deepEqual(f('Houston Rockets')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:Space City Home Network', 'home:WCGV', 'home:My24']);
+  assert.deepEqual(f('Charlotte Hornets')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:WAXN', 'away:TV64', 'home:WMYD']);
+  assert.deepEqual(f('Orlando Magic')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:WRDQ', 'national:TSN1', 'national:TSN4']);
+  // Matched to the schedule's game.
+  const team = (name: string, short: string, location: string, abbr: string, side: string) => ({ id: abbr, name, short, location, abbr, side });
+  const g = { id: 'x', league: 'nba', start: Date.parse('2026-10-29T00:05:00Z'), state: 'pre', detail: '', name: '', home: team('Milwaukee Bucks', 'Bucks', 'Milwaukee', 'MIL', 'home'), away: team('Houston Rockets', 'Rockets', 'Houston', 'HOU', 'away'), broadcasts: [] } as never;
+  assert.ok(listingFor(g, l));
+});
+
+test('Sports Media Watch: TV pieces on separate lines still land on the right team', () => {
+  const html = `<h3>Wednesday, October 28</h3><div>7:00 pm</div><div>Philadelphia 76ers vs Indiana Pacers</div><div>Watch on:</div><div><a>ESPN</a></div><div>A:</div><div><a>NBCSP</a></div><div>H:</div><div>WTTV</div>`;
+  const l = parseSmwListings(html, Date.parse('2026-10-26T22:00:00Z'));
+  assert.deepEqual(l[0].broadcasts.map((b) => `${b.market}:${b.name}`), ['national:ESPN', 'away:NBC Sports Philadelphia', 'home:WTTV']);
+});
