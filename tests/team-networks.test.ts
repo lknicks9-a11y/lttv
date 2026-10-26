@@ -33,3 +33,12 @@ test('a local station the schedule names is found by its call sign', () => {
   assert.deepEqual(channelsForBroadcast('Peachtree Sports Network', l).map((x) => x.ch.originalName), ['US: Peachtree Sports Network']);
   assert.equal(channelsForBroadcast('Local TV', l).length, 0);
 });
+
+import { capStreams, type StreamPick } from '../src/core/streamfinder';
+
+test('stream list: listed channels first, two per team, dead ones replaced by the next', () => {
+  const p = (n: number, tier: number, side?: 'home' | 'away', broadcast?: string): StreamPick => ({ ch: ch(`C${n}`, n), score: 100 - n, kind: side ? 'local' : 'national', tier, side, broadcast, reason: '' });
+  const ranked = [p(1, 0, undefined, 'ESPN'), p(2, 0, undefined, 'ESPN'), p(3, 0, undefined, 'ESPN'), p(4, 0, 'home', 'NESN'), p(5, 1), p(6, 2, 'home'), p(7, 2, 'home'), p(8, 2, 'away'), p(9, 2, 'away'), p(10, 2, 'away')];
+  assert.deepEqual(capStreams(ranked).map((x) => x.ch.number), [1, 2, 4, 5, 6, 8, 9]);
+  assert.deepEqual(capStreams(ranked, (k) => k === 'k8').map((x) => x.ch.number), [1, 2, 4, 5, 6, 9, 10]);
+});

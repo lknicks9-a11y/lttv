@@ -4,13 +4,13 @@
 // game, its channels are fetched again (in case they changed) and its best streams are checked so dead ones drop
 // out of the game's stream list.
 import { SCHEDULE_LEAGUES, scheduleDay, scheduleLeague, type Game, type ScheduleLeagueId } from '../core/schedule';
-import { bestStreams, buildGameIndexAsync } from '../core/streamfinder';
+import { bestStreams, buildGameIndexAsync, capStreams } from '../core/streamfinder';
 import { loadGames } from './schedule';
 import { canCheck, checkStream } from './streamcheck';
 import { getState, refreshAll, reloadAll } from './state';
 
 const BEFORE_MS = 60 * 60_000;
-const CHECK_TOP = 6;
+const CHECK_TOP = 8;
 let day = '';
 let lastPlan = 0;
 const prechecked = new Set<string>();
@@ -42,7 +42,7 @@ async function precheck(league: ScheduleLeagueId, gameId: string) {
     if (!s.lineup.length) return;
     const index = await buildGameIndexAsync(s.lineup, s.guide, game.start - BEFORE_MS, game.start + 5 * 3600_000, s.guideVersion);
     const sport = scheduleLeague(league)!.sport;
-    for (const p of bestStreams(game, s.lineup, sport, index).slice(0, CHECK_TOP)) {
+    for (const p of capStreams(bestStreams(game, s.lineup, sport, index)).slice(0, CHECK_TOP)) {
       if (!canCheck(p.ch)) continue; // never knock out something playing
       await checkStream(p.ch);
     }
