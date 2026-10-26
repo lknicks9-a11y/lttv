@@ -207,7 +207,12 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
     const found = channelsForBroadcast(b.name, lineup);
     for (const { ch, fit } of found) {
       const fitAdj = fit === 'mytv' ? 4 : fit === 'exact' ? 2 : -15;
-      if (b.market === 'national') {
+      const citySide = b.market === 'national' && fit !== 'mytv' ? sideByCity(ch, game) : undefined;
+      if (citySide) {
+        // "CBS 4 Boston (WBZ)" for a Patriots game on CBS: the network as that team's own local station.
+        const team = teamOfSide(game, citySide);
+        add({ ch, score: 84, kind: 'local', tier: 0, side: citySide, broadcast: b.name, reason: `${b.name} · ${team.short} local station` });
+      } else if (b.market === 'national') {
         add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', tier: fit === 'affiliate' ? 1 : 0, broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : `${b.name} · national` });
       } else {
         const side = b.market;
@@ -228,6 +233,26 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
     }
   }
   return [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
+}
+
+/** Cities a team's local stations name ("New England" teams are on Boston stations). */
+const REGION_CITIES: Record<string, string[]> = {
+  'new england': ['boston'], 'golden state': ['san francisco', 'bay area', 'oakland'], 'tampa bay': ['tampa'], carolina: ['charlotte', 'raleigh'],
+  arizona: ['phoenix'], minnesota: ['minneapolis', 'twin cities'], utah: ['salt lake'], indiana: ['indianapolis'], tennessee: ['nashville'],
+  'green bay': ['green bay', 'milwaukee'], la: ['los angeles'], 'los angeles': ['los angeles'], 'new york': ['new york'], washington: ['washington', 'dc'],
+  'st louis': ['st louis', 'saint louis'], vegas: ['las vegas'], 'las vegas': ['las vegas'], 'kansas city': ['kansas city'], florida: ['miami', 'fort lauderdale'],
+  anaheim: ['los angeles'], 'san jose': ['san jose', 'san francisco', 'bay area'], 'new jersey': ['new york'], colorado: ['denver'], texas: ['dallas'],
+};
+function sideByCity(ch: LineupChannel, game: Game): 'home' | 'away' | undefined {
+  const name = ` ${foldText(ch.originalName)} `;
+  const hit = (t: GameTeam) => {
+    const loc = foldText(t.location ?? '');
+    const cities = REGION_CITIES[loc] ?? (loc ? [loc] : []);
+    return cities.some((c) => name.includes(` ${foldText(c)} `));
+  };
+  const h = hit(game.home);
+  const a = hit(game.away);
+  return h && !a ? 'home' : a && !h ? 'away' : undefined;
 }
 
 const svcCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
@@ -274,7 +299,7 @@ export function broadcastSummary(game: Game): string {
 // broadcast. Only those groups are used; other sports get national broadcasts / other streams.
 
 /** Leagues with a team-broadcast group, and that group's name. */
-export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv' };
+export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv', nhl: 'nhl team ppv' };
 const teamFeedCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
 
 /** Names good enough to pick out a team's own channel (full name, nickname; not the city alone). */
@@ -328,8 +353,7 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
     const other = teamOfSide(game, side === 'home' ? 'away' : 'home');
-    const own = teamChannels(team, other, game.league, lineup)[0];
-    if (own) out.push({ side, team, ch: own });
+    for (const own of teamChannels(team, other, game.league, lineup).slice(0, 2)) out.push({ side, team, ch: own });
   }
   return out;
 }
@@ -381,7 +405,7 @@ export function capStreams(ranked: StreamPick[], isDead: (key: string) => boolea
   const out: StreamPick[] = [];
   for (const p of ranked) {
     if (isDead(p.ch.key)) continue;
-    const bucket = p.side ? `side:${p.side}` : p.tier === 3 ? 'svc' : p.broadcast ? `net:${p.broadcast.toLowerCase()}` : 'event';
+    const bucket = p.side && p.kind === 'local' ? `side:${p.side}` : p.tier === 3 ? 'svc' : p.broadcast ? `net:${p.broadcast.toLowerCase()}` : 'event';
     const max = bucket === 'event' ? 3 : PER_TEAM;
     const n = count.get(bucket) ?? 0;
     if (n >= max) continue;

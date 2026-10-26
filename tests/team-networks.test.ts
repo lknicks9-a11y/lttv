@@ -42,3 +42,17 @@ test('stream list: listed channels first, two per team, dead ones replaced by th
   assert.deepEqual(capStreams(ranked).map((x) => x.ch.number), [1, 2, 4, 5, 6, 8, 9]);
   assert.deepEqual(capStreams(ranked, (k) => k === 'k8').map((x) => x.ch.number), [1, 2, 4, 5, 6, 9, 10]);
 });
+
+import { bestStreams } from '../src/core/streamfinder';
+
+test('both teams get their channels: RSN, the network\'s station in each team\'s city', () => {
+  const team = (name: string, short: string, location: string, abbr: string, side: string) => ({ id: abbr, name, short, location, abbr, side });
+  const nhl = { id: 'g1', league: 'nhl', start: Date.now(), state: 'pre', detail: '', name: '', home: team('Boston Bruins', 'Bruins', 'Boston', 'BOS', 'home'), away: team('New York Rangers', 'Rangers', 'New York', 'NYR', 'away'), broadcasts: [] } as never;
+  const l1 = [ch('US: NESN HD', 1), ch('US: MSG HD', 2), ch('US: ESPN', 3)];
+  const sides1 = bestStreams(nhl, l1, 'hockey', []).map((p) => `${p.side}:${p.ch.originalName}`);
+  assert.ok(sides1.includes('home:US: NESN HD') && sides1.includes('away:US: MSG HD'), sides1.join(','));
+  const nfl = { id: 'g2', league: 'nfl', start: Date.now(), state: 'pre', detail: '', name: '', home: team('New England Patriots', 'Patriots', 'New England', 'NE', 'home'), away: team('Buffalo Bills', 'Bills', 'Buffalo', 'BUF', 'away'), broadcasts: [{ name: 'CBS', market: 'national', kind: 'tv' }] } as never;
+  const l2 = [ch('US: CBS 4 Boston WBZ', 1), ch('US: CBS 4 Buffalo WIVB', 2), ch('US: CBS 2 Chicago', 3)];
+  const sides2 = bestStreams(nfl, l2, 'football', []).map((p) => `${p.side ?? '-'}:${p.ch.originalName}`);
+  assert.ok(sides2.includes('home:US: CBS 4 Boston WBZ') && sides2.includes('away:US: CBS 4 Buffalo WIVB'), sides2.join(','));
+});
