@@ -81,6 +81,7 @@ export const NETWORKS: Network[] = [
   N('paramountplus', 'Paramount+', ['paramountplus']),
   N('vix', 'ViX', ['vix', 'vixplus']),
   N('peacock', 'Peacock', ['peacock']),
+  N('nbcsn', 'NBCSN', ['nbcsn', 'nbcsportsnetwork', 'nbcsportsnet']),
   N('universo', 'Universo', ['universo'], { local: [410] }),
   N('galavision', 'Galavisión', ['galavision'], { local: [404] }),
   // New York RSNs

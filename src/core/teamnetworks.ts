@@ -17,7 +17,7 @@ interface Station {
 // Call signs are matched in capitals only, so "KING" doesn't match "King of Queens".
 const S: Record<string, Station> = {
   wanf: { label: 'Atlanta News First (WANF)', re: /\bWANF\b|atlanta news first/i },
-  peachtree: { label: 'Peachtree Sports Network', re: /peachtree\s*(sports|tv)/i },
+  peachtree: { label: 'Peachtree Sports Network', re: /peachtree\s*(sports|tv)|\bWPCH\b/i },
   nbcsboston: { label: 'NBC Sports Boston', re: /\bnbc\s*sports?\s*boston\b|\bnbcs\s*boston\b/i },
   yes: { label: 'YES Network', re: /\byes\s*(network|net)\b|\bYES\b(?!\s*TV)/ },
   wsoc: { label: 'WSOC Channel 9', re: /\bWSOC\b/ },
@@ -34,7 +34,7 @@ const S: Record<string, Station> = {
   ktla: { label: 'KTLA 5', re: /\bKTLA\b/ },
   spectrumsn: { label: 'Spectrum SportsNet', re: /\bspectrum\s*sports\s*net\b(?!\s*(la|los angeles))/i },
   wplg: { label: 'WPLG Local 10', re: /\bWPLG\b/ },
-  wvtv: { label: 'WVTV My24', re: /\bWVTV\b|\bmy\s*24\b|\bmy\s*network\s*tv\s*24\b|\bcw\s*24\s*milwaukee\b/i },
+  wvtv: { label: 'WVTV My24 (Bucks TV Network)', re: /\bbucks\s*(tv|television)\b|\bWVTV\b|\bmy\s*24\b|\bmy\s*network\s*tv\s*24\b|\bcw\s*24\s*milwaukee\b/i },
   wttv: { label: 'CBS4 Indianapolis (WTTV)', re: /\bWTTV\b|\bcbs\s*4\s*indianapolis\b|\bcbs4\s*indy\b/i },
   wxin: { label: 'FOX59 Indianapolis (WXIN)', re: /\bWXIN\b|\bfox\s*59\b/i },
   wtvw: { label: 'WTVW Evansville', re: /\bWTVW\b/ },

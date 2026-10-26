@@ -381,8 +381,10 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     const team = teamOfSide(game, side);
     // The team's own network is the channel it's on today unless the schedule found a different one for this game.
     const listed = [...picks.values()].some((p) => p.tier === 0 && p.side === side);
+    // A national TV game (ESPN, NBC, NBCSN…) usually isn't on the teams' own channels: those go below it.
+    const nationalTv = game.broadcasts.some((b) => b.market === 'national' && b.kind === 'tv');
     for (const l of teamLocalChannels(game.league, team, lineup)) {
-      put({ ch: l.ch, score: (listed ? 86 : 78) - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0), kind: 'local', tier: listed ? 2 : 0, side, broadcast: l.label, reason: `${l.label} · ${team.short} local channel` });
+      put({ ch: l.ch, score: (listed ? 86 : 78) - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0), kind: 'local', tier: listed || nationalTv ? 2 : 0, side, broadcast: l.label, reason: `${l.label} · ${team.short} local channel` });
     }
   }
   for (const p of picks.values()) {
