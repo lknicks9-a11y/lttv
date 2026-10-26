@@ -37,7 +37,7 @@ const obj = (v: unknown): J => (v && typeof v === 'object' ? (v as J) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
 const def = (v: unknown): string => str(obj(v).default) || str(v);
-const STREAMING = /\+|prime|peacock|apple|netflix|paramount|max\b|stream|pass|app\b|dazn|youtube|victory|ott/i;
+const STREAMING = /\+|prime|peacock|apple|netflix|paramount|max\b|stream|pass|app\b|dazn|youtube|victory|ott/i; // DAZN still matched to DAZN channels in the playlist
 
 function add(out: Broadcast[], name: string, market: Broadcast['market']) {
   // "WTTV/WXIN", "KONG & KING": each station on its own.
@@ -171,7 +171,7 @@ export const SMW_NBA_URL = 'https://www.sportsmediawatch.com/tv-schedules/nba-tv
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 /** Not channels in a playlist: streaming apps, League Pass, Spanish feeds. */
-const SMW_SKIP = /^watch on:?$|league pass|peacock|dazn|\+$|\bapp\b|unlimited|premium|deportes|prime|youtube|clippervision|max\b|^tbd$|^n\/?a$/i;
+const SMW_SKIP = /^watch on:?$|league pass|peacock|\+$|\bapp\b|unlimited|premium|deportes|prime|youtube|clippervision|max\b|^tbd$|^n\/?a$/i;
 const SMW_NAMES: Record<string, string> = {
   NBCSB: 'NBC Sports Boston', NBCSBA: 'NBC Sports Bay Area', NBCSCA: 'NBC Sports California', NBCSP: 'NBC Sports Philadelphia', SPECSN: 'Spectrum SportsNet',
   MNMT: 'Monumental Sports Network', MNMT2: 'Monumental Sports Network', ALT: 'Altitude', ALT2: 'Altitude', GCSEN: 'Gulf Coast Sports & Entertainment Network',

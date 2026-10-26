@@ -91,10 +91,10 @@ test('NBA from Sports Media Watch: national plus each team\'s locals, list and t
   assert.equal(l.length, 5);
   assert.deepEqual(f('Golden State Warriors')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['national:NBCSN']);
   assert.equal(new Date(f('Golden State Warriors')!.start).toISOString(), '2026-10-27T00:00:00.000Z');
-  assert.deepEqual(f('Philadelphia 76ers')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['national:ESPN', 'away:NBC Sports Philadelphia']);
+  assert.deepEqual(f('Philadelphia 76ers')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['national:ESPN', 'away:NBC Sports Philadelphia', 'home:DAZN']);
   assert.deepEqual(f('Houston Rockets')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:Space City Home Network', 'home:WCGV', 'home:My24']);
-  assert.deepEqual(f('Charlotte Hornets')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:WAXN', 'away:TV64', 'home:WMYD']);
-  assert.deepEqual(f('Orlando Magic')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:WRDQ', 'national:TSN1', 'national:TSN4']);
+  assert.deepEqual(f('Charlotte Hornets')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:WAXN', 'away:TV64', 'away:DAZN', 'home:WMYD', 'home:DAZN']);
+  assert.deepEqual(f('Orlando Magic')!.broadcasts.map((b) => `${b.market}:${b.name}`), ['away:WRDQ', 'away:DAZN', 'national:TSN1', 'national:TSN4']);
   // Matched to the schedule's game.
   const team = (name: string, short: string, location: string, abbr: string, side: string) => ({ id: abbr, name, short, location, abbr, side });
   const g = { id: 'x', league: 'nba', start: Date.parse('2026-10-29T00:05:00Z'), state: 'pre', detail: '', name: '', home: team('Milwaukee Bucks', 'Bucks', 'Milwaukee', 'MIL', 'home'), away: team('Houston Rockets', 'Rockets', 'Houston', 'HOU', 'away'), broadcasts: [] } as never;
@@ -105,4 +105,15 @@ test('Sports Media Watch: TV pieces on separate lines still land on the right te
   const html = `<h3>Wednesday, October 28</h3><div>7:00 pm</div><div>Philadelphia 76ers vs Indiana Pacers</div><div>Watch on:</div><div><a>ESPN</a></div><div>A:</div><div><a>NBCSP</a></div><div>H:</div><div>WTTV</div>`;
   const l = parseSmwListings(html, Date.parse('2026-10-26T22:00:00Z'));
   assert.deepEqual(l[0].broadcasts.map((b) => `${b.market}:${b.name}`), ['national:ESPN', 'away:NBC Sports Philadelphia', 'home:WTTV']);
+});
+
+test('DAZN from the listing is offered when the playlist has DAZN channels', () => {
+  const html = `<h3>Wednesday, October 28</h3><div>7:00 pm</div><div>Philadelphia 76ers vs Indiana Pacers</div><div>ESPN; A: NBCSP, Peacock; H: DAZN</div>`;
+  const l = parseSmwListings(html, Date.parse('2026-10-26T22:00:00Z'));
+  assert.deepEqual(l[0].broadcasts.map((b) => `${b.market}:${b.name}`), ['national:ESPN', 'away:NBC Sports Philadelphia', 'home:DAZN']);
+  const ch = (n: string, i: number) => ({ key: `k${i}`, originalName: n, name: n, group: 'USA Sports', number: i, hidden: false }) as never;
+  const team = (name: string, short: string, location: string, abbr: string, side: string) => ({ id: abbr, name, short, location, abbr, side });
+  const g = { id: 'x', league: 'nba', start: l[0].start, state: 'pre', detail: '', name: '', home: team('Indiana Pacers', 'Pacers', 'Indiana', 'IND', 'home'), away: team('Philadelphia 76ers', '76ers', 'Philadelphia', 'PHI', 'away'), broadcasts: l[0].broadcasts } as never;
+  const shown = capStreams(bestStreams(g, [ch('US: DAZN 1 HD', 1), ch('ES: DAZN LaLiga', 2), ch('US: ESPN', 3)], 'basketball', [])).map((p) => `${p.side ?? '-'}:${p.ch.originalName}`);
+  assert.ok(shown.includes('home:US: DAZN 1 HD') && !shown.some((x) => x.includes('LaLiga')), shown.join(' | '));
 });

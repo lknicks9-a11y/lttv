@@ -218,7 +218,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
         const side = b.market;
         const team = teamOfSide(game, side);
         const chosen = !feed || feed === side;
-        add({ ch, score: (feed === side ? 95 : chosen ? 82 : 55) + fitAdj, kind: 'local', tier: 0, side, broadcast: b.name, reason: `${b.name} · ${team.short} broadcast` });
+        add({ ch, score: (feed === side ? 95 : chosen ? 82 : 55) + fitAdj - (b.kind === 'streaming' ? 3 : 0), kind: 'local', tier: 0, side, broadcast: b.name, reason: `${b.name} · ${team.short} broadcast` });
       }
     }
   }
