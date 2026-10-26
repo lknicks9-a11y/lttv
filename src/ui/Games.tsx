@@ -210,10 +210,7 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
         if (ctl.signal.aborted) return;
         const v = await checkStream(p.ch, ctl.signal);
         if (ctl.signal.aborted) return;
-        if (v) {
-          setLive((m) => new Map(m).set(p.ch.key, v));
-          if (v === 'dead') return; // the list changes; this runs again with the next channel in its place
-        }
+        if (v) setLive((m) => new Map(m).set(p.ch.key, v)); // a dead one is replaced; its replacement is checked next round
       }
       setChecking(undefined);
     })();
