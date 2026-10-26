@@ -67,6 +67,9 @@ export async function checkStream(ch: LineupChannel, signal?: AbortSignal): Prom
       // Refused: that says nothing about the channel, and the provider shouldn't be asked again for a while.
       refusedUntil.set(ch.playlistId, Date.now() + REFUSED_PAUSE_MS);
       v = undefined;
+    } else if (st && st !== 404 && st !== 410) {
+      // 429 / 458 / 5xx…: usually the provider's connection limit or a busy server, not a dead channel.
+      v = undefined;
     } else v = signal?.aborted && !timedOut ? undefined : 'dead';
   } finally {
     window.clearTimeout(timer);

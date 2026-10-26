@@ -48,7 +48,7 @@ const S: Record<string, Station> = {
   kphe: { label: 'KPHE 44', re: /\bKPHE\b/ },
   ktvk: { label: "Arizona's Family (KTVK 3)", re: /\bKTVK\b|arizona'?s\s*family/i },
   kunp: { label: 'KUNP', re: /\bKUNP\b/ },
-  nbcsca: { label: 'NBC Sports California', re: /\bnbc\s*sports?\s*california\b|\bnbcs\s*(california|cal)\b/i },
+  nbcsca: { label: 'NBC Sports California', re: /\bnbc\s*sports?\s*(california|ca|cal)\b|\bnbcs\s*-?\s*(california|cal|ca)\b/i },
   woai: { label: 'WOAI', re: /\bWOAI\b/ },
   kjzz: { label: 'KJZZ 14', re: /\bKJZZ\b/ },
   monumental: { label: 'Monumental Sports Network', re: /\bmonumental\s*sports\b|\bmonumental\b/i },

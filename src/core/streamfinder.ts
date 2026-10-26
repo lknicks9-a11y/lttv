@@ -22,7 +22,7 @@ export interface StreamPick {
   reason: string;
   side?: 'home' | 'away';
   broadcast?: string;
-  /** 0 = a channel the schedule lists for this game, 1 = event channel / guide listing, 2 = a team's usual channel, 3 = streaming service. */
+  /** 0 = the channel the game is on (listed for it, or the team's own network), 1 = team channel, 2 = event channel / guide listing / other, 3 = streaming service. */
   tier?: number;
 }
 
@@ -196,7 +196,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
       ch: e.ch,
       score,
       kind: e.event ? 'event' : 'guide',
-      tier: 1,
+      tier: 2,
       side,
       reason: e.event ? (side ? `Event channel · ${teamOfSide(game, side).short} broadcast` : 'Event channel for this game') : `Guide: ${e.text}`,
     });
@@ -213,7 +213,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
         const team = teamOfSide(game, citySide);
         add({ ch, score: 84, kind: 'local', tier: 0, side: citySide, broadcast: b.name, reason: `${b.name} · ${team.short} local station` });
       } else if (b.market === 'national') {
-        add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', tier: fit === 'affiliate' ? 1 : 0, broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : `${b.name} · national` });
+        add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', tier: fit === 'affiliate' ? 2 : 0, broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : `${b.name} · national` });
       } else {
         const side = b.market;
         const team = teamOfSide(game, side);
@@ -372,18 +372,20 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
   for (const p of findStreams(game, lineup, { sport, index })) put({ ...p });
   // Each team's own channel from the provider's Team PPV group.
   for (const t of teamBroadcasts(game, lineup)) {
-    put({ ch: t.ch, score: 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0), kind: 'local', tier: 2, side: t.side, reason: `${t.team.short} team channel` });
+    put({ ch: t.ch, score: 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0), kind: 'local', tier: 1, side: t.side, reason: `${t.team.short} team channel` });
   }
   // Each team's usual local channels (regional sports network / local station, NBA and NHL), so both teams have
   // their channels even when the schedule doesn't name one or names one the playlist doesn't have.
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
+    // The team's own network is the channel it's on today unless the schedule found a different one for this game.
+    const listed = [...picks.values()].some((p) => p.tier === 0 && p.side === side);
     for (const l of teamLocalChannels(game.league, team, lineup)) {
-      put({ ch: l.ch, score: 86 - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0), kind: 'local', tier: 2, side, broadcast: l.label, reason: `${l.label} · ${team.short} local channel` });
+      put({ ch: l.ch, score: (listed ? 86 : 78) - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0), kind: 'local', tier: listed ? 2 : 0, side, broadcast: l.label, reason: `${l.label} · ${team.short} local channel` });
     }
   }
   for (const p of picks.values()) {
-    p.tier ??= 1;
+    p.tier ??= 2;
     if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   }
   // The channels the game is actually on first, then event channels and guide listings, then teams' usual channels.
@@ -398,19 +400,25 @@ export const PER_TEAM = 2;
 
 /**
  * The list to show: at most two streams per team (both teams always get theirs), two per network, three event /
- * guide channels and two streaming-service channels; channels found dead are skipped so the next one fills in.
+ * guide channels and two streaming-service channels. A channel found dead is replaced by the next one, except the
+ * channel the game is actually on (always kept, at the top) and a team's last channel (kept rather than none).
  */
 export function capStreams(ranked: StreamPick[], isDead: (key: string) => boolean = () => false): StreamPick[] {
   const count = new Map<string, number>();
   const out: StreamPick[] = [];
+  const bucketOf = (p: StreamPick) => (p.side && p.kind === 'local' ? `side:${p.side}` : p.tier === 3 ? 'svc' : p.broadcast ? `net:${p.broadcast.toLowerCase()}` : 'event');
   for (const p of ranked) {
-    if (isDead(p.ch.key)) continue;
-    const bucket = p.side && p.kind === 'local' ? `side:${p.side}` : p.tier === 3 ? 'svc' : p.broadcast ? `net:${p.broadcast.toLowerCase()}` : 'event';
-    const max = bucket === 'event' ? 3 : PER_TEAM;
+    if (isDead(p.ch.key) && p.tier !== 0) continue;
+    const bucket = bucketOf(p);
     const n = count.get(bucket) ?? 0;
-    if (n >= max) continue;
+    if (n >= (bucket === 'event' ? 3 : PER_TEAM)) continue;
     count.set(bucket, n + 1);
     out.push(p);
   }
-  return out;
+  for (const side of ['home', 'away'] as const) {
+    if (count.get(`side:${side}`)) continue;
+    const last = ranked.find((p) => p.side === side && p.kind === 'local');
+    if (last) out.push(last);
+  }
+  return out.sort((a, b) => (a.tier ?? 9) - (b.tier ?? 9) || ranked.indexOf(a) - ranked.indexOf(b));
 }

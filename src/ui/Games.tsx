@@ -194,8 +194,10 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   useEffect(() => {
     const ctl = new AbortController();
     void (async () => {
+      let checked = 0;
       for (const p of visible) {
         if (ctl.signal.aborted) return;
+        if (checked >= 5) break; // a few at most: many quick connections get a provider to refuse them all
         const known = cachedLiveness(p.ch.key);
         if (known) {
           if (live.get(p.ch.key) !== known) setLive((m) => new Map(m).set(p.ch.key, known));
@@ -203,6 +205,9 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
         }
         if (!canCheck(p.ch)) continue;
         setChecking(p.ch.key);
+        checked++;
+        if (checked > 1) await new Promise((r) => setTimeout(r, 1500));
+        if (ctl.signal.aborted) return;
         const v = await checkStream(p.ch, ctl.signal);
         if (ctl.signal.aborted) return;
         if (v) {
