@@ -44,3 +44,28 @@ test('Pacers and Bucks stations; combined listings split; NHL team groups', () =
   assert.ok(inTeamGroupForTest(ch('Boston Bruins', 9, 'USA | NHL TEAMS'), 'nhl'));
   assert.ok(!inTeamGroupForTest(ch('Utah Jazz', 9, 'WNBA Team PPV'), 'nba'));
 });
+
+import { bestStreams, capStreams } from '../src/core/streamfinder';
+
+test('NHL with the real feed codes: both teams local channels on top', () => {
+  const g = (startTimeUTC: string, away: [string, string, string], home: [string, string, string], tv: [string, string, string][]) => ({ startTimeUTC, awayTeam: { abbrev: away[0], placeName: { default: away[1] }, commonName: { default: away[2] } }, homeTeam: { abbrev: home[0], placeName: { default: home[1] }, commonName: { default: home[2] } }, tvBroadcasts: tv.map(([market, countryCode, network], id) => ({ id, market, countryCode, network })) });
+  const json = { gameWeek: [{ date: '2026-10-25', games: [
+    g('2026-10-25T19:00:00Z', ['FLA', 'Florida', 'Panthers'], ['CHI', 'Chicago', 'Blackhawks'], [['N', 'CA', 'SN'], ['N', 'CA', 'TVAS'], ['H', 'US', 'CHSN'], ['A', 'US', 'SCRIPPS']]),
+    g('2026-10-26T02:00:00Z', ['MIN', 'Minnesota', 'Wild'], ['VAN', 'Vancouver', 'Canucks'], [['A', 'US', 'MINNHL'], ['A', 'US', 'Wild+'], ['N', 'CA', 'SN']]),
+  ] }] };
+  const l = parseNhlListings(json);
+  const ch = (n: string, i: number, group = 'USA Sports') => ({ key: `k${i}`, originalName: n, name: n, group, number: i, hidden: false }) as never;
+  const lineup = [ch('US: Chicago Sports Network HD', 1), ch('US: WSFL 39 Miami', 2), ch('Florida Panthers', 3, 'NHL'), ch('Minnesota Wild', 4, 'USA | NHL'), ch('Vancouver Canucks', 5, 'NHL Teams'), ch('CA: Sportsnet Pacific', 6, 'Canada Sports'), ch('US: ESPN', 7)];
+  const team = (name: string, short: string, location: string, abbr: string, side: string) => ({ id: abbr, name, short, location, abbr, side });
+  const game = (start: string, home: ReturnType<typeof team>, away: ReturnType<typeof team>) => {
+    const x = { id: 'x', league: 'nhl', start: Date.parse(start), state: 'pre', detail: '', name: '', home, away, broadcasts: [] as unknown[] };
+    x.broadcasts = listingFor(x as never, l)!.broadcasts;
+    return x as never;
+  };
+  const show = (gm: never) => capStreams(bestStreams(gm, lineup, 'hockey', [])).map((p) => `${p.side ?? '-'}:${p.ch.originalName}`);
+  const a = show(game('2026-10-25T19:00:00Z', team('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI', 'home'), team('Florida Panthers', 'Panthers', 'Florida', 'FLA', 'away')));
+  assert.deepEqual(a.slice(0, 2).sort(), ['away:US: WSFL 39 Miami', 'home:US: Chicago Sports Network HD'].sort(), a.join(' | '));
+  assert.ok(a.includes('away:Florida Panthers'), a.join(' | '));
+  const b = show(game('2026-10-26T02:00:00Z', team('Vancouver Canucks', 'Canucks', 'Vancouver', 'VAN', 'home'), team('Minnesota Wild', 'Wild', 'Minnesota', 'MIN', 'away')));
+  assert.ok(b.includes('away:Minnesota Wild') && b.includes('home:Vancouver Canucks') && b.includes('home:CA: Sportsnet Pacific'), b.join(' | '));
+});

@@ -61,6 +61,8 @@ const NHL_NAMES: Record<string, string> = {
   NHLN: 'NHL Network', MSG: 'MSG', MSGSN: 'MSG SportsNet', MSG2: 'MSG SportsNet', 'MSG-B': 'MSG Buffalo', MSGB: 'MSG Buffalo', NESN: 'NESN', 'NESN+': 'NESN+',
   NBCSP: 'NBC Sports Philadelphia', NBCSCA: 'NBC Sports California', 'NBCS-CA': 'NBC Sports California', CHSN: 'Chicago Sports Network', ALT: 'Altitude', ALT2: 'Altitude 2',
   MNMT: 'Monumental Sports Network', MNMT2: 'Monumental Sports Network 2', SCRIPPS: 'Scripps Sports', 'KCOP-13': 'KCOP', KCOP: 'KCOP', TRUTV: 'truTV',
+  MSGSN2: 'MSG SportsNet', 'SN+': 'Sportsnet', BSN: 'Sportsnet', CBJNHL: 'Blue Jackets Hockey Network', CBJHN: 'Blue Jackets Hockey Network',
+  MINNHL: 'Minnesota Wild', STLNHL: 'St. Louis Blues', CARNHL: 'Carolina Hurricanes', ABTV: 'Angels Broadcast Television', 'FOXLA+': 'KCOP',
   ESPN: 'ESPN', ESPN2: 'ESPN2', ABC: 'ABC', TNT: 'TNT', TBS: 'TBS', 'NBCSCH': 'Chicago Sports Network', DSN: 'Detroit SportsNet', 'DET SN': 'Detroit SportsNet',
   KONG: 'KONG', KING: 'KING 5', KUPX: 'KUPX', 'UTAH16': 'KUPX', WSFL: 'WSFL', WXPX: 'WXPX', WFTS: 'WFTS', KMCC: 'KMCC', 'VEGAS34': 'KMCC', WNPX: 'WNPX',
   'SN-PIT': 'SportsNet Pittsburgh', SNPIT: 'SportsNet Pittsburgh', 'NBCS-PH': 'NBC Sports Philadelphia', 'NBCSP+': 'NBC Sports Philadelphia+',

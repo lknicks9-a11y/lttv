@@ -88,7 +88,7 @@ export const NETWORKS: Network[] = [
   N('sny', 'SNY', ['sny', 'sportsnetnewyork'], { local: [639], rsn: true }),
   N('msg', 'MSG', ['msg', 'msgnetwork'], { local: [634], rsn: true }),
   N('msgb', 'MSG Buffalo', ['msgbuffalo', 'msgb'], { rsn: true }),
-  N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2'], { local: [635], rsn: true }),
+  N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2', 'msgsn2', 'msgsportsnet2'], { local: [635], rsn: true }),
   // Other RSNs
   N('nesn', 'NESN', ['nesn', 'newenglandsportsnetwork'], { local: [628], rsn: true }),
   N('nesnplus', 'NESN+', ['nesnplus']),

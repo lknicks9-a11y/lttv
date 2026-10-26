@@ -318,8 +318,10 @@ function feedNames(t: GameTeam): string[] {
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
   if (!TEAM_PPV_GROUPS[league]) return false;
   const g = ` ${foldText(ch.group ?? '')} `;
-  // "NBA Team PPV", "USA | NBA TEAM PPV", "NHL Teams", "NHL Team Pass"; not "WNBA Team PPV" for NBA.
-  return g.includes(` ${league} `) && /\b(team|teams|ppv|pass|center ice|league pass)\b/.test(g);
+  if (!g.includes(` ${league} `)) return false; // "WNBA Team PPV" isn't NBA
+  if (/\b(event|events|live event|ppv event)\b/.test(g) && !/\bteam/.test(g)) return false;
+  // NBA: the "NBA Team PPV" group ("USA | NBA TEAM PPV"). NHL: any NHL group ("NHL Teams", "NHL", "USA | NHL HD").
+  return league === 'nhl' || /\b(team|teams|ppv|pass|league pass)\b/.test(g);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
