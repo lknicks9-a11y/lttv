@@ -23,7 +23,8 @@ android {
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         // 1.0.x counted from build 34; from build 61 it's 1.1.0, and every tenth build moves the middle number (1.1.9 -> 1.2.0).
         val run = (System.getenv("GITHUB_RUN_NUMBER") ?: "34").toInt()
-        versionName = if (run < 61) "1.0.${(run - 34).coerceAtLeast(0)}" else "1.${1 + (run - 61) / 10}.${(run - 61) % 10}"
+        // Beta mode from build 87: every build is "1.0.0 Beta" until numbering goes up again.
+        versionName = if (run >= 87) "1.0.0 Beta" else if (run < 61) "1.0.${(run - 34).coerceAtLeast(0)}" else "1.${1 + (run - 61) / 10}.${(run - 61) % 10}"
     }
 
     signingConfigs {

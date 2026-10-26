@@ -316,11 +316,10 @@ function feedNames(t: GameTeam): string[] {
 }
 
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
-  const want = TEAM_PPV_GROUPS[league];
-  if (!want) return false;
-  const g = foldText(ch.group ?? '');
-  // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
-  return ` ${g} `.includes(` ${want} `);
+  if (!TEAM_PPV_GROUPS[league]) return false;
+  const g = ` ${foldText(ch.group ?? '')} `;
+  // "NBA Team PPV", "USA | NBA TEAM PPV", "NHL Teams", "NHL Team Pass"; not "WNBA Team PPV" for NBA.
+  return g.includes(` ${league} `) && /\b(team|teams|ppv|pass|center ice|league pass)\b/.test(g);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
@@ -422,3 +421,4 @@ export function capStreams(ranked: StreamPick[], isDead: (key: string) => boolea
   }
   return out.sort((a, b) => (a.tier ?? 9) - (b.tier ?? 9) || ranked.indexOf(a) - ranked.indexOf(b));
 }
+export const inTeamGroupForTest = inTeamGroup;

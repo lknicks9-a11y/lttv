@@ -39,6 +39,16 @@ const def = (v: unknown): string => str(obj(v).default) || str(v);
 const STREAMING = /\+|prime|peacock|apple|netflix|paramount|max\b|stream|pass|app\b|dazn|youtube|victory|ott/i;
 
 function add(out: Broadcast[], name: string, market: Broadcast['market']) {
+  // "WTTV/WXIN", "KONG & KING": each station on its own.
+  let parts = name.split(/\s*\/\s*/).filter((x) => x.trim().length >= 2);
+  if (parts.length < 2) {
+    const short = name.split(/\s*[&,]\s*/).filter((x) => x.trim().length >= 2);
+    if (short.length > 1 && short.every((x) => x.length <= 10)) parts = short; // "KONG & KING", not "Sports & Entertainment"
+  }
+  if (parts.length > 1) {
+    for (const p of parts) add(out, p, market);
+    return;
+  }
   const n = name.trim();
   if (!n || out.some((b) => b.name.toLowerCase() === n.toLowerCase() && b.market === market)) return;
   out.push({ name: n, market, kind: STREAMING.test(n) ? 'streaming' : 'tv' });
@@ -51,6 +61,9 @@ const NHL_NAMES: Record<string, string> = {
   NHLN: 'NHL Network', MSG: 'MSG', MSGSN: 'MSG SportsNet', MSG2: 'MSG SportsNet', 'MSG-B': 'MSG Buffalo', MSGB: 'MSG Buffalo', NESN: 'NESN', 'NESN+': 'NESN+',
   NBCSP: 'NBC Sports Philadelphia', NBCSCA: 'NBC Sports California', 'NBCS-CA': 'NBC Sports California', CHSN: 'Chicago Sports Network', ALT: 'Altitude', ALT2: 'Altitude 2',
   MNMT: 'Monumental Sports Network', MNMT2: 'Monumental Sports Network 2', SCRIPPS: 'Scripps Sports', 'KCOP-13': 'KCOP', KCOP: 'KCOP', TRUTV: 'truTV',
+  ESPN: 'ESPN', ESPN2: 'ESPN2', ABC: 'ABC', TNT: 'TNT', TBS: 'TBS', 'NBCSCH': 'Chicago Sports Network', DSN: 'Detroit SportsNet', 'DET SN': 'Detroit SportsNet',
+  KONG: 'KONG', KING: 'KING 5', KUPX: 'KUPX', 'UTAH16': 'KUPX', WSFL: 'WSFL', WXPX: 'WXPX', WFTS: 'WFTS', KMCC: 'KMCC', 'VEGAS34': 'KMCC', WNPX: 'WNPX',
+  'SN-PIT': 'SportsNet Pittsburgh', SNPIT: 'SportsNet Pittsburgh', 'NBCS-PH': 'NBC Sports Philadelphia', 'NBCSP+': 'NBC Sports Philadelphia+',
 };
 
 /** NHL: api-web.nhle.com/v1/schedule/{date}. */
@@ -61,9 +74,13 @@ export function parseNhlListings(json: unknown): TvListing[] {
       const start = Date.parse(str(g.startTimeUTC));
       const team = (t: J) => [def(t.commonName), `${def(t.placeName)} ${def(t.commonName)}`, str(t.abbrev)].filter(Boolean);
       const broadcasts: Broadcast[] = [];
-      for (const b of arr(g.tvBroadcasts).map(obj)) {
+      const tv = arr(g.tvBroadcasts).map(obj);
+      const anyUs = tv.some((b) => str(b.countryCode).toUpperCase() === 'US');
+      for (const b of tv) {
         const code = str(b.network).trim();
         const country = str(b.countryCode).toUpperCase();
+        // Canada-wide broadcasts only when the game has no US broadcast (a Canadian team's own channel stays).
+        if (country === 'CA' && str(b.market).toUpperCase() === 'N' && anyUs) continue;
         const name = code === 'SNP' ? (country === 'CA' ? 'Sportsnet Pacific' : 'SportsNet Pittsburgh') : NHL_NAMES[code.toUpperCase()] ?? code;
         const m = str(b.market).toUpperCase();
         add(broadcasts, name, m === 'H' ? 'home' : m === 'A' ? 'away' : 'national');
