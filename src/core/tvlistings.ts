@@ -69,6 +69,8 @@ const NHL_NAMES: Record<string, string> = {
   'SN-PIT': 'SportsNet Pittsburgh', SNPIT: 'SportsNet Pittsburgh', 'NBCS-PH': 'NBC Sports Philadelphia', 'NBCSP+': 'NBC Sports Philadelphia+',
 };
 
+const CA_TEAMS = new Set(['VAN', 'CGY', 'EDM', 'TOR', 'MTL', 'OTT', 'WPG']);
+
 /** NHL: api-web.nhle.com/v1/schedule/{date}. */
 export function parseNhlListings(json: unknown): TvListing[] {
   const out: TvListing[] = [];
@@ -82,11 +84,16 @@ export function parseNhlListings(json: unknown): TvListing[] {
       for (const b of tv) {
         const code = str(b.network).trim();
         const country = str(b.countryCode).toUpperCase();
-        // Canada-wide broadcasts only when the game has no US broadcast (a Canadian team's own channel stays).
-        if (country === 'CA' && str(b.market).toUpperCase() === 'N' && anyUs) continue;
+        // A Canada-wide broadcast is the Canadian team's channel in a game against a US team; dropped for two US teams.
+        let mk = str(b.market).toUpperCase();
+        if (country === 'CA' && mk === 'N' && anyUs) {
+          const homeCa = CA_TEAMS.has(str(obj(g.homeTeam).abbrev));
+          const awayCa = CA_TEAMS.has(str(obj(g.awayTeam).abbrev));
+          if (homeCa === awayCa) continue;
+          mk = homeCa ? 'H' : 'A';
+        }
         const name = code === 'SNP' ? (country === 'CA' ? 'Sportsnet Pacific' : 'SportsNet Pittsburgh') : NHL_NAMES[code.toUpperCase()] ?? code;
-        const m = str(b.market).toUpperCase();
-        add(broadcasts, name, m === 'H' ? 'home' : m === 'A' ? 'away' : 'national');
+        add(broadcasts, name, mk === 'H' ? 'home' : mk === 'A' ? 'away' : 'national');
       }
       if (Number.isFinite(start)) out.push({ start, home: team(obj(g.homeTeam)), away: team(obj(g.awayTeam)), broadcasts });
     }

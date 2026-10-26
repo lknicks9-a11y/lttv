@@ -370,28 +370,34 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     const cur = picks.get(p.ch.key);
     if (!cur || (p.tier ?? 9) < (cur.tier ?? 9) || ((p.tier ?? 9) === (cur.tier ?? 9) && p.score > cur.score)) picks.set(p.ch.key, p);
   };
-  for (const p of findStreams(game, lineup, { sport, index })) put({ ...p });
-  // Each team's own channel from the provider's Team PPV group.
-  for (const t of teamBroadcasts(game, lineup)) {
-    put({ ch: t.ch, score: 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0), kind: 'local', tier: 1, side: t.side, reason: `${t.team.short} team channel` });
+  // The game has a TV listing: only the channels it names (plus event channels / guide listings for this game).
+  const hasListing = game.broadcasts.some((b) => b.market !== 'national' || b.kind === 'tv');
+  for (const p of findStreams(game, lineup, { sport, index })) {
+    if (hasListing && (p.tier === 3 || (p.kind === 'national' && p.tier !== 0))) continue; // streaming-service filler, other cities' affiliates
+    put({ ...p });
   }
-  // Each team's usual local channels (regional sports network / local station, NBA and NHL), so both teams have
-  // their channels even when the schedule doesn't name one or names one the playlist doesn't have.
+  const nationalTv = game.broadcasts.some((b) => b.market === 'national' && b.kind === 'tv');
   for (const side of ['home', 'away'] as const) {
     const team = teamOfSide(game, side);
-    // The team's own network is the channel it's on today unless the schedule found a different one for this game.
-    const listed = [...picks.values()].some((p) => p.tier === 0 && p.side === side);
-    // A national TV game (ESPN, NBC, NBCSN…) usually isn't on the teams' own channels: those go below it.
-    const nationalTv = game.broadcasts.some((b) => b.market === 'national' && b.kind === 'tv');
+    // A team's listed channel is in the playlist: that's its stream, nothing else for that team.
+    if ([...picks.values()].some((p) => p.tier === 0 && p.side === side)) continue;
+    // The listing names channels for this team that the playlist doesn't have under those names (or there's no
+    // listing): the team's own channel from the provider's team group, then its usual local station.
+    const listedForSide = game.broadcasts.some((b) => b.market === side);
+    if (hasListing && !listedForSide) continue; // e.g. a national-only game: no local channels for this team
+    const other = teamOfSide(game, side === 'home' ? 'away' : 'home');
+    for (const ch of teamChannels(team, other, game.league, lineup).slice(0, 2)) {
+      put({ ch, score: 88 + qualityRank(ch.originalName) + (ch.favorite ? 1 : 0), kind: 'local', tier: 1, side, reason: `${team.short} team channel` });
+    }
     for (const l of teamLocalChannels(game.league, team, lineup)) {
-      put({ ch: l.ch, score: (listed ? 86 : 78) - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0), kind: 'local', tier: listed || nationalTv ? 2 : 0, side, broadcast: l.label, reason: `${l.label} · ${team.short} local channel` });
+      put({ ch: l.ch, score: 78 - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0), kind: 'local', tier: nationalTv ? 2 : 0, side, broadcast: l.label, reason: `${l.label} · ${team.short} local channel` });
     }
   }
   for (const p of picks.values()) {
     p.tier ??= 2;
     if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   }
-  // The channels the game is actually on first, then event channels and guide listings, then teams' usual channels.
+  // The channels the game is actually on first, then event channels and guide listings for the game.
   const all = [...picks.values()].sort((a, b) => a.tier! - b.tier! || b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => isEnglishChannel(p.ch));

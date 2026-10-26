@@ -67,7 +67,7 @@ test('NHL with the real feed codes: both teams local channels on top', () => {
   assert.deepEqual(a.slice(0, 2).sort(), ['away:US: WSFL 39 Miami', 'home:US: Chicago Sports Network HD'].sort(), a.join(' | '));
   assert.ok(a.includes('away:Florida Panthers'), a.join(' | '));
   const b = show(game('2026-10-26T02:00:00Z', team('Vancouver Canucks', 'Canucks', 'Vancouver', 'VAN', 'home'), team('Minnesota Wild', 'Wild', 'Minnesota', 'MIN', 'away')));
-  assert.ok(b.includes('away:Minnesota Wild') && b.includes('home:Vancouver Canucks') && b.includes('home:CA: Sportsnet Pacific'), b.join(' | '));
+  assert.deepEqual(b, ['away:Minnesota Wild', 'home:CA: Sportsnet Pacific']);
 });
 
 import { parseSmwListings } from '../src/core/tvlistings';

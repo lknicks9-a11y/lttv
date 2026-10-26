@@ -59,7 +59,7 @@ test('both teams get their channels: RSN, the network\'s station in each team\'s
 
 test('Kings game: NBC Sports California at the top, kept even if the check says dead', () => {
   const team = (name: string, short: string, location: string, abbr: string, side: string) => ({ id: abbr, name, short, location, abbr, side });
-  const g = { id: 'g3', league: 'nba', start: Date.now(), state: 'pre', detail: '', name: '', home: team('Sacramento Kings', 'Kings', 'Sacramento', 'SAC', 'home'), away: team('Utah Jazz', 'Jazz', 'Utah', 'UTA', 'away'), broadcasts: [{ name: 'NBCS-CA', market: 'home', kind: 'tv' }] } as never;
+  const g = { id: 'g3', league: 'nba', start: Date.now(), state: 'pre', detail: '', name: '', home: team('Sacramento Kings', 'Kings', 'Sacramento', 'SAC', 'home'), away: team('Utah Jazz', 'Jazz', 'Utah', 'UTA', 'away'), broadcasts: [{ name: 'NBCS-CA', market: 'home', kind: 'tv' }, { name: 'KJZZ', market: 'away', kind: 'tv' }] } as never;
   const l = [ch('NBA 04: Jazz @ Kings', 1), ch('US: NBC Sports California HD', 2), ch('US: KJZZ 14', 3)];
   const idx = [{ ch: l[0], text: 'NBA 04: Jazz @ Kings', start: 0, stop: Infinity, event: true }];
   const ranked = bestStreams(g, l, 'basketball', idx as never);
