@@ -8,6 +8,7 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
+import { teamLocalChannels } from './teamnetworks';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
@@ -342,6 +343,15 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
     const cur = picks.get(t.ch.key);
     if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
+  }
+  // Each team's local TV (regional sports network / local station) from the user's playlist (NBA, NHL).
+  for (const side of ['home', 'away'] as const) {
+    const team = teamOfSide(game, side);
+    for (const l of teamLocalChannels(game.league, team, lineup)) {
+      const score = 86 - l.rank * 2 + qualityRank(l.ch.originalName) + (l.ch.favorite ? 1 : 0);
+      const cur = picks.get(l.ch.key);
+      if (!cur || cur.score < score) picks.set(l.ch.key, { ch: l.ch, score, kind: 'local', side, broadcast: l.label, reason: `${l.label} · ${team.short} local broadcast` });
+    }
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
