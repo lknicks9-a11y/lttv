@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LTTV Team Channel Picker</title>
+<style>
+:root { --bg: #0f1216; --surface: #171b21; --surface-2: #1f252d; --line: #2c333d; --fg: #e9edf2; --muted: #95a0ae; --accent: #f06a30; --accent-ink: #160a04; --ok: #4cc27f; --ok-soft: #173325; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.app { display: grid; grid-template-columns: 250px minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+header h1 { font: 800 1.25rem 'Arial Narrow', Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 10px 0 0; }
+input, button, select { font: inherit; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; }
+button { cursor: pointer; font-weight: 600; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.muted { color: var(--muted); }
+.col { min-height: 0; overflow: auto; border-right: 1px solid var(--line); }
+.tabs { display: flex; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.tabs button { flex: 1; border: 0; border-radius: 0; background: transparent; padding: 9px; color: var(--muted); font-weight: 800; }
+.tabs button[aria-selected="true"] { color: var(--fg); box-shadow: inset 0 -3px 0 var(--accent); }
+.team { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 7px 10px; font-weight: 500; }
+.team .sw { width: 8px; height: 22px; border-radius: 2px; flex: none; }
+.team .n { flex: 1; }
+.team .c { font: 600 12px ui-monospace, Consolas, monospace; color: var(--muted); }
+.team .c.done { color: var(--ok); }
+.team[aria-current="true"] { background: var(--surface-2); }
+.mid { display: flex; flex-direction: column; }
+.mid .q { position: sticky; top: 0; padding: 10px; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+.mid .q input { flex: 1; }
+.row { display: flex; gap: 8px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.row:hover { background: var(--surface); }
+.row.playing { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+.row .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.row small, .pick small { display: block; color: var(--muted); font-size: 12px; }
+mark { background: transparent; color: var(--accent); font-weight: 700; }
+.right { display: flex; flex-direction: column; gap: 10px; padding: 10px; overflow: auto; border-right: 0; }
+video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
+.now { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.now .t { flex: 1; min-width: 0; font-weight: 600; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pick { display: flex; gap: 8px; align-items: center; background: var(--ok-soft); border: 1px solid var(--ok); border-radius: 7px; padding: 6px 8px; }
+.pick .r { font-weight: 800; color: var(--ok); width: 1.2em; text-align: center; }
+.pick .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+textarea { width: 100%; min-height: 120px; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; }
+.status { font-size: 13px; }
+.err { color: #ff8a8a; }
+.ok { color: var(--ok); }
+@media (max-width: 900px) { .app { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; } .col { max-height: 50vh; border-right: 0; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Team Channel Picker</h1>
+    <input id="url" type="url" placeholder="Playlist link (M3U), or server for Xtream" style="flex:1;min-width:220px" autocomplete="off">
+    <input id="user" placeholder="Xtream username (optional)" autocomplete="off" style="width:180px">
+    <input id="pass" type="password" placeholder="Xtream password" autocomplete="off" style="width:150px">
+    <button id="load" class="primary" type="button">Load playlist</button>
+    <label><button type="button" id="fileBtn">Open .m3u file</button><input id="file" type="file" accept=".m3u,.m3u8,.txt" hidden></label>
+    <span id="status" class="status muted">Load your playlist to start. It stays on this computer.</span>
+  </header>
+
+  <nav class="col" aria-label="Teams">
+    <div class="tabs"><button id="tab-nba" type="button" aria-selected="true">NBA</button><button id="tab-nhl" type="button" aria-selected="false">NHL</button></div>
+    <div id="teams"></div>
+  </nav>
+
+  <section class="col mid">
+    <div class="q"><input id="q" type="search" placeholder="Search: team, network, city or call sign" autocomplete="off"></div>
+    <div id="results"></div>
+  </section>
+
+  <section class="col right">
+    <video id="video" controls muted playsinline></video>
+    <div class="now"><span class="t" id="nowName">Click a channel to watch it here.</span><button id="addNow" class="primary" type="button" disabled>Add to team</button></div>
+    <div class="status muted" id="playStatus"></div>
+    <div class="box">
+      <b id="teamTitle">Team</b>
+      <div id="picked"></div>
+      <span class="muted" style="font-size:12px">First = the channel the team is usually on. Add its local station too if it has one.</span>
+    </div>
+    <div class="box">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Send to Claude</b><span class="muted" id="done"></span><span style="flex:1"></span><button id="copy" class="primary" type="button">Copy list</button></div>
+      <textarea id="out" readonly></textarea>
+      <span class="muted" style="font-size:12px">Only channel names and groups. No stream links or login.</span>
+    </div>
+  </section>
+</div>
+<script src="picker.js"></script>
+</body>
+</html>

@@ -86,6 +86,13 @@ const appCtx = await esbuild.context({
   // Background photos are copied from public/ and loaded at runtime.
   external: ['/bg/*'],
 });
+// Team Channel Picker: a separate page of the desktop helper (picker.html), not part of the app.
+const pickerCtx = await esbuild.context({
+  ...common,
+  entryPoints: { picker: join(root, 'src/picker/picker.ts') },
+  outdir: out,
+  format: 'iife',
+});
 const workerCtx = await esbuild.context({
   ...common,
   entryPoints: { worker: join(root, 'src/app/worker.ts') },
@@ -96,12 +103,15 @@ const workerCtx = await esbuild.context({
 if (watch) {
   await appCtx.watch();
   await workerCtx.watch();
+  await pickerCtx.watch();
   console.log('Watching for changes…');
 } else {
   await appCtx.rebuild();
   await workerCtx.rebuild();
+  await pickerCtx.rebuild();
   await appCtx.dispose();
   await workerCtx.dispose();
+  await pickerCtx.dispose();
   writeFileSync(join(out, 'version.json'), JSON.stringify({ version: pkg.version, builtAt: new Date().toISOString() }));
   if (android) {
     const assets = join(root, 'android/app/src/main/assets/www');
