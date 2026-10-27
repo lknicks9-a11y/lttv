@@ -78,6 +78,8 @@ export interface Game {
   home: GameTeam;
   away: GameTeam;
   broadcasts: Broadcast[];
+  /** Where the channels came from: the TV listing had this game, didn't, or couldn't be read (and why). */
+  listing?: { source: string; state: 'found' | 'missing' | 'unavailable'; error?: string };
   venue?: string;
   note?: string;
   neutral?: boolean;

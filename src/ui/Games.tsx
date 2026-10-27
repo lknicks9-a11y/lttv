@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { useGames, logoFor } from '../app/schedule';
 import { scheduleDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
+import { channelsForBroadcast } from '../core/networks';
 import { buildGameIndexAsync, broadcastSummary, bestStreams, capStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
 import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
@@ -236,6 +237,30 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
         </span>
         <span class="watch-team"><TeamLogo team={game.home} size="lg" /><span>{game.home.name}</span>{game.state !== 'pre' && <b>{game.home.score}</b>}</span>
       </div>
+      {game.listing && (
+        <p class="muted watch-listing">
+          {game.listing.state === 'found' ? (
+            <>
+              Tonight’s TV ({game.listing.source}):{' '}
+              {(['away', 'home', 'national'] as const).map((mk) => {
+                const bs = game.broadcasts.filter((b) => b.market === mk);
+                if (!bs.length) return null;
+                const who = mk === 'national' ? 'National' : (mk === 'home' ? game.home : game.away).short;
+                return (
+                  <span key={mk} class="watch-listing-side">
+                    <b>{who}:</b> {bs.map((b, i) => <span key={b.name}>{i ? ', ' : ''}{b.name}{channelsForBroadcast(b.name, lineup).length ? ' ✓' : ' (not in your playlist)'}</span>)}{' '}
+                  </span>
+                );
+              })}
+              {!game.broadcasts.length && 'no TV channels listed'}
+            </>
+          ) : game.listing.state === 'missing' ? (
+            `${game.listing.source} has no TV listing for this game`
+          ) : (
+            `Couldn’t read tonight’s TV listing from ${game.listing.source}: ${game.listing.error}`
+          )}
+        </p>
+      )}
 
       <>
           {!index ? (
