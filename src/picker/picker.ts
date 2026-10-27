@@ -124,9 +124,21 @@ async function loadUrl() {
 }
 
 // ---------------- player ----------------
+// Plays like the LTTV desktop app: raw TS channels are turned into MP4 by ffmpeg in the helper when it has it (the
+// smoothest), otherwise by mpegts.js with a deep buffer; HLS through hls.js with patient retries. A stream that
+// stops is reconnected by itself.
 let hls: Hls | null = null;
 let ts: ReturnType<typeof mpegts.createPlayer> | null = null;
+let caps: { ffmpeg?: boolean } | null = null;
+let watchdog = 0;
+let retryTimer = 0;
+let lastPos = -1;
+let lastMoveAt = 0;
+let reconnects = 0;
+
 function stop() {
+  clearInterval(watchdog);
+  clearTimeout(retryTimer);
   hls?.destroy();
   hls = null;
   try {
@@ -136,23 +148,29 @@ function stop() {
   }
   ts = null;
   const v = $('video') as HTMLVideoElement;
+  v.onplaying = v.onerror = null;
   v.removeAttribute('src');
   v.load();
+}
+
+function say(text: string, cls = 'muted') {
+  const ps = $('playStatus');
+  ps.textContent = text;
+  ps.className = `status ${cls}`;
 }
 
 async function play(chIn: Ch) {
   let ch = chIn;
   playing = chIn;
+  reconnects = 0;
   stop();
   $('nowName').textContent = ch.name;
   ($('addNow') as HTMLButtonElement).disabled = false;
   ($('addNow') as HTMLButtonElement).textContent = `Add to ${teamName(current)}`;
-  const ps = $('playStatus');
-  ps.textContent = 'Connecting…';
-  ps.className = 'status muted';
-  const v = $('video') as HTMLVideoElement;
-  // Find a player identity the provider accepts for this stream (same as loading the playlist: refused clients,
-  // e.g. code 884, are retried as VLC and other standard players).
+  say('Connecting…');
+  if (!caps) caps = (await fetch('api/caps').then((r) => r.json()).catch(() => ({}))) as { ffmpeg?: boolean };
+  // Find a player identity the provider accepts for this stream (refused clients, e.g. code 884, are retried as
+  // VLC and other standard players, like the LTTV app does).
   let kind = 'unknown';
   for (const id of [{ ua: playerUa, label: '' }, ...CLIENT_IDENTITIES.filter((c) => c.ua !== playerUa)]) {
     const headers = id.ua ? { ...(ch.headers ?? {}), 'User-Agent': id.ua } : ch.headers;
@@ -170,38 +188,115 @@ async function play(chIn: Ch) {
     }
   }
   if (playing !== chIn) return;
-  const fail = (msg: string) => {
-    if (playing !== chIn) return;
-    ps.textContent = msg;
-    ps.className = 'status err';
+  if (kind === 'unknown' && /\.ts(\?|$)|\/live\/[^/]+\/[^/]+\/\d+$/i.test(ch.url)) kind = 'ts';
+  start(chIn, ch, kind);
+}
+
+function start(key: Ch, ch: Ch, kind: string) {
+  stop();
+  const v = $('video') as HTMLVideoElement;
+  const mine = () => playing === key;
+  const reconnect = (why: string) => {
+    if (!mine()) return;
+    reconnects++;
+    if (reconnects > 20) return say(`${why} Gave up after several tries; the channel may be down.`, 'err');
+    say(`${why} Reconnecting…`);
+    clearTimeout(retryTimer);
+    retryTimer = window.setTimeout(() => mine() && start(key, ch, kind), Math.min(1000 * reconnects, 5000));
   };
+  const refused = (code?: number) => (code === 401 || code === 403 ? `The provider refused this stream (${code}). Your connection limit may be in use.` : code === 404 ? 'Stream not found (404). This channel may be offline.' : '');
   v.onplaying = () => {
-    if (playing === chIn) {
-      ps.textContent = 'Playing. Unmute with the speaker button if you want sound.';
-      ps.className = 'status ok';
-    }
+    if (!mine()) return;
+    reconnects = 0;
+    say('Playing. Unmute with the speaker button if you want sound.', 'ok');
   };
-  if (kind === 'ts' || (kind === 'unknown' && /\.ts(\?|$)|\/live\/[^/]+\/[^/]+\/\d+$/i.test(ch.url))) {
-    if (!mpegts.isSupported()) return fail("This browser can't play raw TS streams. Use Chrome or Edge.");
-    ts = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: new URL(proxied(ch.url, ch.headers), location.href).href }, { enableWorker: false, liveBufferLatencyChasing: true });
-    ts.on(mpegts.Events.ERROR, (...args: unknown[]) => { const info = args[2] as { code?: number } | undefined; fail(info?.code === 401 || info?.code === 403 ? `The provider refused this stream (${info.code}). Your connection limit may be in use.` : info?.code === 404 ? 'Stream not found (404). This channel may be offline.' : 'This stream stopped or can’t be played here.'); });
+  // Watchdog: no progress for 12 seconds while it should be playing = reconnect.
+  lastPos = -1;
+  lastMoveAt = Date.now();
+  watchdog = window.setInterval(() => {
+    if (!mine() || v.paused) return;
+    if (v.currentTime !== lastPos) {
+      lastPos = v.currentTime;
+      lastMoveAt = Date.now();
+    } else if (Date.now() - lastMoveAt > 12_000) {
+      lastMoveAt = Date.now();
+      reconnect('The stream stalled.');
+    }
+  }, 2000);
+
+  if (kind === 'ts' && caps?.ffmpeg) {
+    // ffmpeg in the helper turns the TS stream into MP4 the browser plays natively: the smoothest way.
+    const p = new URLSearchParams({ url: ch.url });
+    if (ch.headers) p.set('h', JSON.stringify(ch.headers));
+    v.src = `api/remux?${p}`;
+    v.onerror = () => reconnect('The stream dropped.');
+    void v.play().catch(() => undefined);
+    return;
+  }
+  if (kind === 'ts') {
+    if (!mpegts.isSupported()) return say("This browser can't play raw TS streams. Use Chrome or Edge.", 'err');
+    ts = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: new URL(proxied(ch.url, ch.headers), location.href).href }, {
+      enableWorker: false,
+      lazyLoad: false,
+      enableStashBuffer: true,
+      stashInitialSize: 1024 * 1024,
+      autoCleanupSourceBuffer: true,
+      autoCleanupMaxBackwardDuration: 60,
+      autoCleanupMinBackwardDuration: 30,
+      liveBufferLatencyChasing: false,
+      fixAudioTimestampGap: true,
+    });
+    ts.on(mpegts.Events.ERROR, (...args: unknown[]) => {
+      const info = args[2] as { code?: number; msg?: string } | undefined;
+      const r = refused(info?.code);
+      if (r) return say(r, 'err');
+      if (args[0] === mpegts.ErrorTypes.MEDIA_ERROR && /codec|unsupported/i.test(`${args[1]} ${info?.msg ?? ''}`)) return say("This browser can't decode this channel's format. Try Chrome or Edge.", 'err');
+      reconnect('The stream dropped.');
+    });
     ts.attachMediaElement(v);
     ts.load();
     void Promise.resolve(ts.play()).catch(() => undefined);
     return;
   }
   if (Hls.isSupported()) {
-    hls = new Hls({ lowLatencyMode: false, liveSyncDurationCount: 3 });
-    hls.on(Hls.Events.ERROR, (_e, d) => {
-      if (d.fatal) fail(d.response?.code === 401 || d.response?.code === 403 ? `The provider refused this stream (${d.response.code}).` : d.response?.code === 404 ? 'Stream not found (404). This channel may be offline.' : 'This stream stopped or can’t be played here.');
+    let recoveredAt = 0;
+    hls = new Hls({
+      enableWorker: false,
+      lowLatencyMode: false,
+      backBufferLength: 30,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      maxBufferHole: 1,
+      liveSyncDurationCount: 3,
+      startFragPrefetch: true,
+      nudgeMaxRetry: 8,
+      manifestLoadingMaxRetry: 2,
+      levelLoadingMaxRetry: 4,
+      fragLoadingTimeOut: 20000,
+      fragLoadingMaxRetry: 6,
+      fragLoadingRetryDelay: 1000,
     });
-    hls.loadSource(proxied(ch.url, ch.headers, 'hls'));
-    hls.attachMedia(v);
-    void v.play().catch(() => undefined);
+    const h = hls;
+    h.on(Hls.Events.ERROR, (_e, d) => {
+      if (/bufferAddCodecError|bufferIncompatibleCodecsError|manifestIncompatibleCodecsError/.test(d.details)) return say("This browser can't decode this channel's format. Try Chrome or Edge.", 'err');
+      if (!d.fatal) return;
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR) return h.recoverMediaError();
+      const r = refused(d.response?.code);
+      if (r) return say(r, 'err');
+      if (d.type === Hls.ErrorTypes.NETWORK_ERROR && Date.now() - recoveredAt > 15_000) {
+        recoveredAt = Date.now();
+        return h.startLoad();
+      }
+      reconnect('The stream dropped.');
+    });
+    h.on(Hls.Events.MANIFEST_PARSED, () => void v.play().catch(() => undefined));
+    h.loadSource(proxied(ch.url, ch.headers, 'hls'));
+    h.attachMedia(v);
     return;
   }
   v.src = proxied(ch.url, ch.headers);
-  void v.play().catch(() => fail('This stream can’t be played here.'));
+  v.onerror = () => reconnect('The stream dropped.');
+  void v.play().catch(() => undefined);
 }
 
 // ---------------- lists ----------------
