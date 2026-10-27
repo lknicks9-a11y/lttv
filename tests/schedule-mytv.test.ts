@@ -118,9 +118,7 @@ test('one best-first stream list for a game: no broadcast question, both teams\'
   ]);
   const index = [{ ch: lineup[2], text: lineup[2].originalName, start: 0, stop: Infinity, event: true }];
   const all = bestStreams(g, lineup, 'baseball', index);
-  // The channels the schedule lists for the game first (YES, NESN), then the event channel.
-  assert.deepEqual(all.slice(0, 3).map((p) => p.ch.originalName).sort(), ['MLB 05: Red Sox @ Yankees', 'US: NESN FHD', 'US: YES Network HD'].sort());
-  assert.equal(all[2].ch.originalName, 'MLB 05: Red Sox @ Yankees');
+  assert.equal(all[0].ch.originalName, 'MLB 05: Red Sox @ Yankees'); // the game's own event channel first
   assert.ok(all.some((p) => /YES/.test(p.ch.originalName)) && all.some((p) => /NESN/.test(p.ch.originalName)));
   assert.ok(!all.some((p) => /Sky Sports/.test(p.ch.originalName)));
   // Spanish-language feeds of the game are left out when English ones exist.

@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { useGames, logoFor } from '../app/schedule';
 import { scheduleDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
-import { channelsForBroadcast } from '../core/networks';
-import { buildGameIndexAsync, broadcastSummary, bestStreams, capStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
+import { buildGameIndexAsync, broadcastSummary, bestStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
 import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
 import { clock } from './fmt';
@@ -90,10 +89,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
       const m = new Map<string, StreamPick | undefined>(latest.current);
       for (let i = 0; i < games.length; i++) {
         const g = games[i];
-        {
-          const list = bestStreams(g, lineup, league.sport, idx);
-          m.set(g.id, capStreams(list, (k) => cachedLiveness(k) === 'dead')[0] ?? list[0]);
-        }
+        m.set(g.id, bestStreams(g, lineup, league.sport, idx)[0]);
         latest.current = m;
         if (i % 6 === 5) {
           if (!openRef.current) setBest(new Map(m));
@@ -169,6 +165,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 
 /** The best streams for a game, best first (event channels, team channels, networks), from the user's lineup. */
 /** How many of a game's top streams are checked for being on the air. */
+const CHECK_TOP = 4;
 
 export function WatchGame({ game, index, onClose, onPick }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler }) {
   const lineup = useApp((s) => s.lineup);
@@ -184,41 +181,32 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   const isFav = (t: GameTeam) => favNames.has(t.name.toLowerCase()) || favNames.has(t.short.toLowerCase());
 
   const ranked = useMemo(() => (index ? bestStreams(game, lineup, league.sport, index, isFav) : []), [game, lineup, index, favNames]);
-  // What's shown: the game's own channels first, at most two per team; dead channels drop out and the next fills in.
+  // Check the top streams are actually on the air, one at a time (one extra provider connection at most).
   const [live, setLive] = useState<Map<string, Liveness>>(() => new Map());
   const [checking, setChecking] = useState<string | undefined>();
   const [showDead, setShowDead] = useState(false);
-  const isDead = (k: string) => (live.get(k) ?? cachedLiveness(k)) === 'dead';
-  const visible = capStreams(ranked, isDead);
-  const visibleKeys = visible.map((p) => p.ch.key).join('|');
-  // Check each shown stream is actually on the air, one at a time (one extra provider connection at most).
   useEffect(() => {
     const ctl = new AbortController();
+    const top = ranked.slice(0, CHECK_TOP);
+    setLive(new Map(top.flatMap((p) => { const v = cachedLiveness(p.ch.key); return v ? [[p.ch.key, v] as const] : []; })));
     void (async () => {
-      let checked = 0;
-      for (const p of visible) {
+      for (const p of top) {
         if (ctl.signal.aborted) return;
-        if (checked >= 5) break; // a few at most: many quick connections get a provider to refuse them all
-        const known = cachedLiveness(p.ch.key);
-        if (known) {
-          if (live.get(p.ch.key) !== known) setLive((m) => new Map(m).set(p.ch.key, known));
-          continue;
-        }
-        if (!canCheck(p.ch)) continue;
+        if (cachedLiveness(p.ch.key) || !canCheck(p.ch)) continue;
         setChecking(p.ch.key);
-        checked++;
-        if (checked > 1) await new Promise((r) => setTimeout(r, 1500));
-        if (ctl.signal.aborted) return;
         const v = await checkStream(p.ch, ctl.signal);
         if (ctl.signal.aborted) return;
-        if (v) setLive((m) => new Map(m).set(p.ch.key, v)); // a dead one is replaced; its replacement is checked next round
+        if (v) setLive((m) => new Map(m).set(p.ch.key, v));
       }
       setChecking(undefined);
     })();
     return () => ctl.abort();
-  }, [visibleKeys]);
-  const dead = ranked.filter((p) => isDead(p.ch.key));
-  const picks = showDead ? capStreams(ranked) : visible;
+  }, [ranked]);
+  // Dead channels leave the list; streams confirmed working go first (the ranking otherwise stays).
+  const dead = ranked.filter((p) => live.get(p.ch.key) === 'dead');
+  const picks = showDead
+    ? ranked
+    : ranked.filter((p) => live.get(p.ch.key) !== 'dead').sort((a, b) => Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live'));
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
@@ -237,37 +225,13 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
         </span>
         <span class="watch-team"><TeamLogo team={game.home} size="lg" /><span>{game.home.name}</span>{game.state !== 'pre' && <b>{game.home.score}</b>}</span>
       </div>
-      {game.listing && (
-        <p class="muted watch-listing">
-          {game.listing.state === 'found' ? (
-            <>
-              Tonight’s TV ({game.listing.source}):{' '}
-              {(['away', 'home', 'national'] as const).map((mk) => {
-                const bs = game.broadcasts.filter((b) => b.market === mk);
-                if (!bs.length) return null;
-                const who = mk === 'national' ? 'National' : (mk === 'home' ? game.home : game.away).short;
-                return (
-                  <span key={mk} class="watch-listing-side">
-                    <b>{who}:</b> {bs.map((b, i) => <span key={b.name}>{i ? ', ' : ''}{b.name}{channelsForBroadcast(b.name, lineup).length ? ' ✓' : ' (not in your playlist)'}</span>)}{' '}
-                  </span>
-                );
-              })}
-              {!game.broadcasts.length && 'no TV channels listed'}
-            </>
-          ) : game.listing.state === 'missing' ? (
-            `${game.listing.source} has no TV listing for this game`
-          ) : (
-            `Couldn’t read tonight’s TV listing from ${game.listing.source}: ${game.listing.error}`
-          )}
-        </p>
-      )}
 
       <>
           {!index ? (
             <p class="muted row gap"><span class="spinner" /> Finding channels for this game…</p>
           ) : picks.length ? (
             <div class="stream-picks" data-group="picks">
-              {picks.slice(0, 12).map((p, i) => (
+              {picks.slice(0, 10).map((p, i) => (
                 <div class={`stream-pick ${i === 0 ? 'best' : ''}`} key={p.ch.key}>
                   <button type="button" class="f stream-pick-main" data-autofocus={i === 0 ? '' : undefined} onClick={() => watch(p.ch.key)}>
                     <span class="ch-num">{p.ch.number}</span>

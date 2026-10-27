@@ -3,39 +3,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ESPN_BASE, LEAGUE_LOGO_FALLBACK, SCHEDULE_LEAGUES, TEAM_DIRECTORY, parseLeagueLogo, parseScoreboard, parseStandingsTeams, parseTeams, scheduleDay, standingsUrl, scheduleLeague, scoreboardUrl, teamsUrl, type DirTeam, type Game, type ScheduleLeagueId } from '../core/schedule';
 import { openRemote } from './platform';
-import { LISTING_LEAGUES, listingFor, listingUrl, parseListings, type ListingLeague, type TvListing } from '../core/tvlistings';
-
-// Which channels each game is on comes from the league's own feed (tvlistings.ts), not from ESPN's scoreboard.
-const listingCache = new Map<string, { at: number; json: unknown }>();
-const LISTING_TTL = 3 * 3600_000;
-let lastListingError = '';
-async function officialListings(league: ListingLeague, day: string, from: number, to: number, force: boolean): Promise<TvListing[] | undefined> {
-  lastListingError = '';
-  let url = listingUrl(league, day);
-  try {
-    const base = localStorage.getItem('lttvListingBase'); // tests point this at a local mock
-    if (base) url = `${base}/${league}`;
-  } catch {
-    /* storage blocked */
-  }
-  const hit = listingCache.get(url);
-  let json = hit && !force && Date.now() - hit.at < LISTING_TTL ? hit.json : undefined;
-  if (json === undefined) {
-    try {
-      const { stream } = await openRemote(url, AbortSignal.timeout?.(30_000));
-      const text = await new Response(stream).text();
-      json = league === 'nba' ? text : JSON.parse(text); // NBA: a web page (Sports Media Watch)
-      listingCache.set(url, { at: Date.now(), json });
-    } catch (e) {
-      lastListingError = (e as Error).message || 'no answer';
-      json = hit?.json; // the last copy, if any
-    }
-  }
-  if (json === undefined) return undefined;
-  const list = parseListings(league, json, from, to);
-  if (!list.length && !lastListingError) lastListingError = typeof json === 'string' && /cloudflare|captcha|just a moment|access denied/i.test(json) ? 'the site refused the request' : 'no games found on the page';
-  return list;
-}
 
 interface Entry {
   at: number;
@@ -115,18 +82,6 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
     const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase()), AbortSignal.timeout?.(20_000));
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
-    if ((LISTING_LEAGUES as string[]).includes(leagueId) && games.length) {
-      const from = Math.min(...games.map((g) => g.start)) - 6 * 3600_000;
-      const to = Math.max(...games.map((g) => g.start)) + 6 * 3600_000;
-      const listings = await officialListings(leagueId as ListingLeague, day, from, to, force);
-      // Only the league's own listing says what channel a game is on (nothing from ESPN's scoreboard).
-      const source = leagueId === 'nba' ? 'Sports Media Watch' : leagueId === 'nhl' ? 'NHL.com' : leagueId === 'mlb' ? 'MLB.com' : 'WNBA.com';
-      for (const g of games) {
-        const l = listings?.length ? listingFor(g, listings) : undefined;
-        g.broadcasts = l?.broadcasts ?? [];
-        g.listing = { source, state: l ? 'found' : listings?.length ? 'missing' : 'unavailable', error: listings?.length ? undefined : lastListingError || 'could not be read' };
-      }
-    }
     const logo = parseLeagueLogo(json);
     if (logo) leagueLogos.set(leagueId, logo);
     cache.set(k, { at: Date.now(), games });

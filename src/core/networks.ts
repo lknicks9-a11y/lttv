@@ -5,7 +5,6 @@ import type { LineupChannel } from './types';
 import { normalizeForMatch } from './normalize';
 import { stripCountry } from './match';
 import { channelCountry } from './mytv';
-import { stationChannels } from './stations';
 
 export interface Network {
   id: string;
@@ -82,29 +81,27 @@ export const NETWORKS: Network[] = [
   N('paramountplus', 'Paramount+', ['paramountplus']),
   N('vix', 'ViX', ['vix', 'vixplus']),
   N('peacock', 'Peacock', ['peacock']),
-  N('nbcsn', 'NBCSN', ['nbcsn', 'nbcsportsnetwork', 'nbcsportsnet']),
   N('universo', 'Universo', ['universo'], { local: [410] }),
   N('galavision', 'Galavisión', ['galavision'], { local: [404] }),
   // New York RSNs
   N('yes', 'YES Network', ['yesnetwork', 'yes'], { local: [631], rsn: true }),
   N('sny', 'SNY', ['sny', 'sportsnetnewyork'], { local: [639], rsn: true }),
   N('msg', 'MSG', ['msg', 'msgnetwork'], { local: [634], rsn: true }),
-  N('msgb', 'MSG Buffalo', ['msgbuffalo', 'msgb'], { rsn: true }),
-  N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2', 'msgsn2', 'msgsportsnet2'], { local: [635], rsn: true }),
+  N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2'], { local: [635], rsn: true }),
   // Other RSNs
   N('nesn', 'NESN', ['nesn', 'newenglandsportsnetwork'], { local: [628], rsn: true }),
   N('nesnplus', 'NESN+', ['nesnplus']),
-  N('nbcsboston', 'NBC Sports Boston', ['nbcsportsboston', 'nbcsboston', 'nbcsb', 'nbcsbos'], { local: [630], rsn: true }),
-  N('nbcsphilly', 'NBC Sports Philadelphia', ['nbcsportsphiladelphia', 'nbcsphiladelphia', 'nbcsportsphilly', 'nbcsphilly', 'nbcsph', 'nbcsp', 'nbcsportsphila'], { rsn: true }),
+  N('nbcsboston', 'NBC Sports Boston', ['nbcsportsboston', 'nbcsboston'], { local: [630], rsn: true }),
+  N('nbcsphilly', 'NBC Sports Philadelphia', ['nbcsportsphiladelphia', 'nbcsphiladelphia', 'nbcsportsphilly', 'nbcsphilly'], { rsn: true }),
   N('nbcsphillyplus', 'NBC Sports Philadelphia+', ['nbcsportsphiladelphiaplus', 'nbcsphiladelphiaplus'], { rsn: true }),
-  N('nbcsba', 'NBC Sports Bay Area', ['nbcsportsbayarea', 'nbcsbayarea', 'nbcsba', 'nbcsportsba'], { rsn: true }),
-  N('nbcsca', 'NBC Sports California', ['nbcsportscalifornia', 'nbcscalifornia', 'nbcsportsca', 'nbcsca', 'nbcsportscal', 'nbcscal'], { rsn: true }),
+  N('nbcsba', 'NBC Sports Bay Area', ['nbcsportsbayarea', 'nbcsbayarea'], { rsn: true }),
+  N('nbcsca', 'NBC Sports California', ['nbcsportscalifornia', 'nbcscalifornia'], { rsn: true }),
   N('chsn', 'Chicago Sports Network', ['chicagosportsnetwork', 'chsn'], { rsn: true }),
   N('marquee', 'Marquee Sports Network', ['marqueesportsnetwork', 'marquee'], { rsn: true }),
   N('masn', 'MASN', ['masn', 'midatlanticsportsnetwork'], { rsn: true }),
   N('masn2', 'MASN2', ['masn2'], { rsn: true }),
-  N('monumental', 'Monumental Sports Network', ['monumentalsportsnetwork', 'monumental', 'monumentalsports', 'mnmt'], { rsn: true }),
-  N('altitude', 'Altitude', ['altitude', 'altitudesports', 'alt', 'altitudesportsandentertainment'], { rsn: true }),
+  N('monumental', 'Monumental Sports Network', ['monumentalsportsnetwork', 'monumental', 'monumentalsports'], { rsn: true }),
+  N('altitude', 'Altitude', ['altitude', 'altitudesports'], { rsn: true }),
   N('schn', 'Space City Home Network', ['spacecityhomenetwork', 'schn', 'spacecity'], { rsn: true }),
   N('spectrumsn', 'Spectrum SportsNet', ['spectrumsportsnet'], { rsn: true }),
   N('snla', 'SportsNet LA', ['spectrumsportsnetla', 'spectrumsportsnetlosangeles', 'sportsnetla', 'snla'], { rsn: true }),
@@ -183,9 +180,6 @@ export function channelsForBroadcast(name: string, lineup: LineupChannel[]): Net
   return v;
 }
 function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): NetworkChannel[] {
-  // A local station named by call sign: found by call sign, or by its network / channel number in its city.
-  const local = stationChannels(name, lineup, channelCountry);
-  if (local) return local.map((ch) => ({ ch, fit: 'exact' as const }));
   const { network, keys } = networkForBroadcast(name);
   if (!keys.length && !network) return [];
   const out: NetworkChannel[] = [];
@@ -211,19 +205,6 @@ function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): Ne
       const w = network.keys[0];
       const re = new RegExp(`(^|[^a-z])${w}(\\s*\\d+)?\\b(?!\\s*(sports|news|business|weather|deportes|life|soul|kids|movies|sp))`, 'i');
       if (re.test(ch.originalName) && (OTHER_CITY.test(ch.originalName) || /\b[KW][A-Z]{2,3}\b/.test(ch.originalName))) push(ch, 'affiliate');
-    }
-  }
-  // A local station or network named with extras ("KJZZ 14 Salt Lake", "KTLA 5", "Peachtree Sports Network HD"):
-  // channels whose name has the broadcast's name as whole words.
-  if (!out.length && !network?.broadcast) {
-    const want = normalizeForMatch((network?.label ?? name).replace(/\(local\)|\blocal\b/gi, ' ')).trim();
-    if (want.length >= 4 && !/^(tv|local tv|streaming|radio|regional)$/.test(want)) {
-      const re = new RegExp(`(^| )${want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`);
-      for (const ch of lineup) {
-        const country = channelCountry(ch);
-        if ((country && country !== 'us') || /\+\s?\d/.test(ch.originalName)) continue;
-        if (re.test(normalizeForMatch(ch.cleanedName || ch.originalName))) push(ch, 'exact');
-      }
     }
   }
   return out;
