@@ -1,3 +1,4 @@
+import { TEAM_VAR_NAMES, mix, teamAccent, teamTheme, teamThemeVars } from '../core/teamthemes';
 import { accountKey, currentAccount, currentDbName } from './accounts';
 import { addProfileRecent, initProfiles, profileRecents, setFavorite, isFavorite, withProfileFavorites } from './profiles';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -481,6 +482,25 @@ export async function updateSettings(patch: Partial<Settings>) {
 
 export function applyTheme(s: Settings) {
   const root = document.documentElement;
+  // NBA city themes: the team's colors everywhere, its city across the background, a jersey in its colors.
+  const team = s.theme.startsWith('nba-') ? teamTheme(s.theme) : undefined;
+  const vars = team ? teamThemeVars(team) : {};
+  for (const k of TEAM_VAR_NAMES) root.style.removeProperty(k);
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  if (team) {
+    const t = accentTokens(teamAccent(team));
+    root.style.setProperty('--accent', t.accent);
+    root.style.setProperty('--accent-2', mix(team.c[1], '#ffffff', 0.15));
+    root.style.setProperty('--accent-soft', t.soft);
+    root.style.setProperty('--accent-ink', t.ink);
+    root.dataset.theme = 'team';
+    try {
+      localStorage.setItem(accountKey('lttvTheme'), JSON.stringify({ theme: 'team', accent: t.accent, accent2: root.style.getPropertyValue('--accent-2'), soft: t.soft, ink: t.ink, vars }));
+    } catch {
+      /* not remembered */
+    }
+    return;
+  }
   // Luxury always uses its champagne gold; other themes use the chosen accent.
   // Luxury and A7 have their own fixed accents (champagne gold; flame orange with nebula pink).
   const t = accentTokens(s.theme === 'luxury' ? '#c8a45d' : s.theme === 'a7' ? '#ff7a33' : s.theme === 'autumn' ? '#ff8a1e' : s.theme === 'autosix' ? '#ff3d8b' : s.accent);
@@ -508,6 +528,7 @@ export function applySavedTheme() {
     if (v.accent2) root.style.setProperty('--accent-2', v.accent2);
     root.style.setProperty('--accent-soft', v.soft);
     root.style.setProperty('--accent-ink', v.ink);
+    for (const [k, val] of Object.entries((v as { vars?: Record<string, string> }).vars ?? {})) root.style.setProperty(k, val);
   } catch {
     /* default look */
   }

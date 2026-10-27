@@ -191,7 +191,8 @@ export interface Settings {
   /** Auto-approve fuzzy matches at or above this confidence. 0 = never (default). */
   fuzzyAutoApprove: number;
   accent: string;
-  theme: 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast';
+  /** A built-in look, or an NBA city theme ('nba-bos'). */
+  theme: 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast' | `nba-${string}`;
   /** The Frutiger Aero look was introduced (switched on once for existing setups). */
   aeroIntroduced?: boolean;
   startupScreen: StartupScreen;

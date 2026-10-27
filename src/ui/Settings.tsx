@@ -1,3 +1,4 @@
+import { NBA_THEMES } from '../core/teamthemes';
 import { WatchmodeSettings } from './WatchmodeSettings';
 import { PhoneRemoteSettings } from './PhoneRemote';
 import { ProfilesSection } from './Profiles';
@@ -86,7 +87,8 @@ export function SettingsScreen() {
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
-          <Choice label="Theme" value={s.theme} options={[{ value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'autosix', label: 'AutoSix (neon Miami sunset)' }, { value: 'autumn', label: 'Autumn (fall road photo)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }]} onChange={(v) => set({ theme: v })} />
+          <Choice label="Theme" value={s.theme} options={[{ value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'autosix', label: 'AutoSix (neon Miami sunset)' }, { value: 'autumn', label: 'Autumn (fall road photo)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }, ...(s.theme.startsWith('nba-') ? [{ value: s.theme, label: 'NBA city theme' }] : [])]} onChange={(v) => set({ theme: v })} />
+          <Choice label="NBA city theme" hint="Your team's colors, city and jersey" value={s.theme.startsWith('nba-') ? s.theme : ''} options={[{ value: '', label: 'Off' }, ...NBA_THEMES.map((t) => ({ value: t.id, label: `${t.city === 'San Francisco' ? 'Golden State' : t.city === 'Salt Lake City' ? 'Utah' : t.city === 'Minneapolis' ? 'Minnesota' : t.city} ${t.team}` }))]} onChange={(v) => set({ theme: (v || 'aero') as typeof s.theme })} />
         </div>
 
         <WatchmodeSettings />
