@@ -1360,29 +1360,10 @@ small, .small { font-size: 1.15rem; }
 .sidebar-profile { margin-top: auto; }
 .sidebar-profile .avatar { box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
 
-/* NBA city themes (data-theme="team"): colors come from the team (set in applyTheme). */
+/* NBA superfan rooms (data-theme="team"): the room drawing in the team's colors, dimmed so the app stays readable. */
 [data-theme='team'] .backdrop {
-  background:
-    repeating-linear-gradient(115deg, transparent 0 9rem, var(--team-stripe) 9rem 9.8rem, transparent 9.8rem 13rem),
-    radial-gradient(90rem 55rem at 0% -15%, var(--team-glow), transparent 62%),
-    radial-gradient(60rem 40rem at 105% 115%, var(--team-glow), transparent 60%),
-    var(--bg);
-  overflow: hidden;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.42) 55%, rgba(0, 0, 0, 0.55)), var(--team-room) center / cover no-repeat, var(--bg);
 }
-[data-theme='team'] .backdrop::before {
-  content: var(--team-city);
-  position: absolute; left: -1vw; bottom: -2.5vw;
-  font: 900 13vw/1 'Arial Black', Impact, var(--font);
-  letter-spacing: -0.02em; white-space: nowrap;
-  color: transparent; -webkit-text-stroke: 0.18vw var(--team-stroke);
-  opacity: 0.55;
-}
-[data-theme='team'] .backdrop::after {
-  content: '';
-  position: absolute; right: 3vw; bottom: 5vh; width: 30vw; height: 62vh;
-  background: var(--team-jersey) no-repeat center / contain;
-  opacity: 0.32;
-  transform: rotate(-6deg);
-}
+[data-theme='team'] .card, [data-theme='team'] .guide-grid, [data-theme='team'] .league-card, [data-theme='team'] .game-row, [data-theme='team'] .sidebar { background-color: rgba(10, 10, 14, 0.78); }
 [data-theme='team'] .nav-item.active { box-shadow: inset 0.25rem 0 0 var(--accent); }
 [data-theme='team'] .card, [data-theme='team'] .modal, [data-theme='team'] .league-card, [data-theme='team'] .game-row { border-top: 2px solid var(--team-2); }
