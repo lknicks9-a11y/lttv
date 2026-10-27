@@ -4,6 +4,7 @@
 import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { parseM3U } from '../core/m3u';
+import { CLIENT_IDENTITIES, isClientRejection, normalizeServer, parseXtreamUrl, xtreamApiUrl, xtreamToM3U, xtreamUrls, type XtreamCategory, type XtreamLogin, type XtreamStream } from '../core/xtream';
 
 type Ch = { name: string; group: string; tvgId?: string; url: string; headers?: Record<string, string>; f: string };
 type Pick = { name: string; group: string; tvgId?: string };
@@ -52,31 +53,74 @@ function setStatus(text: string, cls = 'muted') {
 
 function loadText(text: string, from: string) {
   const r = parseM3U(text, { playlistId: 'picker' });
-  channels = r.channels.map((c) => ({ name: c.originalName, group: c.groupTitle ?? '', tvgId: c.tvgId, url: c.url, headers: c.headers, f: fold(`${c.originalName} ${c.groupTitle ?? ''}`) }));
+  channels = r.channels.map((c) => ({ name: c.originalName, group: c.groupTitle ?? '', tvgId: c.tvgId, url: c.url, headers: playerUa ? { 'User-Agent': playerUa, ...(c.headers ?? {}) } : c.headers, f: fold(`${c.originalName} ${c.groupTitle ?? ''}`) }));
   if (!channels.length) return setStatus('No channels found in that playlist. Check the link or file.', 'err');
   setStatus(`${channels.length.toLocaleString()} channels loaded from ${from}.`, 'ok');
   if (!($('q') as HTMLInputElement).value) ($('q') as HTMLInputElement).value = teamName(current).split(' ').slice(-1)[0];
   renderResults();
 }
 
+/** Download through the helper as a given player identity; throws with the provider's status. */
+async function getText(url: string, ua?: string): Promise<string> {
+  const r = await fetch(proxied(url, ua ? { 'User-Agent': ua } : undefined) + '&gunzip=auto', { cache: 'no-store' });
+  if (!r.ok) {
+    const j = (await r.json().catch(() => ({}))) as { error?: string; status?: number };
+    throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { status: j.status ?? r.status });
+  }
+  return r.text();
+}
+
+/**
+ * The same way the LTTV app loads a playlist: if the provider refuses this client (e.g. code 884), try again as
+ * VLC and other standard players; with a login, fall back to the provider's app API when the playlist download is
+ * switched off. The identity that worked is kept for playing streams.
+ */
+let playerUa: string | undefined;
 async function loadUrl() {
-  let url = ($('url') as HTMLInputElement).value.trim();
+  const raw = ($('url') as HTMLInputElement).value.trim();
   const user = ($('user') as HTMLInputElement).value.trim();
   const pass = ($('pass') as HTMLInputElement).value;
-  if (!url) return setStatus('Paste your playlist link first, or open a file.', 'err');
-  if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
-  if (user) url = `${url.replace(/\/+$/, '').replace(/\/(get\.php|player_api\.php).*$/i, '')}/get.php?${new URLSearchParams({ username: user, password: pass, type: 'm3u_plus', output: 'ts' })}`;
-  setStatus('Loading playlist…');
+  if (!raw) return setStatus('Paste your playlist link (or your server) first, or open a file.', 'err');
+  let login: XtreamLogin | null = null;
   try {
-    const r = await fetch(proxied(url, undefined, undefined) + '&gunzip=auto', { cache: 'no-store' });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}) as { error?: string });
-      throw new Error((j as { error?: string }).error || `HTTP ${r.status}`);
-    }
-    loadText(await r.text(), 'your provider');
+    login = user ? { server: normalizeServer(raw), username: user, password: pass, output: 'ts' } : (parseXtreamUrl(/^https?:\/\//i.test(raw) ? raw : `http://${raw}`) as XtreamLogin | null);
+    if (login) login = { ...login, output: 'ts' };
   } catch (e) {
-    setStatus(`Couldn't load the playlist: ${(e as Error).message}. Is the LTTV helper running on this computer?`, 'err');
+    return setStatus((e as Error).message, 'err');
   }
+  const url = login ? xtreamUrls(login).playlist : /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
+  let lastErr: Error | undefined;
+  for (const id of CLIENT_IDENTITIES) {
+    setStatus(id.ua ? `Provider refused the request; trying again as ${id.label}…` : 'Loading playlist…');
+    try {
+      const text = await getText(url, id.ua);
+      if (!/#EXTINF/i.test(text)) throw Object.assign(new Error('The provider sent no channels'), { status: 0 });
+      playerUa = id.ua;
+      return loadText(text, 'your provider');
+    } catch (e) {
+      lastErr = e as Error;
+      const st = (e as { status?: number }).status;
+      if (!isClientRejection(st) && st !== 0 && st !== 502) break;
+    }
+  }
+  if (login) {
+    // Playlist download switched off or refused: build it from the provider's app API.
+    for (const id of CLIENT_IDENTITIES) {
+      setStatus(`Loading channels from your provider's app API${id.ua ? ` as ${id.label}` : ''}…`);
+      try {
+        const cats = JSON.parse(await getText(xtreamApiUrl(login, 'get_live_categories'), id.ua)) as XtreamCategory[];
+        const streams = JSON.parse(await getText(xtreamApiUrl(login, 'get_live_streams'), id.ua)) as XtreamStream[];
+        if (!Array.isArray(streams) || !streams.length) throw Object.assign(new Error('The provider sent no channels'), { status: 0 });
+        playerUa = id.ua;
+        return loadText(xtreamToM3U(login, Array.isArray(cats) ? cats : [], streams), 'your provider');
+      } catch (e) {
+        lastErr = e as Error;
+        const st = (e as { status?: number }).status;
+        if (!isClientRejection(st) && st !== 0 && st !== 502) break;
+      }
+    }
+  }
+  setStatus(`Couldn't load the playlist: ${lastErr?.message ?? 'no answer'}. Check the link or login, and that your subscription is active.`, 'err');
 }
 
 // ---------------- player ----------------
@@ -96,8 +140,9 @@ function stop() {
   v.load();
 }
 
-async function play(ch: Ch) {
-  playing = ch;
+async function play(chIn: Ch) {
+  let ch = chIn;
+  playing = chIn;
   stop();
   $('nowName').textContent = ch.name;
   ($('addNow') as HTMLButtonElement).disabled = false;
@@ -106,22 +151,32 @@ async function play(ch: Ch) {
   ps.textContent = 'Connecting…';
   ps.className = 'status muted';
   const v = $('video') as HTMLVideoElement;
+  // Find a player identity the provider accepts for this stream (same as loading the playlist: refused clients,
+  // e.g. code 884, are retried as VLC and other standard players).
   let kind = 'unknown';
-  try {
-    const p = new URLSearchParams({ url: ch.url });
-    if (ch.headers) p.set('h', JSON.stringify(ch.headers));
-    kind = ((await (await fetch(`api/probe?${p}`)).json()) as { kind?: string }).kind ?? 'unknown';
-  } catch {
-    /* guess below */
+  for (const id of [{ ua: playerUa, label: '' }, ...CLIENT_IDENTITIES.filter((c) => c.ua !== playerUa)]) {
+    const headers = id.ua ? { ...(ch.headers ?? {}), 'User-Agent': id.ua } : ch.headers;
+    try {
+      const p = new URLSearchParams({ url: ch.url });
+      if (headers && Object.keys(headers).length) p.set('h', JSON.stringify(headers));
+      const r = (await (await fetch(`api/probe?${p}`)).json()) as { kind?: string; status?: number };
+      if (r.status && isClientRejection(r.status)) continue;
+      kind = r.kind ?? 'unknown';
+      ch = { ...ch, headers };
+      if (id.ua && id.ua !== playerUa) playerUa = id.ua;
+      break;
+    } catch {
+      break;
+    }
   }
-  if (playing !== ch) return;
+  if (playing !== chIn) return;
   const fail = (msg: string) => {
-    if (playing !== ch) return;
+    if (playing !== chIn) return;
     ps.textContent = msg;
     ps.className = 'status err';
   };
   v.onplaying = () => {
-    if (playing === ch) {
+    if (playing === chIn) {
       ps.textContent = 'Playing. Unmute with the speaker button if you want sound.';
       ps.className = 'status ok';
     }
