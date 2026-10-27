@@ -183,6 +183,7 @@ const SMW_NAMES: Record<string, string> = {
   NBCSB: 'NBC Sports Boston', NBCSBA: 'NBC Sports Bay Area', NBCSCA: 'NBC Sports California', NBCSP: 'NBC Sports Philadelphia', SPECSN: 'Spectrum SportsNet',
   MNMT: 'Monumental Sports Network', MNMT2: 'Monumental Sports Network', ALT: 'Altitude', ALT2: 'Altitude', GCSEN: 'Gulf Coast Sports & Entertainment Network',
   SCHN: 'Space City Home Network', CHSN: 'Chicago Sports Network', MSG: 'MSG', MSGSN: 'MSG SportsNet', YES: 'YES Network', WPCH: 'Peachtree Sports Network',
+  SN1: 'Sportsnet ONE', 'NBA TV': 'NBA TV', NBATV: 'NBA TV',
 };
 
 /** One TV item ("WOAI.2-CW", "WCGV-My24", "TSN1/4") as the names a playlist might use. */
@@ -191,7 +192,9 @@ function smwItems(item: string): string[] {
   if (!t || SMW_SKIP.test(t)) return [];
   const tsn = /^TSN\s*(\d(?:\s*\/\s*\d)*)$/i.exec(t);
   if (tsn) return tsn[1].split('/').map((n) => `TSN${n.trim()}`);
-  if (SMW_NAMES[t.toUpperCase()]) return [SMW_NAMES[t.toUpperCase()]];
+  const bare = t.replace(/\.\d+$/, '');
+  if (SMW_NAMES[bare.toUpperCase()]) return [SMW_NAMES[bare.toUpperCase()]];
+  if (/^RESN$/i.test(bare)) return ['RESN', 'Rock Entertainment Sports Network'];
   // "KARE-NBC", "WMYD-IND", "WOAI.2-CW": the station; "WCGV-My24", "WAXN-TV64": the station and its brand.
   const [station, brand] = t.split('-').map((x) => x.replace(/\.\d+$/, '').trim());
   const out = [station];
@@ -217,7 +220,45 @@ function easternMs(y: number, m: number, d: number, h: number, mi: number): numb
   return Date.UTC(y, m, d, h + (dst ? 4 : 5), mi);
 }
 
+/** The schedule's game cards: exact start time, "City Nickname" teams, and channel pills marked A (away) / H (home). */
+function parseSmwCards(html: string): TvListing[] {
+  const strip = (x: string) => x.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#0?39;|&#8217;/g, "'").replace(/\s+/g, ' ').trim();
+  const out: TvListing[] = [];
+  const seen = new Set<string>();
+  for (const c of html.split('smw-cards-daycard-item"').slice(1)) {
+    const start = Date.parse(/data-timestamp="([^"]+)"/.exec(c)?.[1] ?? '');
+    const team = (cls: string) => {
+      const i = c.indexOf(cls);
+      if (i < 0) return '';
+      const seg = c.slice(i, c.indexOf('</div>', i));
+      return [...seg.matchAll(/class="(?:smwcards-team-text|smw-cards-team-nick)"[^>]*>([^<]*)/g)].map((m) => strip(m[1])).join(' ').trim();
+    };
+    const away = team('smw-cards-team-away');
+    const home = team('smw-cards-team-home');
+    if (!Number.isFinite(start) || !away || !home) continue;
+    const key = `${start}|${away}|${home}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const caGame = /toronto|raptors/i.test(`${away} ${home}`);
+    const broadcasts: Broadcast[] = [];
+    for (const m of c.matchAll(/<span[^>]*class="smw-cards-net-item[^"]*"[^>]*>([\s\S]*?)<\/span><\/span>/g)) {
+      const raw = m[1];
+      const market: Broadcast['market'] = /class="away-box"/.test(raw) ? 'away' : /class="home-box"/.test(raw) ? 'home' : 'national';
+      const text = strip(raw.replace(/<span class="(?:away|home)-box">[AH]<\/span>/, ''));
+      for (const n of smwItems(text)) {
+        // Canada's channels (TSN, Sportsnet) only for a Raptors game.
+        if (market === 'national' && !caGame && /^(tsn|sn\b|sn1|sn360|sportsnet)/i.test(n)) continue;
+        add(broadcasts, n, market);
+      }
+    }
+    out.push({ start, away: [away], home: [home], broadcasts });
+  }
+  return out;
+}
+
 export function parseSmwListings(html: string, now = Date.now()): TvListing[] {
+  const cards = parseSmwCards(html);
+  if (cards.length) return cards;
   const today = new Date(now - 5 * 3600_000);
   let y = today.getUTCFullYear(), m = today.getUTCMonth(), d = today.getUTCDate();
   let time: [number, number] | undefined;

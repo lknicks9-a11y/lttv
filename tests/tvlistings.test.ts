@@ -117,3 +117,15 @@ test('DAZN from the listing is offered when the playlist has DAZN channels', () 
   const shown = capStreams(bestStreams(g, [ch('US: DAZN 1 HD', 1), ch('ES: DAZN LaLiga', 2), ch('US: ESPN', 3)], 'basketball', [])).map((p) => `${p.side ?? '-'}:${p.ch.originalName}`);
   assert.ok(shown.includes('home:US: DAZN 1 HD') && !shown.some((x) => x.includes('LaLiga')), shown.join(' | '));
 });
+
+test('Sports Media Watch game cards (the page\'s real markup)', () => {
+  const pill = (box: string, text: string) => `<span class="smw-cards-net-item smw-cards-net-local"><span class="smwcards-net-pill smwcards-net-pill-local smwcards-net-pill-tc" style="--x:1">${box ? `<span class="${box}-box">${box === 'away' ? 'A' : 'H'}</span> ` : ''}${text}</span></span>`;
+  const card = (ts: string, ac: string, an: string, hc: string, hn: string, pills: string) => `<div class="smw-cards-daycard-item"><div class="smw-cards-row"><div class="smw-cards-time"><span class="smwcards-local-time" data-timestamp="${ts}">7:00 pm</span></div><div class="smw-cards-matchcol"><div class="smw-cards-matchup"><div class="smw-cards-team-away" style="--a:1"><a class="smwcards-team-link" href="#"><span class="smwcards-team-text">${ac}</span></a><span class="smw-cards-team-nick" style="font-size:18px">${an}</span></div><span class="smw-cards-vs">vs</span><div class="smw-cards-team-home" style="--a:1"><a class="smwcards-team-link" href="#"><span class="smwcards-team-text">${hc}</span></a><span class="smw-cards-team-nick" style="font-size:18px">${hn}</span></div></div></div></div><div class="smw-cards-foot"><div class="smw-cards-nets">${pills}</div></div></div>`;
+  const html = card('2026-10-26T23:00:00+00:00', 'Washington', 'Wizards', 'Charlotte', 'Hornets', `<span class="smw-cards-net-item"><span class="smwcards-net-pill"><a href="#">NBA League Pass</a></span></span>${pill('away', 'MNMT')}${pill('away', 'Monumental+')}${pill('home', 'WAXN-TV64')}${pill('home', '<a href="#">DAZN</a>')}`)
+    + card('2026-10-27T02:00:00+00:00', 'Golden State', 'Warriors', 'Denver', 'Nuggets', `${pill('', 'Peacock')}${pill('', 'NBCSN')}${pill('home', 'ALT')}${pill('', 'SN1')}`);
+  const l = parseSmwListings(html);
+  assert.deepEqual(l.map((g) => `${new Date(g.start).toISOString()} ${g.away[0]} @ ${g.home[0]} :: ${g.broadcasts.map((b) => `${b.market}:${b.name}`).join(', ')}`), [
+    '2026-10-26T23:00:00.000Z Washington Wizards @ Charlotte Hornets :: away:Monumental Sports Network, home:WAXN, home:TV64, home:DAZN',
+    '2026-10-27T02:00:00.000Z Golden State Warriors @ Denver Nuggets :: national:NBCSN, home:Altitude',
+  ]);
+});
