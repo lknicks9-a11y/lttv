@@ -5,17 +5,34 @@ import { ESPN_BASE, LEAGUE_LOGO_FALLBACK, SCHEDULE_LEAGUES, TEAM_DIRECTORY, pars
 import { openRemote } from './platform';
 import { NBA_TV_SCHEDULE_URL, nbaTonightFor, parseNbaTvSchedule, type NbaListing } from '../core/nbachannels';
 
-/** The NBA TV schedule (Sports Media Watch), read at most every 3 hours; the last copy is kept if a read fails. */
+/**
+ * The NBA TV schedule (Sports Media Watch): read when first needed, then again every 6 hours (so channel changes
+ * up to game time are picked up). The last good copy is kept if a read fails.
+ */
+const NBA_TV_EVERY = 6 * 3600_000;
 let nbaTv: { at: number; list: NbaListing[] } | undefined;
-async function nbaTvSchedule(force: boolean): Promise<NbaListing[] | undefined> {
-  if (nbaTv && !force && Date.now() - nbaTv.at < 3 * 3600_000) return nbaTv.list;
-  try {
-    const { stream } = await openRemote(NBA_TV_SCHEDULE_URL, AbortSignal.timeout?.(30_000));
-    const list = parseNbaTvSchedule(await new Response(stream).text());
-    if (list.length) nbaTv = { at: Date.now(), list };
-  } catch {
-    /* keep the last copy */
-  }
+let nbaTvReading: Promise<void> | undefined;
+let nbaTvTimer = 0;
+function readNbaTv(): Promise<void> {
+  nbaTvReading ??= (async () => {
+    try {
+      const { stream } = await openRemote(NBA_TV_SCHEDULE_URL, AbortSignal.timeout?.(30_000));
+      const list = parseNbaTvSchedule(await new Response(stream).text());
+      if (list.length) {
+        nbaTv = { at: Date.now(), list };
+        for (const [k, e] of cache) if (k.startsWith('nba|')) for (const g of e.games) g.nbaTonight = nbaTonightFor(g, list);
+      }
+    } catch {
+      /* keep the last copy */
+    } finally {
+      nbaTvReading = undefined;
+    }
+  })();
+  return nbaTvReading;
+}
+async function nbaTvSchedule(): Promise<NbaListing[] | undefined> {
+  if (!nbaTvTimer) nbaTvTimer = window.setInterval(() => void readNbaTv(), NBA_TV_EVERY);
+  if (!nbaTv || Date.now() - nbaTv.at > NBA_TV_EVERY) await readNbaTv();
   return nbaTv?.list;
 }
 
@@ -98,7 +115,7 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
     if (leagueId === 'nba' && games.length) {
-      const list = await nbaTvSchedule(force);
+      const list = await nbaTvSchedule();
       if (list) for (const g of games) g.nbaTonight = nbaTonightFor(g, list);
     }
     const logo = parseLeagueLogo(json);

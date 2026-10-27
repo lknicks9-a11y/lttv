@@ -8,7 +8,7 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
-import { nbaMainChannels } from './nbachannels';
+import { nbaLocalsNotOnTonight, nbaMainChannels } from './nbachannels';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
@@ -350,6 +350,8 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
   // NBA: each team's main stream on top (its channel tonight, or its NBA team channel); the others stay below.
   if (game.league === 'nba') {
     const mains = nbaMainChannels(game, game.nbaTonight, lineup);
+    // A team's own local channel that isn't carrying this game tonight isn't offered at all.
+    for (const key of nbaLocalsNotOnTonight(game, game.nbaTonight, lineup)) picks.delete(key);
     mains.forEach((m, i) => {
       const reason = m.why === 'tonight' ? `${m.team.short} · on tonight` : m.why === 'pass' ? `${m.team.short} · NBA team channel` : `${m.team.short} channel`;
       picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true });

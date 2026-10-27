@@ -53,7 +53,7 @@ const isPass = (p: Pick) => /nba team ppv/i.test(p.group) || /^nba:/i.test(p.nam
 /** What tonight's listing calls each channel, as words to find in the playlist channel's name. */
 const LISTING_WORDS: Record<string, string[]> = {
   NBCSB: ['nbc sports boston'], NBCSBA: ['nbc sports bay area'], NBCSCA: ['nbc sports california'], NBCSP: ['nbc sports philadelphia'],
-  SPECSN: ['spectrum sportsnet'], MNMT: ['monumental'], MNMT2: ['monumental'], ALT: ['altitude'], ALT2: ['altitude sports 2', 'altitude'],
+  SPECSN: ['spectrum sportsnet'], MNMT: ['monumental'], MNMT2: ['monumental sports network alternate', 'monumental 2'], ALT: ['altitude'], ALT2: ['altitude sports 2'],
   SCHN: ['space city'], CHSN: ['chicago sports network'], YES: ['yes network'], MSG: ['msg'], WPCH: ['peachtree'], KTVK: ['arizona s family', 'ktvk'],
   KPHE: ['arizona s family', 'kphe'], SN: ['sportsnet'], SNO: ['sportsnet ontario'], TSN: ['tsn'],
 };
@@ -65,6 +65,20 @@ function listingWords(code: string): string[] {
   return LISTING_WORDS[c] ?? LISTING_WORDS[station] ?? [foldText(station)];
 }
 const hasWords = (name: string, w: string) => ` ${foldText(name)} `.includes(` ${w} `);
+/** Words that make a channel a different feed of the network (only when tonight's listing names that feed). */
+const ALT_FEED = /\b(plus|alternate|alt|overflow|2|ii)\b/;
+
+/** Is this playlist channel exactly the channel tonight's listing names (not an alternate feed of it)? */
+function isListedChannel(chName: string, listed: string[]): boolean {
+  const f = ` ${foldText(chName).replace(/\b(raw|hd|fhd|uhd|sd|us|tv|nba|a3|ind|city|d|h|a)\b/g, ' ').replace(/\s+/g, ' ')} `;
+  return listed.some((w) => {
+    if (w.length < 2 || !f.includes(` ${w} `)) return false;
+    // "Altitude Sports 2", "Chicago Sports Network Plus", "Yes Network Overflow": only if the listing says so.
+    const rest = f.replace(` ${w} `, ' ');
+    const feed = ALT_FEED.exec(rest);
+    return !feed || w.split(' ').includes(feed[1]);
+  });
+}
 
 /** The playlist's channel for a pick: exact name first, then the same name ignoring case and symbols. */
 function findChannel(p: Pick, lineup: LineupChannel[]): LineupChannel | undefined {
@@ -88,6 +102,24 @@ export interface TeamMain {
   why: 'tonight' | 'pass' | 'usual';
 }
 
+/** The user's local channels for a team that aren't carrying this game (left out of the game's list entirely). */
+export function nbaLocalsNotOnTonight(game: Game, tonight: NbaTonight | undefined, lineup: LineupChannel[]): Set<string> {
+  const keys = new Set<string>();
+  const mains = new Set(nbaMainChannels(game, tonight, lineup).map((m) => m.ch.key));
+  for (const team of [game.home, game.away]) {
+    for (const p of teamPicks(team) ?? []) {
+      if (isPass(p)) continue;
+      const ch = findChannel(p, lineup);
+      if (ch && !mains.has(ch.key)) keys.add(ch.key);
+    }
+  }
+  return keys;
+}
+
+function teamPicks(team: GameTeam): Pick[] | undefined {
+  return NBA_TEAM_CHANNELS[team.name] ?? Object.entries(NBA_TEAM_CHANNELS).find(([n]) => foldText(n).endsWith(foldText(team.short)))?.[1];
+}
+
 /**
  * Each team's main stream for the game: its local channel if tonight's listing has the team on it, otherwise its
  * NBA team channel. Without a listing for the game, the team's channels in the order picked.
@@ -96,17 +128,18 @@ export function nbaMainChannels(game: Game, tonight: NbaTonight | undefined, lin
   const out: TeamMain[] = [];
   for (const side of ['home', 'away'] as const) {
     const team = side === 'home' ? game.home : game.away;
-    const picks = NBA_TEAM_CHANNELS[team.name] ?? Object.entries(NBA_TEAM_CHANNELS).find(([n]) => foldText(n).endsWith(foldText(team.short)))?.[1];
+    const picks = teamPicks(team);
     if (!picks) continue;
     const found = picks.map((p) => ({ p, ch: findChannel(p, lineup) })).filter((x): x is { p: Pick; ch: LineupChannel } => !!x.ch);
     const locals = found.filter((x) => !isPass(x.p));
     const passes = found.filter((x) => isPass(x.p));
+    // No listing for this game: only the team's NBA channel (a local channel isn't shown unless the game is on it).
     if (!tonight) {
-      for (const x of found) out.push({ side, team, ch: x.ch, why: isPass(x.p) ? 'pass' : 'usual' });
+      for (const x of passes) out.push({ side, team, ch: x.ch, why: 'pass' });
       continue;
     }
     const listed = (side === 'home' ? tonight.home : tonight.away).flatMap(listingWords);
-    const onTonight = locals.filter((x) => listed.some((w) => w.length >= 2 && hasWords(x.p.name, w)));
+    const onTonight = locals.filter((x) => isListedChannel(x.p.name, listed));
     if (onTonight.length) for (const x of onTonight) out.push({ side, team, ch: x.ch, why: 'tonight' });
     else for (const x of passes) out.push({ side, team, ch: x.ch, why: 'pass' });
   }
