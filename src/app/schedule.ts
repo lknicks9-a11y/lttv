@@ -3,6 +3,21 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ESPN_BASE, LEAGUE_LOGO_FALLBACK, SCHEDULE_LEAGUES, TEAM_DIRECTORY, parseLeagueLogo, parseScoreboard, parseStandingsTeams, parseTeams, scheduleDay, standingsUrl, scheduleLeague, scoreboardUrl, teamsUrl, type DirTeam, type Game, type ScheduleLeagueId } from '../core/schedule';
 import { openRemote } from './platform';
+import { NBA_TV_SCHEDULE_URL, nbaTonightFor, parseNbaTvSchedule, type NbaListing } from '../core/nbachannels';
+
+/** The NBA TV schedule (Sports Media Watch), read at most every 3 hours; the last copy is kept if a read fails. */
+let nbaTv: { at: number; list: NbaListing[] } | undefined;
+async function nbaTvSchedule(force: boolean): Promise<NbaListing[] | undefined> {
+  if (nbaTv && !force && Date.now() - nbaTv.at < 3 * 3600_000) return nbaTv.list;
+  try {
+    const { stream } = await openRemote(NBA_TV_SCHEDULE_URL, AbortSignal.timeout?.(30_000));
+    const list = parseNbaTvSchedule(await new Response(stream).text());
+    if (list.length) nbaTv = { at: Date.now(), list };
+  } catch {
+    /* keep the last copy */
+  }
+  return nbaTv?.list;
+}
 
 interface Entry {
   at: number;
@@ -82,6 +97,10 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
     const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase()), AbortSignal.timeout?.(20_000));
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
+    if (leagueId === 'nba' && games.length) {
+      const list = await nbaTvSchedule(force);
+      if (list) for (const g of games) g.nbaTonight = nbaTonightFor(g, list);
+    }
     const logo = parseLeagueLogo(json);
     if (logo) leagueLogos.set(leagueId, logo);
     cache.set(k, { at: Date.now(), games });

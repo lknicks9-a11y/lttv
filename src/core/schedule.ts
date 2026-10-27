@@ -78,6 +78,8 @@ export interface Game {
   home: GameTeam;
   away: GameTeam;
   broadcasts: Broadcast[];
+  /** NBA: tonight's channels from the NBA TV schedule (Sports Media Watch), when it could be read. */
+  nbaTonight?: import('./nbachannels').NbaTonight;
   venue?: string;
   note?: string;
   neutral?: boolean;

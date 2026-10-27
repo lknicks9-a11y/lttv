@@ -8,6 +8,7 @@ import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
+import { nbaMainChannels } from './nbachannels';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
@@ -21,6 +22,8 @@ export interface StreamPick {
   reason: string;
   side?: 'home' | 'away';
   broadcast?: string;
+  /** The team's main stream for this game (NBA: the channel it's on tonight, or its NBA team channel). */
+  main?: boolean;
 }
 
 /** Text entries worth checking for games: programme titles around the day, and event channel names. */
@@ -344,8 +347,16 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
+  // NBA: each team's main stream on top (its channel tonight, or its NBA team channel); the others stay below.
+  if (game.league === 'nba') {
+    const mains = nbaMainChannels(game, game.nbaTonight, lineup);
+    mains.forEach((m, i) => {
+      const reason = m.why === 'tonight' ? `${m.team.short} · on tonight` : m.why === 'pass' ? `${m.team.short} · NBA team channel` : `${m.team.short} channel`;
+      picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true });
+    });
+  }
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
-  const en = all.filter((p) => isEnglishChannel(p.ch));
+  const en = all.filter((p) => p.main || isEnglishChannel(p.ch));
   return en.length ? en : all.map((p) => ({ ...p, reason: `Not in English · ${p.reason}` }));
 }

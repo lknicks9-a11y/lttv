@@ -206,7 +206,7 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   const dead = ranked.filter((p) => live.get(p.ch.key) === 'dead');
   const picks = showDead
     ? ranked
-    : ranked.filter((p) => live.get(p.ch.key) !== 'dead').sort((a, b) => Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live'));
+    : ranked.filter((p) => p.main || live.get(p.ch.key) !== 'dead').sort((a, b) => Number(!!b.main) - Number(!!a.main) || Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live'));
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
