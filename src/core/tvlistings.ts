@@ -178,7 +178,7 @@ export const SMW_NBA_URL = 'https://www.sportsmediawatch.com/tv-schedules/nba-tv
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 /** Not channels in a playlist: streaming apps, League Pass, Spanish feeds. */
-const SMW_SKIP = /^watch on:?$|league pass|peacock|\+$|\bapp\b|unlimited|premium|deportes|prime|youtube|clippervision|max\b|^tbd$|^n\/?a$/i;
+const SMW_SKIP = /^watch on:?$|league pass|peacock|dazn|\+$|\bapp\b|unlimited|premium|deportes|prime|youtube|clippervision|max\b|^tbd$|^n\/?a$/i;
 const SMW_NAMES: Record<string, string> = {
   NBCSB: 'NBC Sports Boston', NBCSBA: 'NBC Sports Bay Area', NBCSCA: 'NBC Sports California', NBCSP: 'NBC Sports Philadelphia', SPECSN: 'Spectrum SportsNet',
   MNMT: 'Monumental Sports Network', MNMT2: 'Monumental Sports Network', ALT: 'Altitude', ALT2: 'Altitude', GCSEN: 'Gulf Coast Sports & Entertainment Network',

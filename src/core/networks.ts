@@ -5,6 +5,7 @@ import type { LineupChannel } from './types';
 import { normalizeForMatch } from './normalize';
 import { stripCountry } from './match';
 import { channelCountry } from './mytv';
+import { stationChannels } from './stations';
 
 export interface Network {
   id: string;
@@ -182,6 +183,9 @@ export function channelsForBroadcast(name: string, lineup: LineupChannel[]): Net
   return v;
 }
 function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): NetworkChannel[] {
+  // A local station named by call sign: found by call sign, or by its network / channel number in its city.
+  const local = stationChannels(name, lineup, channelCountry);
+  if (local) return local.map((ch) => ({ ch, fit: 'exact' as const }));
   const { network, keys } = networkForBroadcast(name);
   if (!keys.length && !network) return [];
   const out: NetworkChannel[] = [];
