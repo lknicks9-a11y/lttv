@@ -276,6 +276,7 @@ export function PlayerOverlay() {
               ? '◀ ▶ choose · OK select · ▲▼ change channel · Back: hide'
               : 'OK: controls (rewind · live) · ⏪ ⏩ skip · ▲▼ channel · ◀ list · ▶ info · Back: exit'}
             {status.via && status.via !== 'native' && <span> · {status.via}</span>}
+            {status.videoHeight ? <span> · Picture: {status.videoWidth}×{status.videoHeight}</span> : null}
           </div>
         </div>
       )}
