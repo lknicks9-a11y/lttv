@@ -145,7 +145,7 @@ class PlayerController(
         }
     }
 
-    /** Captions on/off (English first), and movies / episodes at the best quality the stream offers. */
+    /** Captions on/off (English first), and the best quality the stream offers on the main player. */
     private fun applyTrackPrefs() {
         val p = exo ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
@@ -156,7 +156,9 @@ class PlayerController(
             // new connection with the last ~10 s, so the picture jumped back 10 seconds.)
             .setPreferredTextLanguage("en")
             .setSelectUndeterminedTextLanguage(true)
-            .setForceHighestSupportedBitrate(vod)
+            // The main player always takes the stream's best quality (live channels too: adaptive streams otherwise
+            // start low and climb slowly, so a game looked soft for its first minutes). Multiview tiles stay adaptive.
+            .setForceHighestSupportedBitrate(vod || audioFocus)
             // Multiview tiles: no more resolution than the tile shows (less bandwidth per stream,
             // so several games at once don't starve each other or the provider connection).
             .setMaxVideoSize(if (audioFocus) Int.MAX_VALUE else tileMaxW, if (audioFocus) Int.MAX_VALUE else tileMaxH)
