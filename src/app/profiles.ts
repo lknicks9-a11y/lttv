@@ -212,19 +212,23 @@ export function switchProfile(id: string) {
 
 /** "Who's watching?" at startup: more than one profile and none picked since the app opened. */
 export function needsProfilePick(): boolean {
-  if (doc.list.length < 2) return false;
+  if (doc.list.length < 2 || pickedThisRun) return false;
   try {
     return !sessionStorage.getItem('lttvProfilePicked');
   } catch {
     return false;
   }
 }
+let pickedThisRun = false;
 export function markProfilePicked() {
+  pickedThisRun = true;
   try {
     sessionStorage.setItem('lttvProfilePicked', '1');
   } catch {
     /* ignore */
   }
+  // The screen that asked "Who's watching?" closes now (it was only re-checked on the next unrelated update).
+  notify();
 }
 
 // ---------------- with the account in the cloud ----------------
