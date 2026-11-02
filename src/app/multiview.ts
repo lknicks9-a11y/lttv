@@ -5,6 +5,11 @@ import { PlayerController } from './player';
 import { channelByKey, getState, player, playRequest, setState, tune } from './state';
 import { checkXtreamLogin } from './xtream-login';
 import { loginFor } from '../core/xtream';
+import { native } from './platform';
+
+/** On the computer, Multiview: 2, 3 or 4 games. On Fire TV, Dual view: 2 games. */
+export const MULTI = !native;
+export const mvName = () => (MULTI ? 'Multiview' : 'Dual view');
 
 export interface MvTile {
   /** Channel key */
@@ -26,14 +31,14 @@ export const TILE_COUNT = 4;
 const LAYOUT_KEY = 'lttvMvLayout';
 /** The layout used last time (asked again each time Multiview opens, with this one selected). */
 export function lastLayout(): MvLayout {
-  return 2;
+  return MULTI ? rememberedLayout() : 2;
 }
 /** (The old remembered 2/3/4 choice; unused since Dual view.) */
 export function rememberedLayout(): MvLayout {
   try {
     const n = Number(localStorage.getItem(LAYOUT_KEY));
     const lim = decoderLimit();
-    const want = n === 2 || n === 3 || n === 4 ? n : 2;
+    const want = n === 2 || n === 3 || n === 4 ? n : MULTI ? 4 : 2;
     return (lim && lim >= 2 && want > lim ? lim : want) as MvLayout;
   } catch {
     return 2;
@@ -116,7 +121,7 @@ export function openMultiview(first?: MvTile) {
   // The main player stops: most providers allow only a few streams at once.
   player.stop();
   // Opens straight into 4 games (2 or 3 from a tile's options → Layout).
-  const mv: MultiviewState = { tiles: [t0, null, null, null], active: 0, layout: 2 };
+  const mv: MultiviewState = { tiles: [t0, null, null, null], active: 0, layout: lastLayout() };
   setState({ fullscreen: false, currentKey: undefined });
   apply(mv);
   start(0, t0);
@@ -136,8 +141,8 @@ export function setTile(i: number, t: MvTile | null) {
 }
 
 /** Show 2, 3 or 4 games; games beyond the new count stop. */
-export function setLayout(_want: MvLayout) {
-  const layout: MvLayout = 2; // Dual view only
+export function setLayout(want: MvLayout) {
+  const layout: MvLayout = MULTI ? want : 2; // Fire TV: Dual view only
   const mv = getState().multiview;
   if (!mv) return;
   try {

@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { toast, useApp } from '../app/state';
 import { native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
-import { closeMultiview, connectionLimit, isLimitError, providerUsage, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
+import { MULTI, mvName, closeMultiview, connectionLimit, isLimitError, providerUsage, decoderLimit, noteDecoderLimit, resetDecoderLimit, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import type { PlayerController, PlayerStatus } from '../app/player';
 import type { ScheduleLeagueId } from '../core/schedule';
 import { Button, Icon, Modal } from './common';
@@ -282,7 +282,7 @@ export function MultiviewScreen() {
   const keys = mv.tiles.filter((t): t is MvTile => !!t).map((t) => t.key);
   const limit = connectionLimit(keys);
   return (
-    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label="Dual view">
+    <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label={mvName()}>
       <div class={`mv-grid mv-grid-${mv.layout}`} data-group="mv-grid">
         {Array.from({ length: mv.layout }, (_, i) => (
           <div class="mv-cell" data-tile={i} key={i}>
@@ -323,6 +323,7 @@ export function MultiviewScreen() {
           <div class="row gap modal-actions">
             <Button variant="primary" icon="fullscreen" data-autofocus onClick={() => { const i = options; setOptions(null); closeMultiview(i); }}>Full screen</Button>
             <Button icon="refresh" onClick={() => { const i = options; setOptions(null); setAdding(i); }}>Change game</Button>
+            {MULTI && <Button icon="multiview" onClick={() => { setOptions(null); setChoosing(true); }}>How many games</Button>}
             <Button icon="info" onClick={() => { setOptions(null); setInfo(true); }}>Stream info</Button>
             <Button icon="close" onClick={() => { setTile(options, null); setOptions(null); }}>Remove</Button>
           </div>

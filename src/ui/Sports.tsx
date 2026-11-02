@@ -12,7 +12,7 @@ import { clock, when, range, progress, remaining } from './fmt';
 import { LeagueGames, TeamLogo } from './Games';
 import { BetsScreen, FantasyScreen } from './Fantasy';
 import { liveLeague } from '../core/livestats';
-import { openMultiview } from '../app/multiview';
+import { mvName, openMultiview } from '../app/multiview';
 import { fallbackTeamLogo } from '../core/schedule';
 import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams, useLiveGames } from '../app/schedule';
 import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
@@ -193,7 +193,7 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
           <h1>Sports</h1>
           <p class="muted">Choose a league to see today’s games and the best channels for each one in your lineup.</p>
         </div>
-        <Button icon="multiview" onClick={() => openMultiview()}>Dual view</Button>
+        <Button icon="multiview" onClick={() => openMultiview()}>{mvName()}</Button>
       </header>
       <LeagueGrid onPick={onPick} />
     </section>
