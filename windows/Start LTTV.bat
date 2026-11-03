@@ -23,7 +23,25 @@ where git >nul 2>nul && (
   git clean -fdq dist >nul 2>nul
   git pull -q >nul 2>nul
 )
+rem First run (or after an update that needs it): install the build tools.
+if not exist "node_modules\esbuild" (
+  echo Installing what LTTV needs to build ^(one time, about a minute^)...
+  call npm install --no-audit --no-fund
+)
 echo Building LTTV...
-node scripts\build.mjs >nul 2>nul || (echo The build failed. Run "node scripts\build.mjs" in this folder to see why. & pause & exit /b 1)
+node scripts\build.mjs >"%TEMP%\lttv-build.log" 2>&1
+if errorlevel 1 (
+  echo Installing missing build tools and trying again...
+  call npm install --no-audit --no-fund
+  node scripts\build.mjs >"%TEMP%\lttv-build.log" 2>&1
+)
+if errorlevel 1 (
+  echo The build failed:
+  type "%TEMP%\lttv-build.log"
+  echo.
+  echo Take a photo of this window and send it to Claude.
+  pause
+  exit /b 1
+)
 echo LTTV is running at http://127.0.0.1:8787/  -  close this window to stop it.
 node server\server.mjs %OPEN%
