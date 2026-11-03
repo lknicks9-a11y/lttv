@@ -120,6 +120,9 @@ export class WebBackend implements Backend {
   /** Watching behind live on purpose (rewound or paused): don't jump to the live edge. */
   private shifted = false;
 
+  /** A Multiview tile (several streams share the connection, so each runs with more slack). */
+  tile = false;
+
   constructor(private emit: (s: Partial<PlayerStatus>) => void, private getSettings: () => Settings) {
     const v = document.createElement('video');
     v.className = 'video-layer';
@@ -254,7 +257,10 @@ export class WebBackend implements Backend {
       return;
     }
     const target = this.hls?.targetLatency;
-    const maxBehind = this.ts ? Math.max(6, this.getSettings().bufferSec + 4) : Math.max(20, (target ?? 10) * 3);
+    // Multiview tiles: only catch up when far behind. With several streams sharing the connection a tile often
+    // falls a few seconds back; jumping to the live edge each time emptied its buffer, so it buffered, fell behind
+    // and jumped again every few seconds.
+    const maxBehind = this.tile ? 90 : this.ts ? Math.max(6, this.getSettings().bufferSec + 4) : Math.max(20, (target ?? 10) * 3);
     if (info.behind > maxBehind) v.currentTime = sp.edge;
   }
 
@@ -676,11 +682,18 @@ export class PlayerController {
   private slotSeq = 0;
   private rectRaf = 0;
   private holeId = ++holeSeq;
+  private tile = false;
 
   /** opts.slot: a Multiview tile (0–3). */
   constructor(private getSettings: () => Settings, opts: { slot?: number } = {}) {
     const emit = (s: Partial<PlayerStatus>) => this.onBackendStatus(s);
-    this.backend = native ? new NativeBackend(emit, getSettings, opts.slot) : new WebBackend(emit, getSettings);
+    this.tile = opts.slot !== undefined;
+    if (native) this.backend = new NativeBackend(emit, getSettings, opts.slot);
+    else {
+      const web = new WebBackend(emit, getSettings);
+      web.tile = this.tile;
+      this.backend = web;
+    }
     window.addEventListener('online', () => {
       if (this.req && (this.status.state === 'error' || this.status.state === 'retrying')) this.reload();
     });
@@ -788,7 +801,8 @@ export class PlayerController {
       this.lastProgressAt = Date.now();
       return;
     }
-    const limit = this.getSettings().stallTimeoutSec * 1000;
+    // A Multiview tile on the computer gets twice as long before it counts as stalled (and reconnects).
+    const limit = this.getSettings().stallTimeoutSec * 1000 * (this.tile && !native ? 2 : 1);
     if (Date.now() - this.lastProgressAt > limit) {
       this.lastProgressAt = Date.now();
       this.onBackendStatus({ state: 'error', error: 'The stream stopped responding.' });
