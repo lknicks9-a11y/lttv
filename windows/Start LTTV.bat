@@ -23,6 +23,8 @@ where git >nul 2>nul && (
   git clean -fdq dist >nul 2>nul
   git pull -q >nul 2>nul
 )
+rem A ready-to-run copy (no git, already built): just start it.
+if not exist ".git" if exist "dist\index.html" goto run
 rem First run (or after an update that needs it): install the build tools.
 if not exist "node_modules\esbuild" (
   echo Installing what LTTV needs to build ^(one time, about a minute^)...
@@ -43,5 +45,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+goto run
+:run
 echo LTTV is running at http://127.0.0.1:8787/  -  close this window to stop it.
 node server\server.mjs %OPEN%
