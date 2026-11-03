@@ -1387,3 +1387,4 @@ small, .small { font-size: 1.15rem; }
 :root:not(.tv) ::-webkit-scrollbar-track { background: transparent; }
 :root:not(.tv) .sidebar .sidebar-fullscreen { margin-top: auto !important; }
 :root:not(.tv) .sidebar .sidebar-fullscreen + .sidebar-clock { margin-top: 0 !important; }
+.mv-top { display: flex; gap: 0.6rem; justify-content: flex-end; }

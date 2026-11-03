@@ -168,6 +168,8 @@ export function closeMultiview(fullscreenTile?: number) {
   if (!mv) return;
   for (let i = 0; i < TILE_COUNT; i++) players[i]?.stop();
   setState({ multiview: undefined });
+  // -1: just leave (back to where you were), nothing full screen.
+  if (fullscreenTile === -1) return;
   const t = mv.tiles[fullscreenTile ?? mv.active];
   if (t) void tune(t.key, { fullscreen: true });
 }

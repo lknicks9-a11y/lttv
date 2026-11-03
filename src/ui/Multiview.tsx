@@ -283,6 +283,12 @@ export function MultiviewScreen() {
   const limit = connectionLimit(keys);
   return (
     <div class={`multiview ${quiet ? 'mv-quiet' : ''}`} ref={rootRef} data-scope role="region" aria-label={mvName()}>
+      {MULTI && (
+        <div class="mv-top">
+          <Button small icon="fullscreen" onClick={() => closeMultiview()}>Full screen on the game with sound</Button>
+          <Button small variant="ghost" icon="close" onClick={() => { closeMultiview(-1); }}>Exit {mvName()}</Button>
+        </div>
+      )}
       <div class={`mv-grid mv-grid-${mv.layout}`} data-group="mv-grid">
         {Array.from({ length: mv.layout }, (_, i) => (
           <div class="mv-cell" data-tile={i} key={i}>
@@ -291,7 +297,7 @@ export function MultiviewScreen() {
         ))}
       </div>
       {limit !== undefined && keys.length > limit && (
-        <div class="mv-note">Your provider allows {limit} stream{limit === 1 ? '' : 's'} at once — the extra tiles may not play or may buffer.</div>
+        <div class="mv-note">Your provider’s server says this login allows {limit} stream{limit === 1 ? '' : 's'} at once. More games than that knock each other off, so they keep reloading. If your plan should allow more, ask your provider to raise the connections on this login.</div>
       )}
       <div class="mv-hint muted">Sound plays on the highlighted game · OK or Menu: options (full screen, change game) · Back: full screen on the highlighted game</div>
       {info && <StreamInfo titles={mv.tiles.map((t) => t?.title)} onClose={() => setInfo(false)} />}
