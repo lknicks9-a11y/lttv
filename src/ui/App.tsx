@@ -1,3 +1,4 @@
+import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
 import { dismissUpdate, installUpdate, useAvailableUpdate, versionOf } from '../app/updates';
 import { LiveNotices } from './Fantasy';
@@ -65,8 +66,29 @@ function Sidebar() {
         ))}
       </div>
       <SidebarProfile />
+      {!isTV && <FullscreenButton />}
       <div class="sidebar-clock">{clock(now)}</div>
     </nav>
+  );
+}
+
+/** Computer: the whole app full screen, like an app (also F11 / Esc). */
+function FullscreenButton() {
+  const [on, setOn] = useState(!!document.fullscreenElement);
+  useEffect(() => {
+    const f = () => setOn(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', f);
+    return () => document.removeEventListener('fullscreenchange', f);
+  }, []);
+  const toggle = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    else void document.documentElement.requestFullscreen?.().catch(() => undefined);
+  };
+  return (
+    <button type="button" class="f nav-item sidebar-fullscreen" onClick={toggle} title={on ? 'Exit full screen (Esc)' : 'Full screen (F11)'}>
+      <Icon name="fullscreen" size="1.9rem" />
+      <span class="nav-label">{on ? 'Exit full screen' : 'Full screen'}</span>
+    </button>
   );
 }
 

@@ -14,7 +14,7 @@ where node >nul 2>nul || (echo Node.js is not installed. Get it from https://nod
 rem Already running? Just open it.
 powershell -NoProfile -Command "try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://127.0.0.1:8787/api/caps) | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
 if %errorlevel%==0 (
-  if defined OPEN start "" http://127.0.0.1:8787/
+  if defined OPEN powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0open-app.ps1"
   exit /b
 )
 rem Get the latest version (skipped if git isn't installed or there's no internet).
@@ -48,4 +48,6 @@ if errorlevel 1 (
 goto run
 :run
 echo LTTV is running at http://127.0.0.1:8787/  -  close this window to stop it.
-node server\server.mjs %OPEN%
+rem Open LTTV in its own app window (Edge / Chrome) as soon as it is up.
+if defined OPEN start "" /b powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0open-app.ps1"
+node server\server.mjs

@@ -1367,3 +1367,23 @@ small, .small { font-size: 1.15rem; }
 [data-theme='team'] .card, [data-theme='team'] .guide-grid, [data-theme='team'] .league-card, [data-theme='team'] .game-row, [data-theme='team'] .sidebar { background-color: rgba(10, 10, 14, 0.78); }
 [data-theme='team'] .nav-item.active { box-shadow: inset 0.25rem 0 0 var(--accent); }
 [data-theme='team'] .card, [data-theme='team'] .modal, [data-theme='team'] .league-card, [data-theme='team'] .game-row { border-top: 2px solid var(--team-2); }
+
+/* ---------------- Computer (mouse and keyboard; not TV) ---------------- */
+:root:not(.tv) { font-size: clamp(8px, calc(100vw / 120), 16px); }
+:root:not(.tv) .sidebar, :root:not(.tv) .sidebar:focus-within, :root:not(.tv) .sidebar:hover { width: 14rem; transition: none; }
+:root:not(.tv) .brand-text, :root:not(.tv) .nav-label { opacity: 1; }
+:root:not(.tv) .nav-item { height: 3.1rem; font-size: 1.1rem; padding: 0 0.9rem; gap: 0.8rem; }
+:root:not(.tv) .nav-item .icon { width: 1.4rem !important; height: 1.4rem !important; }
+:root:not(.tv) .nav-item:hover { background: var(--panel-2); color: var(--text); }
+:root:not(.tv) .brand { padding-left: 0.4rem; }
+:root:not(.tv) .f { cursor: pointer; }
+:root:not(.tv) .channel-row:hover, :root:not(.tv) .game-row:hover, :root:not(.tv) .league-card:hover, :root:not(.tv) .stream-pick-main:hover, :root:not(.tv) .prog:hover, :root:not(.tv) .vod-card:hover { filter: brightness(1.18); }
+:root:not(.tv) .btn:hover { filter: brightness(1.12); }
+/* Remote-control hints don't apply to a mouse. */
+:root:not(.tv) .guide-hint, :root:not(.tv) .mv-hint, :root:not(.tv) .osd-hints { display: none; }
+:root:not(.tv) ::-webkit-scrollbar { width: 10px; height: 10px; }
+:root:not(.tv) ::-webkit-scrollbar-thumb { background: var(--panel-3); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+:root:not(.tv) ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+:root:not(.tv) ::-webkit-scrollbar-track { background: transparent; }
+:root:not(.tv) .sidebar .sidebar-fullscreen { margin-top: auto !important; }
+:root:not(.tv) .sidebar .sidebar-fullscreen + .sidebar-clock { margin-top: 0 !important; }
