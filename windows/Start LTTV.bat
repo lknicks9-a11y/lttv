@@ -47,6 +47,10 @@ if errorlevel 1 (
 )
 goto run
 :run
+rem ffmpeg makes raw channels (and Multiview) play smoothly; use it even if winget hasn't put it on PATH yet.
+for /f "usebackq delims=" %%F in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0find-ffmpeg.ps1"`) do set "FFMPEG=%%F"
+if defined FFMPEG echo ffmpeg found: raw channels and Multiview play smoothly.
+if not defined FFMPEG echo ffmpeg not found. For smoother Multiview run "Install ffmpeg (smoother Multiview).bat" in the windows folder.
 echo LTTV is running at http://127.0.0.1:8787/  -  close this window to stop it.
 rem Open LTTV in its own app window (Edge / Chrome) as soon as it is up.
 if defined OPEN start "" /b powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0open-app.ps1"

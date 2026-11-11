@@ -175,6 +175,9 @@ export class WebBackend implements Backend {
   }
 
   private rewindSec() {
+    // Multiview tiles keep no rewind: up to 10 minutes of 1080p per game, times four, overflows the browser's video
+    // memory, and each overflow made a game stall and reload.
+    if (this.tile) return 0;
     return Math.min(10, Math.max(0, this.getSettings().rewindMin ?? 0)) * 60;
   }
 
@@ -431,8 +434,8 @@ export class WebBackend implements Backend {
           // Keep what was watched so it can be rewound (live rewind); trimmed if memory runs short.
           backBufferLength: Math.max(30, this.rewindSec()),
           // A deeper buffer and patient segment retries ride out the hiccups IPTV servers have.
-          maxBufferLength: Math.max(15, s.bufferSec * 2),
-          maxMaxBufferLength: 60,
+          maxBufferLength: this.tile ? Math.max(10, s.bufferSec) : Math.max(15, s.bufferSec * 2),
+          maxMaxBufferLength: this.tile ? 30 : 60,
           maxBufferHole: 1,
           liveSyncDurationCount: 3,
           // Never jump to live by itself: chaseLive() does that unless the viewer rewound.

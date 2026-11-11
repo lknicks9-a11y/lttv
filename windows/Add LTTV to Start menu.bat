@@ -14,4 +14,10 @@ powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateS
 echo LTTV will start when you sign in. Then just go to http://127.0.0.1:8787 in your browser.
 :end
 echo.
+where ffmpeg >nul 2>nul && goto done
+choice /c YN /m "Install ffmpeg too (free; makes Multiview much smoother)"
+if errorlevel 2 goto done
+winget install --id Gyan.FFmpeg -e --silent
+:done
+echo.
 pause
