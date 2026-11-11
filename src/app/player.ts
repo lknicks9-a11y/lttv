@@ -10,6 +10,10 @@ import type Hls from 'hls.js';
 import type { MpegtsPlayer } from 'mpegts.js';
 import type { Settings } from '../core/types';
 import { native, proxiedUrl, serverCaps } from './platform';
+import { xtreamAlternates } from '../core/xtream';
+
+/** Channels whose provider doesn't serve an HLS version (play the raw stream). */
+const hlsRefused = new Set<string>();
 
 export type PlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'retrying' | 'error' | 'ended';
 
@@ -122,6 +126,8 @@ export class WebBackend implements Backend {
 
   /** A Multiview tile (several streams share the connection, so each runs with more slack). */
   tile = false;
+  /** The channel being played through its HLS version instead of its raw stream (no ffmpeg). */
+  private viaHlsFor = '';
 
   constructor(private emit: (s: Partial<PlayerStatus>) => void, private getSettings: () => Settings) {
     const v = document.createElement('video');
@@ -349,6 +355,18 @@ export class WebBackend implements Backend {
       }
     }
     if (this.current !== req) return; // superseded
+    // No ffmpeg on this computer: a raw TS channel would be unpacked by the browser itself, which stutters and
+    // jumps on many channels. Most providers also serve the same channel as HLS (.m3u8), which plays smoothly in
+    // the browser, so that's tried first; if the provider doesn't serve it, the raw stream is used.
+    if (kind === 'ts' && !caps.ffmpeg && !hlsRefused.has(req.key)) {
+      const hlsUrl = xtreamAlternates(req.url, true).find((u) => /\.m3u8$/i.test(u));
+      if (hlsUrl) {
+        this.viaHlsFor = req.key;
+        req = { ...req, url: hlsUrl };
+        this.current = req;
+        kind = 'hls';
+      }
+    }
     const v = this.video;
 
     if (kind === 'ts') {
@@ -469,6 +487,10 @@ export class WebBackend implements Backend {
             hls.config.backBufferLength = Math.max(20, Math.floor(back * 0.6));
           }
           if (!data.fatal) return;
+          // The provider doesn't serve this channel as HLS: use its raw stream from now on.
+          if (this.viaHlsFor === this.current?.key && (data.details === 'manifestLoadError' || data.details === 'manifestParsingError' || data.details === 'levelEmptyError')) {
+            hlsRefused.add(this.current.key);
+          }
           if (data.type === H.ErrorTypes.MEDIA_ERROR) {
             hls.recoverMediaError();
             return;
