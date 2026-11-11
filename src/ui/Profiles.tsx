@@ -125,9 +125,9 @@ export function SidebarProfile() {
   const { list, current } = useProfiles();
   if (!current) return null;
   return (
-    <button type="button" class="f nav-item sidebar-profile" onClick={() => setState({ profilePicker: true })} aria-label={`Profile: ${current.name}${list.length > 1 ? '. Switch profile' : ''}`}>
+    <button type="button" class="f tab tab-profile" onClick={() => setState({ profilePicker: true })} aria-label={`Profile: ${current.name}${list.length > 1 ? '. Switch profile' : ''}`}>
       <ProfileAvatar p={current} size="1.9rem" />
-      <span class="nav-label">{current.name}</span>
+      <span class="tab-label">{current.name}</span>
     </button>
   );
 }

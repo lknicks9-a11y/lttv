@@ -109,8 +109,12 @@ function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
   // Up/down stay inside the current zone (sidebar vs. screen content) when possible;
   // only left/right cross between zones, which is how TV menus behave.
   const zone = active.closest<HTMLElement>('[data-zone]');
+  // The top menu is a horizontal zone ([data-zone="h"]): there it is left/right that stay inside.
+  const horiz = zone?.dataset.zone === 'h';
+  const vertical = dir === 'up' || dir === 'down';
   let pool = list;
-  if ((dir === 'up' || dir === 'down') && zone) pool = list.filter((el) => zone.contains(el));
+  if (zone && vertical !== horiz) pool = list.filter((el) => zone.contains(el));
+  else if (!vertical) pool = list.filter((el) => !el.closest('[data-zone="h"]'));
   // Grids marked [data-hlock] keep left/right inside them (no jumping up to a tab row at a row's end).
   const hlock = dir === 'left' || dir === 'right' ? active.closest<HTMLElement>('[data-hlock]') : null;
   if (hlock) pool = list.filter((el) => hlock.contains(el));
@@ -146,14 +150,18 @@ function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
     }
   };
   pick(pool);
-  // Left at the start of a locked row still reaches the menu (sidebar).
-  if (!best && hlock && dir === 'left') pick(list.filter((el) => el.closest('[data-group="sidebar"]')));
   best = best as HTMLElement | null;
+  // Up from the top of a screen reaches the menu.
+  if (!best && dir === 'up' && !horiz && !hlock) {
+    const bar = [...scope.querySelectorAll<HTMLElement>('[data-zone="h"]')].find((b) => isVisible(b));
+    best = bar ? list.find((el) => bar.contains(el) && el.hasAttribute('data-default-focus')) ?? list.find((el) => bar.contains(el)) ?? null : null;
+  }
   if (!best) return !!hlock;
   // Restore the remembered element when entering a group from outside.
   const group = best.closest<HTMLElement>('[data-group]');
   if (group && !group.contains(active)) {
-    const remembered = lastInGroup.get(group);
+    // The top menu always opens on the section you are in.
+    const remembered = group.dataset.zone === 'h' ? undefined : lastInGroup.get(group);
     if (remembered && remembered.isConnected && isVisible(remembered) && scope.contains(remembered)) best = remembered;
     else {
       const pref = group.querySelector<HTMLElement>('[data-default-focus]');

@@ -397,6 +397,12 @@ export async function reloadAll() {
     await repo.saveSettings(settings);
     await repo.setKv('a7Introduced', true).catch(() => undefined);
   }
+  // The Glass look (top menu, glass panels) is switched on once when it arrives; Settings → Theme switches back.
+  if (!(await repo.getKv<boolean>('glassIntroduced').catch(() => true))) {
+    settings = { ...settings, theme: 'glass' };
+    await repo.saveSettings(settings);
+    await repo.setKv('glassIntroduced', true).catch(() => undefined);
+  }
   setHqLogos(settings.hqLogos !== false);
   applyTheme(settings); // your theme from the first moment, not after everything has loaded
   setState({ loadingPhase: 'Reading your playlists and guide channels' });

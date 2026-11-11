@@ -74,7 +74,7 @@ export function GuideScreen() {
         return true;
       }
     }
-    const item = document.querySelector<HTMLElement>('.sidebar .nav-item.active') ?? document.querySelector<HTMLElement>('.sidebar .nav-item');
+    const item = document.querySelector<HTMLElement>('.topbar .tab.active') ?? document.querySelector<HTMLElement>('.topbar .tab');
     item?.focus();
     return !!item;
   }), []);

@@ -192,7 +192,7 @@ export interface Settings {
   fuzzyAutoApprove: number;
   accent: string;
   /** A built-in look, or an NBA city theme ('nba-bos'). */
-  theme: 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast' | `nba-${string}`;
+  theme: 'glass' | 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast' | `nba-${string}`;
   /** The Frutiger Aero look was introduced (switched on once for existing setups). */
   aeroIntroduced?: boolean;
   startupScreen: StartupScreen;
@@ -263,7 +263,7 @@ export const DEFAULT_SETTINGS: Settings = {
   epgKeepPastHours: 3,
   fuzzyAutoApprove: 0,
   accent: '#4cc2ff',
-  theme: 'aero',
+  theme: 'glass',
   startupScreen: 'home',
   autoplayLastChannel: false,
   playbackRetries: 3,

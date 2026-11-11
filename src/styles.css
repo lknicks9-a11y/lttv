@@ -24,7 +24,7 @@
   --focus: 0 0 0 0.2rem var(--bg), 0 0 0 0.48rem var(--accent);
   --safe-x: 3.5rem; /* ~5% overscan-safe margins on TV */
   --safe-y: 2.25rem;
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Amazon Ember', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Helvetica Neue', 'Segoe UI Variable Display', 'Segoe UI', Roboto, 'Amazon Ember', Arial, 'Noto Sans', sans-serif;
   color-scheme: dark;
   font-size: clamp(8px, calc(100vw / 120), 32px);
 }
@@ -1431,3 +1431,98 @@ small, .small { font-size: 1.15rem; }
 .lp-pick.on { background: #1d6b3a; color: #fff; border-color: #2fa35b; }
 .lp-pick:disabled { opacity: 0.35; }
 @media (max-width: 900px) { .lp-main { grid-template-columns: 1fr; } .lp-box { max-height: 40vh; } }
+
+/* ================= Top menu (replaces the side rail, every theme) ================= */
+.shell { flex-direction: column; gap: 1rem; padding: calc(var(--safe-y) * 0.75) var(--safe-x) var(--safe-y); }
+.topbar { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1.5rem; position: relative; z-index: 5; }
+.topbar .brand { height: auto; padding: 0; gap: 0.6rem; overflow: visible; }
+.topbar .brand .logo-mark { width: 2.9rem; height: 2.9rem; }
+.topbar .brand-text { opacity: 1; font-size: 1.55rem; }
+.tabs { display: flex; align-items: center; gap: 0.15rem; padding: 0.3rem; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.tab { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.9rem; padding: 0 1.05rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 1.15rem; font-weight: 550; cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--panel-3); color: var(--text); }
+.tab:focus { background: var(--text); color: var(--bg); }
+.tab:focus .icon { color: inherit; }
+.top-right { justify-self: end; display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.top-right .tab { background: var(--panel); border: 1px solid var(--line); color: var(--text-2); }
+.top-right .tab:focus { background: var(--text); color: var(--bg); }
+.tab-profile { padding: 0 0.9rem 0 0.45rem; max-width: 14rem; }
+.tab-profile .tab-label { overflow: hidden; text-overflow: ellipsis; }
+.tab-round { width: 2.9rem; padding: 0; justify-content: center; }
+.top-clock { margin-left: 0.5rem; color: var(--text-2); font-size: 1.15rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:root.tv .tab { contain: layout paint style; }
+
+/* ================= Glass: the LTTV look =================
+   Near-black neutrals, tight Apple-style type, white focus, and glass (translucent, lit from above) on the
+   surfaces that float over other things: the menu, pop-ups, notices and the player's controls.
+   Real blur only on a computer; a Fire TV Stick gets the same glass without the costly blur. */
+:root[data-theme='glass'] {
+  --bg: #08080a; --bg-2: #0e0e11; --panel: #151518; --panel-2: #1d1d21; --panel-3: #2b2b30; --line: #2a2a30;
+  --text: #f5f5f7; --text-2: #c9c9cf; --muted: #8e8e96;
+  --radius: 0.9rem; --radius-sm: 0.6rem;
+  --focus: 0 0 0 0.17rem rgba(255, 255, 255, 0.96), 0 0.9rem 2.2rem rgba(0, 0, 0, 0.55);
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.09));
+  --glass-line: rgba(255, 255, 255, 0.17);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.3), 0 0.8rem 2.4rem rgba(0, 0, 0, 0.42);
+  --soft: rgba(255, 255, 255, 0.055);
+  --soft-2: rgba(255, 255, 255, 0.1);
+}
+[data-theme='glass'] body { letter-spacing: -0.006em; }
+[data-theme='glass'] h1, [data-theme='glass'] h2, [data-theme='glass'] h3, [data-theme='glass'] .modal-title, [data-theme='glass'] .guide-info-title, [data-theme='glass'] .osd-title, [data-theme='glass'] .vod-hero-title { font-weight: 700; letter-spacing: -0.024em; }
+[data-theme='glass'] .backdrop { background: radial-gradient(95rem 38rem at 50% -22%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%), radial-gradient(60rem 30rem at 105% 112%, rgba(255, 255, 255, 0.05), transparent 70%), var(--bg); }
+[data-theme='glass'] .wordmark { letter-spacing: -0.03em; }
+
+/* glass surfaces */
+[data-theme='glass'] .tabs, [data-theme='glass'] .top-right .tab, [data-theme='glass'] .modal, [data-theme='glass'] .toast, [data-theme='glass'] .lp-box, [data-theme='glass'] .osd-controls .btn, [data-theme='glass'] .live-banner {
+  background: var(--glass), rgba(30, 30, 34, 0.8); border: 1px solid var(--glass-line); box-shadow: var(--glass-edge);
+}
+:root:not(.tv)[data-theme='glass'] .tabs, :root:not(.tv)[data-theme='glass'] .top-right .tab, :root:not(.tv)[data-theme='glass'] .modal, :root:not(.tv)[data-theme='glass'] .toast, :root:not(.tv)[data-theme='glass'] .osd-controls .btn {
+  background: var(--glass), rgba(30, 30, 34, 0.5); -webkit-backdrop-filter: blur(28px) saturate(1.7); backdrop-filter: blur(28px) saturate(1.7);
+}
+[data-theme='glass'] .modal { border-radius: 1.5rem; }
+[data-theme='glass'] .modal-backdrop { background: rgba(0, 0, 0, 0.55); }
+[data-theme='glass'] .toast { border-left: 0.3rem solid var(--accent); border-radius: 1rem; }
+[data-theme='glass'] .toast-error { border-left-color: var(--danger); }
+[data-theme='glass'] .toast-success { border-left-color: var(--ok); }
+[data-theme='glass'] .live-banner { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* menu */
+[data-theme='glass'] .tab.active { background: rgba(255, 255, 255, 0.17); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); color: #fff; }
+:root[data-theme='glass'] .tab.f:focus { background: #f5f5f7; color: #0b0b0d; box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.5) !important; }
+
+/* controls */
+[data-theme='glass'] .btn { background: var(--soft-2); border-color: rgba(255, 255, 255, 0.1); border-radius: 0.8rem; font-weight: 600; }
+[data-theme='glass'] .btn:hover, [data-theme='glass'] .btn:focus { background: rgba(255, 255, 255, 0.2); }
+[data-theme='glass'] .btn-primary, [data-theme='glass'] .btn-primary:hover, [data-theme='glass'] .btn-primary:focus { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+[data-theme='glass'] .btn-ghost { background: transparent; border-color: transparent; }
+[data-theme='glass'] .chip { background: var(--soft-2); border-color: transparent; color: var(--text-2); }
+[data-theme='glass'] .chip-active { background: #f5f5f7; color: #0b0b0d; }
+[data-theme='glass'] .card { background: var(--soft); border-color: rgba(255, 255, 255, 0.08); border-radius: 1.3rem; }
+[data-theme='glass'] .row-control, [data-theme='glass'] .seg-btn { background: var(--soft); }
+[data-theme='glass'] .row-control:hover, [data-theme='glass'] .row-control:focus { background: rgba(255, 255, 255, 0.14); }
+[data-theme='glass'] .input { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); border-radius: 0.8rem; }
+
+/* guide and lists: quiet cells, the one you are on turns white */
+[data-theme='glass'] .guide-grid { border-top-color: rgba(255, 255, 255, 0.08); }
+[data-theme='glass'] .prog, [data-theme='glass'] .guide-ch, [data-theme='glass'] .mini-channel, [data-theme='glass'] .game-row, [data-theme='glass'] .league-card { background-color: var(--soft); }
+[data-theme='glass'] .prog.airing { background: var(--soft-2); }
+[data-theme='glass'] .prog-empty { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 1rem, rgba(255, 255, 255, 0.02) 1rem 2rem); }
+[data-theme='glass'] .guide-grid.active .prog.cursor { background: #f5f5f7; color: #0b0b0d; }
+[data-theme='glass'] .guide-grid.active .prog.cursor .prog-time, [data-theme='glass'] .guide-grid.active .prog.cursor .muted { color: #55555c; }
+[data-theme='glass'] .channel-row:hover { background: var(--soft); }
+[data-theme='glass'] .channel-row:focus, [data-theme='glass'] .guide-ch.cursor:focus, [data-theme='glass'] .mini-channel:focus { background: rgba(255, 255, 255, 0.16); }
+[data-theme='glass'] .game-row.is-live { background: linear-gradient(90deg, rgba(255, 71, 87, 0.14), var(--soft) 40%); }
+
+/* posters: no box around the card, the poster itself lights up */
+:root[data-theme='glass'] .vod-card.f:focus, [data-theme='glass'] .vod-card:hover { background: transparent; border-color: transparent; box-shadow: none !important; }
+[data-theme='glass'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #f5f5f7, 0 1rem 2.4rem rgba(0, 0, 0, 0.6); }
+[data-theme='glass'] .vod-hero { border-radius: 1.6rem; }
+[data-theme='glass'] .vod-hero-kicker { align-self: flex-start; background: var(--accent); color: var(--accent-ink); padding: 0.15rem 0.55rem; border-radius: 0.35rem; letter-spacing: 0.06em; }
+[data-theme='glass'] .vod-hero-dots span.on { background: #f5f5f7; }
+
+/* player */
+[data-theme='glass'] .osd { background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.62) 55%, transparent 100%); }
+[data-theme='glass'] .osd-controls .btn { border-radius: 999px; }
+[data-theme='glass'] .osd-chnum { color: var(--text-2); }
+[data-theme='glass'] .lp-overlay { background: var(--bg); }

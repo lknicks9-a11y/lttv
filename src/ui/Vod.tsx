@@ -96,7 +96,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       return onBack(() => {
         const a = document.activeElement;
         if (!rootRef.current?.contains(a)) return false;
-        const item = document.querySelector<HTMLElement>('.sidebar .nav-item.active') ?? document.querySelector<HTMLElement>('.sidebar .nav-item');
+        const item = document.querySelector<HTMLElement>('.topbar .tab.active') ?? document.querySelector<HTMLElement>('.topbar .tab');
         item?.focus();
         return !!item;
       });

@@ -40,36 +40,39 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
-function Sidebar() {
+/** The menu: a glass pill of sections across the top, the brand on the left, who's watching and the time on the right. */
+function TopBar() {
   const screen = useApp((s) => s.screen);
   const now = useApp((s) => s.now);
   const vod = useVodNav();
   const items = NAV.filter((n) => (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true));
   const active = screen === 'matches' || screen === 'wizard' ? 'sources' : screen === 'guide' ? 'home' : screen;
   return (
-    <nav class="sidebar" data-group="sidebar" data-zone aria-label="Main">
+    <header class="topbar" data-group="topbar" data-zone="h">
       <div class="brand" aria-label="LTTV">
-        <LogoMark size="4.6rem" />
+        <LogoMark size="2.9rem" />
         <Wordmark class="brand-text" />
       </div>
-      <div class="nav-items">
+      <nav class="tabs" aria-label="Main">
         {items.map((n) => (
           <button
             type="button"
-            class={`f nav-item ${active === n.id ? 'active' : ''}`}
+            class={`f tab ${active === n.id ? 'active' : ''}`}
             data-default-focus={active === n.id ? '' : undefined}
             aria-current={active === n.id ? 'page' : undefined}
             onClick={() => navigate(n.id)}
           >
-            <Icon name={n.icon} size="1.9rem" />
-            <span class="nav-label">{n.label}</span>
+            <Icon name={n.icon} size="1.35rem" />
+            <span class="tab-label">{n.label}</span>
           </button>
         ))}
+      </nav>
+      <div class="top-right">
+        <SidebarProfile />
+        {!isTV && <FullscreenButton />}
+        <span class="top-clock">{clock(now)}</span>
       </div>
-      <SidebarProfile />
-      {!isTV && <FullscreenButton />}
-      <div class="sidebar-clock">{clock(now)}</div>
-    </nav>
+    </header>
   );
 }
 
@@ -85,10 +88,10 @@ function FullscreenButton() {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     else void document.documentElement.requestFullscreen?.().catch(() => undefined);
   };
+  const label = on ? 'Exit full screen (Esc)' : 'Full screen (F11)';
   return (
-    <button type="button" class="f nav-item sidebar-fullscreen" onClick={toggle} title={on ? 'Exit full screen (Esc)' : 'Full screen (F11)'}>
-      <Icon name="fullscreen" size="1.9rem" />
-      <span class="nav-label">{on ? 'Exit full screen' : 'Full screen'}</span>
+    <button type="button" class="f tab tab-round" onClick={toggle} title={label} aria-label={label}>
+      <Icon name="fullscreen" size="1.35rem" />
     </button>
   );
 }
@@ -270,7 +273,7 @@ export function App() {
     <div class={`app ${covered ? 'is-fullscreen' : ''} ${multiview ? 'mv-open' : ''} ${isNative ? 'native' : ''}`}>
       <div class="backdrop" />
       <div class="shell" aria-hidden={covered ? 'true' : undefined} data-nav-skip={covered ? '' : undefined}>
-        <Sidebar />
+        <TopBar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
       {leaguePass && !multiview && <div class="lp-overlay"><LeaguePass /></div>}
