@@ -454,6 +454,8 @@ export class WebBackend implements Backend {
           // Keep what was watched so it can be rewound (live rewind); trimmed if memory runs short.
           backBufferLength: Math.max(30, this.rewindSec()),
           // A deeper buffer and patient segment retries ride out the hiccups IPTV servers have.
+          // Multiview: a game in a quarter of the screen doesn't need the full-size version of a multi-quality stream.
+          capLevelToPlayerSize: this.tile,
           maxBufferLength: this.tile ? Math.max(10, s.bufferSec) : Math.max(15, s.bufferSec * 2),
           maxMaxBufferLength: this.tile ? 30 : 60,
           maxBufferHole: 1,

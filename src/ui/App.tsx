@@ -1,3 +1,4 @@
+import { LeaguePass, watchLeaguePassKeys } from './LeaguePass';
 import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
 import { dismissUpdate, installUpdate, useAvailableUpdate, versionOf } from '../app/updates';
@@ -223,6 +224,8 @@ export function App() {
   const signIn = useApp((s) => !!s.signIn);
   const onboarding = useApp((s) => !!s.onboarding);
   const pickerOpen = useApp((s) => !!s.profilePicker);
+  const leaguePass = useApp((s) => !!s.leaguePass);
+  useEffect(() => watchLeaguePassKeys(), []);
   // "Who's watching?" at startup when there are several profiles (and from the sidebar avatar).
   const [, bumpProfiles] = useState(0);
   useEffect(() => onProfilesChanged(() => bumpProfiles((n) => n + 1)), []);
@@ -270,6 +273,7 @@ export function App() {
         <Sidebar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
+      {leaguePass && !multiview && <div class="lp-overlay"><LeaguePass /></div>}
       {picker && !onboarding && !signIn && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ profilePicker: false })} /></div>}
       {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn && <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div>}
       {onboarding || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}

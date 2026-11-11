@@ -77,6 +77,8 @@ export interface AppState {
   signIn?: boolean;
   /** "Who's watching?" opened from the sidebar avatar. */
   profilePicker?: boolean;
+  /** LTTV League Pass is open (Up, Up, Left, Right). */
+  leaguePass?: boolean;
   /** Which on-demand screens exist (the playlists have movies / shows). */
   vodAvail?: { movies: boolean; shows: boolean };
   /** The movie / episode playing full screen. */
