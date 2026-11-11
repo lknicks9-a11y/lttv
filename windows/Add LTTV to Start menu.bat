@@ -17,7 +17,7 @@ echo.
 where ffmpeg >nul 2>nul && goto done
 choice /c YN /m "Install ffmpeg too (free; makes Multiview much smoother)"
 if errorlevel 2 goto done
-winget install --id Gyan.FFmpeg -e --silent
+winget install --id Gyan.FFmpeg -e --silent --source winget
 :done
 echo.
 pause
