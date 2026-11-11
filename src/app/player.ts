@@ -263,8 +263,10 @@ export class WebBackend implements Backend {
     // Multiview tiles: only catch up when far behind. With several streams sharing the connection a tile often
     // falls a few seconds back; jumping to the live edge each time emptied its buffer, so it buffered, fell behind
     // and jumped again every few seconds.
-    const maxBehind = this.tile ? 90 : this.ts ? Math.max(6, this.getSettings().bufferSec + 4) : Math.max(20, (target ?? 10) * 3);
-    if (info.behind > maxBehind) v.currentTime = sp.edge;
+    // Only catch up when really behind. A small limit (it was ~6-10 s for raw channels) made playback jump ahead
+    // whenever the stream arrived in a burst, empty its buffer and stutter, over and over.
+    const maxBehind = this.tile ? 90 : this.ts ? Math.max(20, this.getSettings().bufferSec + 15) : Math.max(30, (target ?? 10) * 3);
+    if (info.behind > maxBehind) v.currentTime = Math.max(sp.start, sp.edge - (this.ts ? 4 : 0));
   }
 
   position() {

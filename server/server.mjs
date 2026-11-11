@@ -15,7 +15,7 @@
 // remote page and /rapi/* (paired with a code shown in LTTV). It can't use the fetch helper: that stays 127.0.0.1.
 import http from 'node:http';
 import https from 'node:https';
-import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
@@ -41,13 +41,50 @@ const UPSTREAM_TIMEOUT = 20000;
 const REMOTE = !args.includes('--no-remote');
 const REMOTE_PORT = Number(arg('--remote-port', process.env.REMOTE_PORT || PORT + 1));
 
-const hasFfmpeg = (() => {
+// ffmpeg: from FFMPEG, the PATH, or (Windows) where winget installs it even before PATH is refreshed. Looked for
+// again every minute while missing, so installing it doesn't need a restart.
+let ffmpegPath = '';
+let ffmpegCheckedAt = 0;
+function works(cmd) {
   try {
-    return spawnSync(process.env.FFMPEG || 'ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
+    return spawnSync(cmd, ['-version'], { stdio: 'ignore', timeout: 5000 }).status === 0;
   } catch {
     return false;
   }
-})();
+}
+function wingetFfmpeg() {
+  if (process.platform !== 'win32' || !process.env.LOCALAPPDATA) return '';
+  const root = join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Packages');
+  try {
+    for (const pkgDir of readdirSync(root).filter((d) => /ffmpeg/i.test(d))) {
+      const stack = [join(root, pkgDir)];
+      for (let depth = 0; stack.length && depth < 400; depth++) {
+        const dir = stack.pop();
+        for (const e of readdirSync(dir, { withFileTypes: true })) {
+          if (e.isDirectory()) stack.push(join(dir, e.name));
+          else if (e.name.toLowerCase() === 'ffmpeg.exe') return join(dir, e.name);
+        }
+      }
+    }
+  } catch {
+    /* not installed */
+  }
+  return '';
+}
+function findFfmpeg() {
+  if (ffmpegPath || Date.now() - ffmpegCheckedAt < 60_000) return ffmpegPath;
+  ffmpegCheckedAt = Date.now();
+  for (const c of [process.env.FFMPEG, 'ffmpeg', wingetFfmpeg()]) {
+    if (c && works(c)) {
+      ffmpegPath = c;
+      if (ffmpegCheckedAt) console.log(`  ffmpeg: found (${c})`);
+      break;
+    }
+  }
+  return ffmpegPath;
+}
+findFfmpeg();
+const hasFfmpegNow = () => !!findFfmpeg();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -295,7 +332,7 @@ async function handleProbe(res, q) {
 }
 
 function handleRemux(req, res, q) {
-  if (!hasFfmpeg) return sendJson(res, 501, { error: 'ffmpeg is not installed on this computer.' });
+  if (!hasFfmpegNow()) return sendJson(res, 501, { error: 'ffmpeg is not installed on this computer.' });
   const { url, headers } = parseTarget(q);
   const h = lowerKeys(headers);
   const ffArgs = ['-hide_banner', '-loglevel', 'error', '-fflags', '+genpts+discardcorrupt', '-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', '-rw_timeout', String(UPSTREAM_TIMEOUT * 1000)];
@@ -303,7 +340,7 @@ function handleRemux(req, res, q) {
   const extra = Object.entries(h).filter(([k]) => k !== 'user-agent').map(([k, v]) => `${k}: ${v}\r\n`).join('');
   if (extra) ffArgs.push('-headers', extra);
   ffArgs.push('-i', url, '-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-f', 'mp4', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', 'pipe:1');
-  const ff = spawn(process.env.FFMPEG || 'ffmpeg', ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+  const ff = spawn(findFfmpeg(), ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
   let started = false;
   let errText = '';
   ff.stderr.on('data', (d) => {
@@ -490,7 +527,7 @@ export function createServer() {
     try {
       if (u.pathname.startsWith('/api/')) {
         if (!sameOriginOnly(req)) return sendJson(res, 403, { error: 'Cross-site requests are not allowed.' });
-        if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpeg, version: pkg.version, platform: `desktop (${process.platform})`, remote: REMOTE });
+        if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpegNow(), version: pkg.version, platform: `desktop (${process.platform})`, remote: REMOTE });
         if (u.pathname.startsWith('/api/remote/')) return await handleRemotePage(req, res, u);
         if (u.pathname === '/api/fetch') return await handleFetch(req, res, u.searchParams);
         if (u.pathname === '/api/probe') return await handleProbe(res, u.searchParams);
@@ -518,7 +555,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   server.listen(PORT, HOST, () => {
     const url = `http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/`;
     console.log(`\n  LTTV ${pkg.version} is running at ${url}`);
-    console.log(`  ffmpeg: ${hasFfmpeg ? 'found (raw MPEG-TS channels can play)' : 'not found (HLS channels only in the browser)'}`);
+    console.log(`  ffmpeg: ${hasFfmpegNow() ? 'found (raw MPEG-TS channels can play)' : 'not found (HLS channels only in the browser)'}`);
     if (REMOTE) {
       const r = createRemoteServer();
       r.listen(REMOTE_PORT, '0.0.0.0', () => {
