@@ -24,6 +24,13 @@ const obj = (v: unknown): J => (v && typeof v === 'object' ? (v as J) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
 
+/** The source's headshots are 600 px wide; a box score row shows them at ~35 px. Ask its image service for a small one
+ *  (26 full-size photos made a Fire TV Stick crawl). */
+export function smallHeadshot(href: string): string {
+  const m = /^https:\/\/a\.espncdn\.com(\/i\/headshots\/[^?]+)$/.exec(href);
+  return m ? `https://a.espncdn.com/combiner/i?img=${m[1]}&w=96&h=70` : href;
+}
+
 export function summaryUrl(base: string, eventId: string): string {
   return `${base}/basketball/nba/summary?event=${encodeURIComponent(eventId)}`;
 }
@@ -43,7 +50,7 @@ export function parseBoxScore(json: unknown): BoxTeam[] {
         id: str(ath.id) || undefined,
         name: str(ath.shortName) || str(ath.displayName),
         jersey: str(ath.jersey) || undefined,
-        headshot: str(obj(ath.headshot).href) || undefined,
+        headshot: smallHeadshot(str(obj(ath.headshot).href)) || undefined,
         starter: a.starter === true,
         dnp: a.didNotPlay === true || !stats.length,
         pts: at('PTS') || '0',

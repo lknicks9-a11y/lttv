@@ -1730,3 +1730,13 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 
 /* an update is waiting */
 .top-right .tab.tab-update, [data-theme='glass'] .top-right .tab.tab-update { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+
+/* ---------- League Pass on a TV: cheap to move around ---------- */
+/* Soft blurred shadows are repainted on every press of the remote and make a Fire TV Stick lag: a crisp ring only. */
+:root.tv .league-pass .f:focus { box-shadow: 0 0 0 0.28rem #fff !important; }
+:root.tv .league-pass .lp-card.current.f:focus { box-shadow: inset 0 -0.35rem 0 #ffa04d, 0 0 0 0.28rem #fff !important; }
+:root.tv .league-pass .btn, :root.tv .lpm-tile, :root.tv .lp-bc-btn, :root.tv .lp-bc .lp-score { box-shadow: none; }
+:root.tv .lp-card.nostream { filter: none; opacity: 0.55; }
+:root.tv .lp-card, :root.tv button.lp-row, :root.tv .lp-feed, :root.tv .lp-pick, :root.tv .pp-tr { contain: layout paint style; }
+:root.tv .lp-box-rows, :root.tv .lp-strip, :root.tv .pp-table { contain: layout paint; }
+:root.tv .lp-bc { transition: none; }
