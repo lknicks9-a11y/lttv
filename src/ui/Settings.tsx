@@ -34,6 +34,29 @@ export function SettingsScreen() {
   const [confirmReset, setConfirmReset] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  // Developer settings stay hidden until Left, Right, Up, Down, Up is pressed here.
+  const [dev, setDev] = useState(false);
+  const devRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const seq = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'ArrowUp'];
+    let got: { key: string; at: number }[] = [];
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+      const now = Date.now();
+      if (got.length && now - got[got.length - 1].at > 2500) got = [];
+      got = [...got, { key: e.key, at: now }].slice(-seq.length);
+      if (got.length === seq.length && seq.every((k, i) => got[i].key === k)) {
+        got = [];
+        setDev((d) => !d);
+      }
+    };
+    window.addEventListener('keydown', on, true);
+    return () => window.removeEventListener('keydown', on, true);
+  }, []);
+  useEffect(() => {
+    if (dev) requestAnimationFrame(() => devRef.current?.querySelector<HTMLElement>('button, select, input')?.focus());
+  }, [dev]);
 
   useEffect(() => {
     void (async () => {
@@ -82,7 +105,6 @@ export function SettingsScreen() {
     <section class="screen settings">
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
-        <UpdateCenter />
         <ProfilesSection />
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
@@ -90,9 +112,20 @@ export function SettingsScreen() {
           <Choice label="Theme" value={s.theme} options={[{ value: 'glass', label: 'Glass (LTTV look)' }, { value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'autosix', label: 'AutoSix (neon Miami sunset)' }, { value: 'autumn', label: 'Autumn (fall road photo)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }, ...(s.theme.startsWith('nba-') ? [{ value: s.theme, label: 'NBA city theme' }] : [])]} onChange={(v) => set({ theme: v })} />
         </div>
 
-        <WatchmodeSettings />
-
         <PhoneRemoteSettings />
+      </div>
+
+      {dev && (
+        <div class="settings-grid settings-dev" ref={devRef}>
+        <div class="card settings-section dev-head" data-group="set-dev">
+          <h3>Developer settings</h3>
+          <p class="hint">Everything else LTTV can change. Press Left, Right, Up, Down, Up again to hide this.</p>
+          <div class="row gap"><Button small icon="close" onClick={() => setDev(false)}>Hide developer settings</Button></div>
+        </div>
+
+        <UpdateCenter />
+
+        <WatchmodeSettings />
 
         <TimeoutSettings />
 
@@ -172,7 +205,9 @@ export function SettingsScreen() {
           </div>
           <p class="hint">Diagnostics never include full playlist URLs, tokens or passwords.</p>
         </div>
-      </div>
+        </div>
+      )}
+      <p class="settings-dev-note muted">Developer settings: press <b>Left, Right, Up, Down, Up</b> on the remote (or the arrow keys on a keyboard).</p>
       {confirmReset && (
         <Modal title="Reset LTTV?" onClose={() => setConfirmReset(false)}>
           <p>This deletes all playlists, guides, favorites and settings from this device. Your original playlist files and URLs are not affected.</p>

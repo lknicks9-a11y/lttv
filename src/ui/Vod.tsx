@@ -121,11 +121,11 @@ export function VodScreen({ kind }: { kind: VodKind }) {
 
   return (
     <section class="screen vod" ref={rootRef}>
-      <header class="screen-head compact">
-        {view.mode === 'home' ? <h1>{title}</h1> : (
+      <header class={`screen-head compact ${view.mode === 'home' ? 'vod-home-head' : ''}`}>
+        {view.mode === 'home' ? null : (
           <div class="row gap">
             <Button small icon="back" onClick={() => setView({ mode: 'home' })}>{title}</Button>
-            <h1>{view.mode === 'search' ? 'Search' : view.cat.name}</h1>
+            {view.mode === 'search' && <h1>Search</h1>}
           </div>
         )}
         {view.mode !== 'search' && <Button icon="search" class="vod-search-btn" onClick={() => setView({ mode: 'search' })}>Search</Button>}
@@ -137,7 +137,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
           <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
         ) : (
           <>
-            {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 5)} top={home.rows[0].id === 'trending'} onOpen={setOpen} />}
+            {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 10)} top={home.rows[0].id === 'trending' || home.rows[0].id === 'popular'} onOpen={setOpen} />}
             {cont.length > 0 && (
               <section class="vod-row">
                 <h2 class="vod-row-title">Continue watching</h2>
@@ -174,7 +174,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                 </div>
               </section>
             )}
-            {home?.rows.map((r, ri) => (
+            {home?.rows.map((r, ri) => (r.id === 'trending' || r.id === 'popular') ? <TopRow key={r.id} kind={kind} items={r.items} onOpen={setOpen} autofocus={!cont.length && ri === 0} /> : (
               <section class={`vod-row ${r.id === 'trending' ? 'vod-ranked' : ''}`} key={r.id}>
                 <h2 class="vod-row-title">{r.title}{r.note && <small class="muted"> · {r.note}</small>}</h2>
                 <LazyStrip id={r.id} count={r.items.length}>
@@ -200,7 +200,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   );
 }
 
-/** Featured titles at the top (Hulu-style): big artwork, description, Play and Details. Rotates while you're not on it. */
+/** Featured titles at the top: full-width artwork, "#1 Trending", one meta line, Play and More info, page dots. */
 function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) => void; top?: boolean }) {
   const [i, setI] = useState(0);
   const ref = useRef<HTMLElement>(null);
@@ -225,31 +225,35 @@ function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) 
   const backdrop = it.kind === 'series' ? it.s.backdrop : d?.backdrop;
   const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
   const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
+  const genre = firstGenre((it.kind === 'series' ? it.s.genre : d?.genre) ?? art?.genre);
   const play = async () => {
     if (it.kind === 'series') return onOpen(it);
     const r = await movieResume(it.playlistId, it.m);
     const v = moviePlay(it.playlistId, it.m, r ? Math.max(0, r.pos - 5) : 0);
     if (v) playVod({ ...v, poster: poster ?? v.poster });
   };
+  const meta = [it.kind === 'movie' ? 'Movie' : 'Series', genre, year ?? art?.year, it.kind === 'movie' ? formatDuration(d?.durationSec) : '', rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return (
     <section class="vod-hero" ref={ref} data-group="vod-hero">
       {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${backdrop ?? poster}")` }} />}
+      {!backdrop && poster && <img class="vod-hero-poster" src={poster} alt="" />}
       <div class="vod-hero-shade" />
       <div class="vod-hero-text">
-        <div class="vod-hero-kicker">{top ? `#${(i % items.length) + 1} Trending` : it.kind === 'movie' ? 'Featured movie' : 'Featured series'}</div>
+        <span class="vod-hero-badge">{top ? `#${(i % items.length) + 1} Trending` : it.kind === 'movie' ? 'Featured' : 'Featured series'}</span>
         <h2 class="vod-hero-title">{cleanTitle(name) || name}</h2>
-        <div class="vod-facts muted">{[year ?? art?.year, rating ? `★ ${rating.toFixed(1)}` : '', art?.genre].filter(Boolean).join(' · ')}</div>
+        <div class="vod-hero-meta">{meta}</div>
         {plot && <p class="vod-hero-plot">{plot}</p>}
-        <div class="row gap">
-          <Button variant="primary" icon="play" data-autofocus onClick={() => void play()}>{it.kind === 'movie' ? 'Play' : 'Watch'}</Button>
-          <Button icon="info" onClick={() => onOpen(it)}>Details</Button>
+        <div class="row gap vod-hero-actions">
+          <Button class="vod-play-btn" icon="play" data-autofocus onClick={() => void play()}>{it.kind === 'movie' ? 'Play' : 'Watch'}</Button>
+          <Button class="vod-info-btn" icon="info" onClick={() => onOpen(it)}>More info</Button>
         </div>
         {items.length > 1 && <div class="vod-hero-dots" aria-hidden="true">{items.map((_, n) => <span class={n === i % items.length ? 'on' : ''} />)}</div>}
       </div>
-      {!backdrop && poster && <img class="vod-hero-poster" src={poster} alt="" />}
     </section>
   );
 }
+
+const firstGenre = (g?: string) => (g ?? '').split(/[,/|]/)[0].trim() || undefined;
 
 function ItemCard({ it, onOpen, autofocus, rank }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean; rank?: number }) {
   const poster = it.kind === 'movie' ? it.m.poster : it.s.poster;
@@ -266,6 +270,57 @@ function ItemCard({ it, onOpen, autofocus, rank }: { it: VodItem; onOpen: (it: V
   );
 }
 
+/**
+ * "Top 25 movies today": big outlined numbers, posters, and the title you're on opened up wide with its
+ * picture, one meta line and the description under it.
+ */
+function TopRow({ kind, items, onOpen, autofocus }: { kind: VodKind; items: VodItem[]; onOpen: (it: VodItem) => void; autofocus?: boolean }) {
+  const [fi, setFi] = useState(0);
+  const list = items.slice(0, 25);
+  return (
+    <section class="vod-row vod-top">
+      <h2 class="vod-row-title">{kind === 'movies' ? 'Top 25 movies today' : 'Top 25 TV shows today'}</h2>
+      <LazyStrip id="trending" count={list.length}>
+        {(n) => list.slice(0, n).map((it, i) => <TopCard key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} it={it} rank={i + 1} wide={i === fi} autofocus={autofocus && i === 0} onFocus={() => setFi(i)} onOpen={onOpen} />)}
+      </LazyStrip>
+    </section>
+  );
+}
+
+function TopCard({ it, rank, wide, autofocus, onFocus, onOpen }: { it: VodItem; rank: number; wide: boolean; autofocus?: boolean; onFocus: () => void; onOpen: (it: VodItem) => void }) {
+  const name = itemName(it);
+  const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  const art = useArt(it.kind, name, year, wide);
+  const [d, setD] = useState<VodDetails | null>(null);
+  // The wide picture and description are looked up once you stay on the title for a moment.
+  useEffect(() => {
+    if (!wide || d || it.kind !== 'movie') return;
+    const t = setTimeout(() => void loadMovieDetails(it.playlistId, it.m).then(setD).catch(() => undefined), 250);
+    return () => clearTimeout(t);
+  }, [wide]);
+  const backdrop = it.kind === 'series' ? it.s.backdrop : d?.backdrop;
+  const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
+  const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
+  const genre = firstGenre((it.kind === 'series' ? it.s.genre : d?.genre) ?? art?.genre);
+  const meta = [it.kind === 'movie' ? 'Movie' : 'Series', year ?? art?.year, it.kind === 'movie' ? formatDuration(d?.durationSec) : '', genre].filter(Boolean).join(' · ');
+  return (
+    <div class={`vod-top-item ${wide ? 'is-wide' : ''}`}>
+      <span class="vod-top-num" aria-hidden="true">{rank}</span>
+      <div class="vod-top-col">
+        <button type="button" class="f vod-top-card" data-autofocus={autofocus ? '' : undefined} onFocus={onFocus} onClick={() => onOpen(it)} aria-label={`${rank}. ${name}`}>
+          {wide && backdrop ? <img class="vod-top-wide" src={backdrop} alt="" decoding="async" /> : wide ? <div class="vod-top-wide is-poster" style={poster ? { backgroundImage: `url("${poster}")` } : undefined}><span>{cleanTitle(name) || name}</span></div> : <ArtPoster kind={it.kind} name={name} year={year} src={it.kind === 'movie' ? it.m.poster : it.s.poster} />}
+        </button>
+        {wide && (
+          <div class="vod-top-text">
+            <div class="vod-top-meta">{meta}</div>
+            {plot && <p class="vod-top-plot">{plot}</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CategoryRow({ id, title, cats, onPick, autofocus }: { id: string; title: string; cats: VodCat[]; onPick: (c: VodCat) => void; autofocus?: boolean }) {
   return (
     <section class="vod-row">
@@ -279,10 +334,37 @@ function CategoryRow({ id, title, cats, onPick, autofocus }: { id: string; title
   );
 }
 
+type SortBy = 'provider' | 'added' | 'year' | 'az' | 'rating';
+const SORTS: { value: SortBy; label: string }[] = [
+  { value: 'provider', label: 'Recommended' },
+  { value: 'added', label: 'Recently added' },
+  { value: 'year', label: 'Newest first' },
+  { value: 'az', label: 'A to Z' },
+  { value: 'rating', label: 'Top rated' },
+];
+type Era = 'all' | 'new' | '2020s' | '2010s' | 'older';
+const ERAS: { value: Era; label: string }[] = [
+  { value: 'all', label: 'All years' },
+  { value: 'new', label: 'This year and last' },
+  { value: '2020s', label: '2020s' },
+  { value: '2010s', label: '2010s' },
+  { value: 'older', label: 'Before 2010' },
+];
+const yearNum = (it: VodItem) => Number((it.kind === 'movie' ? it.m.year : it.s.year) ?? /\b(19|20)\d\d\b/.exec(itemName(it))?.[0]) || 0;
+function inEra(y: number, e: Era): boolean {
+  if (e === 'all') return true;
+  if (!y) return false;
+  const now = new Date().getFullYear();
+  return e === 'new' ? y >= now - 1 : e === '2020s' ? y >= 2020 : e === '2010s' ? y >= 2010 && y < 2020 : y < 2010;
+}
+
 function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpen: (it: VodItem) => void }) {
   const [items, setItems] = useState<VodItem[] | null>(null);
   const [err, setErr] = useState('');
   const [shown, setShown] = useState(PAGE);
+  const [sort, setSort] = useState<SortBy>('provider');
+  const [era, setEra] = useState<Era>('all');
+  const [menu, setMenu] = useState(false);
   useEffect(() => {
     let alive = true;
     setItems(null);
@@ -292,19 +374,65 @@ function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpe
       alive = false;
     };
   }, [cat.key]);
-  if (!items) return <div class="muted row gap"><span class="spinner" /> Loading…</div>;
-  if (!items.length) return <Empty icon="search" title={err ? 'This category didn’t load' : 'Nothing here'}>{err && <p>{err}</p>}</Empty>;
+  const list = useMemo(() => {
+    if (!items) return [];
+    const l = items.filter((it) => inEra(yearNum(it), era));
+    const rating = (it: VodItem) => (it.kind === 'movie' ? it.m.rating : it.s.rating) ?? 0;
+    const added = (it: VodItem) => (it.kind === 'movie' ? it.m.added : it.s.added) ?? 0;
+    if (sort === 'az') l.sort((a, b) => cleanTitle(itemName(a)).localeCompare(cleanTitle(itemName(b))));
+    else if (sort === 'year') l.sort((a, b) => yearNum(b) - yearNum(a));
+    else if (sort === 'rating') l.sort((a, b) => rating(b) - rating(a));
+    else if (sort === 'added') l.sort((a, b) => added(b) - added(a));
+    return l;
+  }, [items, sort, era]);
+  const label = kind === 'movies' ? 'Movies' : 'TV Shows';
+  const unit = kind === 'movies' ? 'films' : 'shows';
+  const changed = sort !== 'provider' || era !== 'all';
   return (
     <>
-      <div class="vod-grid" data-group="vod-grid" data-hlock>
-        {items.slice(0, shown).map((it, i) => <ItemCard it={it} autofocus={i === 0} onOpen={onOpen} />)}
+      <div class="vod-grid-head">
+        <h2>{label}: {cat.name.replace(/^[A-Z]{2,3}\s*[|:-]\s*/, '')} {items && <small class="muted">{list.length.toLocaleString()} {list.length === 1 ? unit.slice(0, -1) : unit}</small>}</h2>
+        <Button class={`vod-filter-btn ${changed ? 'is-on' : ''}`} icon="menu" onClick={() => setMenu(true)}>Filter and sort</Button>
       </div>
-      {items.length > shown && (
+      {!items ? <div class="muted row gap"><span class="spinner" /> Loading…</div>
+        : !list.length ? <Empty icon="search" title={err ? 'This category didn’t load' : 'Nothing here'}>{err && <p>{err}</p>}</Empty>
+        : (
+          <div class="vod-grid vod-grid-posters" data-group="vod-grid" data-hlock>
+            {list.slice(0, shown).map((it, i) => <GridCard key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} it={it} autofocus={i === 0} onOpen={onOpen} />)}
+          </div>
+        )}
+      {list.length > shown && (
         <div class="row vod-more">
-          <Button icon="add" onClick={() => setShown((n) => n + PAGE)}>Show more ({(items.length - shown).toLocaleString()} left)</Button>
+          <Button icon="add" onClick={() => setShown((n) => n + PAGE)}>Show more ({(list.length - shown).toLocaleString()} left)</Button>
         </div>
       )}
+      {menu && (
+        <Modal title="Filter and sort" onClose={() => setMenu(false)}>
+          <h3 class="vod-sort-h">Sort by</h3>
+          <div class="row gap wrap">{SORTS.map((o, i) => <Chip active={sort === o.value} data-autofocus={sort === o.value || (i === 0 && !SORTS.some((x) => x.value === sort)) ? '' : undefined} onClick={() => { setSort(o.value); setShown(PAGE); }}>{o.label}</Chip>)}</div>
+          <h3 class="vod-sort-h">Year</h3>
+          <div class="row gap wrap">{ERAS.map((o) => <Chip active={era === o.value} onClick={() => { setEra(o.value); setShown(PAGE); }}>{o.label}</Chip>)}</div>
+          <div class="row gap modal-actions">
+            <Button variant="primary" onClick={() => setMenu(false)}>Done</Button>
+            {changed && <Button variant="ghost" onClick={() => { setSort('provider'); setEra('all'); }}>Reset</Button>}
+          </div>
+        </Modal>
+      )}
     </>
+  );
+}
+
+/** A poster in a category grid with "Title - Year" under it. */
+function GridCard({ it, onOpen, autofocus }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean }) {
+  const name = itemName(it);
+  const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  const clean = cleanTitle(name) || name;
+  const y = year ?? /\b(19|20)\d\d\b/.exec(name)?.[0];
+  return (
+    <button type="button" class="f vod-card vod-gcard" data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(it)}>
+      <ArtPoster kind={it.kind} name={name} year={year} src={it.kind === 'movie' ? it.m.poster : it.s.poster} />
+      <div class="vod-gname">{y && !clean.includes(y) ? `${clean} - ${y}` : clean}</div>
+    </button>
   );
 }
 
