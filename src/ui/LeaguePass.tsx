@@ -488,7 +488,7 @@ export function LeaguePass() {
           <span class="lpm-hint">OK: broadcast and options · Back: {cfg.name}</span>
         </footer>
         {sheet && (
-          <Modal title={sheet.games || !sheetTile ? 'Games' : sheetGame ? `${sheetGame.away.name} at ${sheetGame.home.name}` : sheetTile.title} onClose={() => setSheet(null)} class="lpm-sheet">
+          <Modal title={sheet.games || !sheetTile ? 'Games' : sheetGame ? `${sheetGame.away.name} at ${sheetGame.home.name}` : sheetTile.title} onClose={() => setSheet(null)} class={`lpm-sheet lp-modal ${cfg.league}`}>
             {sheet.games || !sheetTile ? (
               <div class="lpm-games">
                 {extras.filter((f) => !usedKeys.has(f.key)).map((f) => (
@@ -568,7 +568,7 @@ export function LeaguePass() {
                   ) : next ? <div class="lp-off-count">Next: {next.away.abbr} at {next.home.abbr} · {gameLine(next, now)}</div> : null}
                 </>
               );
-              return <TimeoutShow media={tmedia}>{lines}</TimeoutShow>;
+              return <TimeoutShow media={tmedia} team={team}>{lines}</TimeoutShow>;
             })()}
             {!onThisGame && !full && !timeoutUp && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
             {full && (

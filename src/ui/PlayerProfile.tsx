@@ -73,7 +73,7 @@ export function PlayerProfile({ id, name, headshot, onClose }: { id: string; nam
   const day = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const face = bio?.headshot ?? headshot;
   return (
-    <Modal onClose={onClose} wide class="pp" title={bio?.name ?? name}>
+    <Modal onClose={onClose} wide class="pp lp-modal" title={bio?.name ?? name}>
       <div class="pp-head">
         {face ? <img class="pp-face" src={face} alt="" /> : <span class="pp-face" />}
         <div class="pp-id">

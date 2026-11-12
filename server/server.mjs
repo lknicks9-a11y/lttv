@@ -503,7 +503,18 @@ function timeoutFiles(dirs = TIMEOUT_DIRS) {
   for (const dir of dirs) {
     let names = [];
     try {
-      names = readdirSync(dir).filter((n) => TIMEOUT_TYPES[extOf(n)]).sort();
+      // Files in the folder, and in folders inside it (a folder per team: "knicks/1.jpg").
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.isFile() && TIMEOUT_TYPES[extOf(e.name)]) names.push(e.name);
+        else if (e.isDirectory() && e.name.toLowerCase() !== 'timeout') {
+          try {
+            for (const n of readdirSync(join(dir, e.name))) if (TIMEOUT_TYPES[extOf(n)]) names.push(`${e.name}/${n}`);
+          } catch {
+            /* unreadable */
+          }
+        }
+      }
+      names.sort();
     } catch {
       continue; // no such folder
     }

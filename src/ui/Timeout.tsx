@@ -5,13 +5,16 @@ import { h, Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { native, openRemote, proxiedUrl } from '../app/platform';
 import { getState, updateSettings } from '../app/state';
-import { TIMEOUT_ART, startBeat } from './timeoutart';
+import { TIMEOUT_ART, startBeat, teamArt } from './timeoutart';
+import type { GameTeam } from '../core/schedule';
 
 export interface TimeoutMedia {
   images: string[];
+  /** The file name of each picture ("knicks/1.jpg"), to find a team's own. */
+  names: string[];
   audio: string[];
 }
-const NONE: TimeoutMedia = { images: [], audio: [] };
+const NONE: TimeoutMedia = { images: [], names: [], audio: [] };
 let cached: { at: number; job: Promise<TimeoutMedia> } | null = null;
 
 async function load(): Promise<TimeoutMedia> {
@@ -26,7 +29,7 @@ async function load(): Promise<TimeoutMedia> {
       // uses it to find the same folder.
       if (has && j.lan && getState().settings.timeoutMedia !== j.lan) void updateSettings({ timeoutMedia: j.lan });
       const url = (n: string) => `timeout/${encodeURIComponent(n)}`;
-      return { images: (j.images ?? []).map(url), audio: (j.audio ?? []).map(url) };
+      return { images: (j.images ?? []).map(url), names: j.images ?? [], audio: (j.audio ?? []).map(url) };
     }
     return await loadOnTv();
   } catch {
@@ -70,7 +73,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
     // No storage for them here: play straight from the computer.
     const url = (n: string) => proxiedUrl(`${base}/timeout/${encodeURIComponent(n)}`);
     lastTvStatus = reached ? `Found ${list.images.length} pictures and ${list.audio.length} songs on the computer.` : 'The computer isn’t reachable.';
-    return reached ? { images: list.images.map(url), audio: list.audio.map(url) } : NONE;
+    return reached ? { images: list.images.map(url), names: list.images, audio: list.audio.map(url) } : NONE;
   }
   const cache = await caches.open('lttv-timeout');
   const key = (n: string) => `/timeout-kept/${encodeURIComponent(n)}`;
@@ -103,7 +106,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
       /* not critical */
     }
   }
-  const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), audio: list.audio.flatMap((n) => urls.get(n) ?? []) };
+  const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), names: list.images.filter((n) => urls.has(n)), audio: list.audio.flatMap((n) => urls.get(n) ?? []) };
   lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.`;
   return got;
 }
@@ -216,11 +219,38 @@ function useMusic(tracks: string[]) {
 }
 
 /** The pictures cross-fading behind `children` (the words). Only two pictures are ever on screen at once. */
-export function TimeoutShow({ media, children }: { media: TimeoutMedia; children: ComponentChildren }) {
+/** Other names a team goes by in file names (nickname and city are matched anyway). */
+const TEAM_ALIASES: Record<string, string[]> = {
+  '76ers': ['sixers', 'phi', 'philly'], 'trail blazers': ['blazers', 'trailblazers', 'por'], timberwolves: ['wolves', 'twolves'],
+  knicks: ['nyk'], warriors: ['gsw', 'dubs'], pelicans: ['nop', 'pels'], spurs: ['sas'], jazz: ['uta'], nets: ['bkn'], suns: ['phx'],
+  thunder: ['okc'], mavericks: ['mavs', 'dal'], cavaliers: ['cavs', 'cle'], clippers: ['lac', 'clips'], lakers: ['lal'], celtics: ['bos'],
+  grizzlies: ['grizz', 'mem'], hornets: ['cha'], raptors: ['tor', 'raps'], wizards: ['wsh', 'wiz'], rockets: ['hou'], pacers: ['ind'],
+  pistons: ['det'], bucks: ['mil'], hawks: ['atl'], heat: ['mia'], magic: ['orl'], bulls: ['chi'], kings: ['sac'], nuggets: ['nuggs', 'den'],
+};
+const tokens = (n: string) => n.toLowerCase().replace(/\.[a-z0-9]+$/, '').split(/[^a-z0-9]+/).filter(Boolean);
+/** A team's own pictures: the team's name (or a folder named after it) in the file name, e.g. "knicks-1.jpg" or "Knicks/brunson.jpg". */
+export function teamPictures(media: TimeoutMedia, team: Pick<GameTeam, 'short' | 'name'>): string[] {
+  const nick = team.short.toLowerCase();
+  const words = new Set([nick.replace(/\s+/g, ''), ...nick.split(/\s+/).slice(-1), ...(TEAM_ALIASES[nick] ?? [])]);
+  const full = team.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return media.images.filter((_, i) => {
+    const n = media.names[i] ?? '';
+    const t = tokens(n);
+    return t.some((x) => words.has(x)) || n.toLowerCase().replace(/[^a-z0-9]/g, '').includes(full);
+  });
+}
+
+export function TimeoutShow({ media, team, children }: { media: TimeoutMedia; team?: GameTeam; children: ComponentChildren }) {
   const [i, setI] = useState(0);
   const prev = useRef(-1);
-  // Your own pictures when you've added some; otherwise LTTV's built-in scenes.
-  const images = media.images.length ? media.images : TIMEOUT_ART;
+  // A team's broadcast picked: that team's own pictures, else its built-in team picture. Otherwise your pictures,
+  // else LTTV's built-in scenes.
+  const own = team ? teamPictures(media, team) : [];
+  const images = team ? (own.length ? own : [teamArt(team)]) : media.images.length ? media.images : TIMEOUT_ART;
+  useEffect(() => {
+    setI(0);
+    prev.current = -1;
+  }, [team?.name]);
   const n = images.length;
   useEffect(() => {
     if (n < 2) return;

@@ -1828,3 +1828,11 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 /* Timeout pictures: the whole picture is always in view, centered; a dimmed copy of it fills what's left over. */
 .lp-slide { background-position: center, center, center; background-size: contain, cover, cover; background-repeat: no-repeat; }
 .lp-full .lp-timeout-text { padding-bottom: 9rem; }
+
+/* ---------- League Pass / Blitz pop-ups (drawn at the end of the page, outside .league-pass) ---------- */
+.modal.lp-modal { background: #17171b; -webkit-backdrop-filter: none; backdrop-filter: none; --lp-accent: #ffa04d; }
+.modal.lp-modal.nfl { --lp-accent: #3ddc84; }
+:root .lp-modal .f:focus { box-shadow: 0 0 0 0.28rem #fff !important; }
+.lp-modal .lp-feed:focus, .lp-modal .lp-tab:focus, .lp-modal .lpm-game:focus { background: #fff; color: #0b0b0d; }
+.lp-modal .lp-feed:focus b { color: #0b0b0d; }
+.lp-modal .lp-feed:focus small { color: #44444a; }

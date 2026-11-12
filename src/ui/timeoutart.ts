@@ -46,6 +46,21 @@ ${Array.from({ length: 60 }, (_, i) => `<circle cx="${(i * 269 + 80) % W}" cy="$
 
 export const TIMEOUT_ART = [court, hoop, ball, lights];
 
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+/** A team's own built-in picture: its court in its color, with its name (no logos). */
+export function teamArt(t: { name: string; short: string; location?: string; color?: string }): string {
+  const c = /^[0-9a-f]{6}$/i.test(t.color ?? '') ? `#${t.color}` : '#3a3a44';
+  const nick = esc(t.short.toUpperCase());
+  const city = esc((t.location ?? t.name.slice(0, t.name.length - t.short.length)).trim().toUpperCase());
+  const size = Math.min(330, Math.round(2600 / Math.max(4, nick.length)));
+  return svg(`
+<defs><radialGradient id="t" cx="50%" cy="38%" r="80%"><stop offset="0" stop-color="${c}"/><stop offset=".62" stop-color="${c}" stop-opacity=".55"/><stop offset="1" stop-color="#050506"/></radialGradient></defs>
+<rect width="${W}" height="${H}" fill="#050506"/><rect width="${W}" height="${H}" fill="url(#t)"/>
+<g fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="7"><circle cx="800" cy="450" r="150"/><path d="M800 0v900"/><rect x="60" y="310" width="290" height="280"/><rect x="1250" y="310" width="290" height="280"/><path d="M60 120h170a340 340 0 0 1 0 660H60M1540 120h-170a340 340 0 0 0 0 660h170"/></g>
+<text x="800" y="${330 + size * 0.35}" text-anchor="middle" font-family="Inter, Roboto, 'Segoe UI', Arial, sans-serif" font-weight="900" font-size="${size}" letter-spacing="-6" fill="#fff" fill-opacity=".12" stroke="#fff" stroke-opacity=".5" stroke-width="3">${nick}</text>
+<text x="800" y="150" text-anchor="middle" font-family="Inter, Roboto, 'Segoe UI', Arial, sans-serif" font-weight="800" font-size="46" letter-spacing="14" fill="#fff" fill-opacity=".85">${city}</text>`);
+}
+
 /**
  * The built-in music: a slow four-chord beat (kick, snare, hats, a low bass and a soft pad) made with the device's
  * sound synthesizer, so there is no file and nobody else's song. Returns the function that fades it out and stops it.

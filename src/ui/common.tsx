@@ -1,4 +1,4 @@
-import { h, Fragment, type ComponentChildren, type JSX } from 'preact';
+import { h, Fragment, render, type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { focusFirst, onBack } from '../app/nav';
 import { bestLogo, loadLogoIndex, logosReady, onLogosReady } from '../core/logos';
@@ -190,7 +190,34 @@ export function Choice<T extends string | number>({ label, value, options, onCha
 }
 
 // ---------------- Modal (focus scope) ----------------
-export function Modal({ title, onClose, children, wide, class: cls }: { title?: string; onClose: () => void; children: ComponentChildren; wide?: boolean; class?: string }) {
+/**
+ * Renders its children at the end of the page instead of where it sits. A pop-up opened from inside another one
+ * (a cast member from a movie's page, a player from the box score) used to be trapped in its parent: anything with
+ * a backdrop blur or paint containment above it shrinks a full-screen layer to that box.
+ */
+function Portal({ children }: { children: ComponentChildren }) {
+  const host = useRef<HTMLDivElement | null>(null);
+  if (!host.current) host.current = document.createElement('div');
+  useLayoutEffect(() => {
+    const el = host.current!;
+    el.className = 'portal';
+    document.body.appendChild(el);
+    return () => {
+      render(null, el);
+      el.remove();
+    };
+  }, []);
+  useLayoutEffect(() => {
+    render(h(Fragment, null, children), host.current!);
+  });
+  return null;
+}
+
+export function Modal(props: { title?: string; onClose: () => void; children: ComponentChildren; wide?: boolean; class?: string }) {
+  return <Portal><ModalBox {...props} /></Portal>;
+}
+
+function ModalBox({ title, onClose, children, wide, class: cls }: { title?: string; onClose: () => void; children: ComponentChildren; wide?: boolean; class?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const prevFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
