@@ -1,4 +1,5 @@
 import { WatchmodeSettings } from './WatchmodeSettings';
+import { TimeoutSettings } from './Timeout';
 import { PhoneRemoteSettings } from './PhoneRemote';
 import { ProfilesSection } from './Profiles';
 
@@ -92,6 +93,8 @@ export function SettingsScreen() {
         <WatchmodeSettings />
 
         <PhoneRemoteSettings />
+
+        <TimeoutSettings />
 
         <div class="card settings-section" data-group="set-display">
           <h3>Display</h3>
