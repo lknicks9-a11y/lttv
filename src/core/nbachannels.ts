@@ -117,7 +117,16 @@ export function nbaLocalsNotOnTonight(game: Game, tonight: NbaTonight | undefine
 }
 
 function teamPicks(team: GameTeam): Pick[] | undefined {
-  return NBA_TEAM_CHANNELS[team.name] ?? Object.entries(NBA_TEAM_CHANNELS).find(([n]) => foldText(n).endsWith(foldText(team.short)))?.[1];
+  const entry = NBA_TEAM_CHANNELS[team.name] ? ([team.name, NBA_TEAM_CHANNELS[team.name]] as const) : Object.entries(NBA_TEAM_CHANNELS).find(([n]) => foldText(n).endsWith(foldText(team.short)));
+  if (!entry) return undefined;
+  // Every team also has its own NBA channel ("NBA: MEMPHIS GRIZZLIES ᴴᴰ"), whether or not it was picked.
+  return entry[1].some(isPass) ? entry[1] : [...entry[1], P(`NBA: ${entry[0].toUpperCase()} ᴴᴰ`, PPV)];
+}
+
+/** The team's own NBA channel in the playlist: by its exact name, else the NBA team channel carrying its nickname. */
+function findPass(p: Pick, team: GameTeam, lineup: LineupChannel[]): LineupChannel | undefined {
+  const nick = foldText(team.short);
+  return findChannel(p, lineup) ?? (nick ? lineup.find((c) => !c.hidden && /nba team ppv/i.test(c.group ?? '') && hasWords(c.originalName, nick)) : undefined);
 }
 
 /**
@@ -130,7 +139,7 @@ export function nbaMainChannels(game: Game, tonight: NbaTonight | undefined, lin
     const team = side === 'home' ? game.home : game.away;
     const picks = teamPicks(team);
     if (!picks) continue;
-    const found = picks.map((p) => ({ p, ch: findChannel(p, lineup) })).filter((x): x is { p: Pick; ch: LineupChannel } => !!x.ch);
+    const found = picks.map((p) => ({ p, ch: isPass(p) ? findPass(p, team, lineup) : findChannel(p, lineup) })).filter((x): x is { p: Pick; ch: LineupChannel } => !!x.ch);
     const locals = found.filter((x) => !isPass(x.p));
     const passes = found.filter((x) => isPass(x.p));
     // No listing for this game: only the team's NBA channel (a local channel isn't shown unless the game is on it).
@@ -140,8 +149,9 @@ export function nbaMainChannels(game: Game, tonight: NbaTonight | undefined, lin
     }
     const listed = (side === 'home' ? tonight.home : tonight.away).flatMap(listingWords);
     const onTonight = locals.filter((x) => isListedChannel(x.p.name, listed));
-    if (onTonight.length) for (const x of onTonight) out.push({ side, team, ch: x.ch, why: 'tonight' });
-    else for (const x of passes) out.push({ side, team, ch: x.ch, why: 'pass' });
+    // The local channel carrying it tonight first, then the team's own NBA channel (always offered).
+    for (const x of onTonight) out.push({ side, team, ch: x.ch, why: 'tonight' });
+    for (const x of passes) out.push({ side, team, ch: x.ch, why: 'pass' });
   }
   return out;
 }

@@ -1562,3 +1562,6 @@ small, .small { font-size: 1.15rem; }
 .lp-bc-btn.on { background: #fff; color: #0b0b0d; }
 .lp-bc-feeds { display: flex; gap: 0.6rem; }
 .lp-bc-feed { background: rgba(12, 14, 20, 0.78); border-color: rgba(255, 255, 255, 0.16); }
+/* The League Pass video fills its space (the picture itself stays centered inside it). */
+.lp-video.video-slot { aspect-ratio: auto; width: 100%; max-height: none; }
+.lp-bc-feeds { flex-wrap: wrap; justify-content: center; }

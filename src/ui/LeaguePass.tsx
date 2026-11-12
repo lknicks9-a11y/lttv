@@ -110,8 +110,8 @@ export function LeaguePass() {
       const picks = bestStreams(g, lineup, 'basketball', index);
       const list: Feed[] = [];
       for (const side of ['away', 'home'] as const) {
-        const p = picks.find((x) => x.main && x.side === side);
-        if (p) list.push({ key: p.ch.key, label: `${(side === 'away' ? g.away : g.home).abbr} broadcast`, sub: p.ch.name });
+        // The team's local channel tonight (if it's on one) and its own NBA team channel.
+        for (const p of picks.filter((x) => x.main && x.side === side)) list.push({ key: p.ch.key, label: `${(side === 'away' ? g.away : g.home).abbr} broadcast`, sub: p.ch.name });
       }
       for (const p of picks.filter((x) => !list.some((f) => f.key === x.ch.key)).slice(0, 2)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : 'Other', sub: p.ch.name });
       m.set(g.id, list);
