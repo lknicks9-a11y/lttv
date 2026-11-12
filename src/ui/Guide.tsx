@@ -102,7 +102,7 @@ export function GuideScreen() {
   // The grid owns focus when the guide opens, so the remote starts on "what's on now".
   const [active, setActive] = useState(true);
 
-  const chW = 21 * rem;
+  const chW = 12 * rem;
   const rowH = 5 * rem;
   const span = settings.guideHoursVisible * 3600_000;
   const pxPerMin = gridW / (span / 60000);
@@ -259,6 +259,32 @@ export function GuideScreen() {
     setCursor({ row: 0, col: 'grid', anchor: Date.now() });
   };
 
+  // Day buttons: today and the next days the guide covers (up to a week).
+  const days = useMemo(() => {
+    const out: number[] = [];
+    const d0 = new Date(Date.now());
+    d0.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(d0);
+      d.setDate(d0.getDate() + i);
+      if (i > 0 && (!coverage || d.getTime() >= coverage.end)) break;
+      out.push(d.getTime());
+    }
+    return out;
+  }, [coverage, Math.floor(now / 3600_000)]);
+  const jumpDay = (d: number) => {
+    // The same time of day on that day (prime time if it's late now).
+    const t = new Date(Date.now());
+    const at = d + ((t.getHours() >= 22 || t.getHours() < 6 ? 19 : t.getHours()) * 60 + t.getMinutes()) * 60_000;
+    const vs = Math.max(minStart, Math.min(maxStart, floor(at)));
+    setViewStart(vs);
+    setCursor((c) => ({ ...c, col: 'grid', anchor: vs, start: pickInRow(c.row, vs, vs, vs + span) }));
+  };
+  const chipNow = chips.find((c) => filter === c.id || String(filter).startsWith(`${c.id}|`));
+  const groupLabel = chipNow?.label ?? 'All channels';
+  const epgSources = useApp((s) => s.epgSources);
+  const lastUpdate = Math.max(0, ...epgSources.filter((e) => e.enabled).map((e) => e.lastRefreshAt ?? 0));
+
   const jumpNow = () => {
     const vs = floor(Date.now());
     setViewStart(vs);
@@ -345,6 +371,10 @@ export function GuideScreen() {
         </div>
       </div>
       <LiveTeamBanner />
+      <div class="guide-head">
+        <h2>{groupLabel}</h2>
+        <span class="guide-head-meta">{rows.length.toLocaleString()} channels · {day(now)}, {clock(now)}{lastUpdate ? ` · Guide updated ${clock(lastUpdate)}` : ''}</span>
+      </div>
       <div class="guide-controls" data-group="guide-controls">
         <div class="chips compact country-tabs">
           {chips.map((c) => {
@@ -367,7 +397,14 @@ export function GuideScreen() {
             );
           })}
         </div>
-        <div class="row gap-sm">
+      </div>
+      <div class="guide-days" data-group="guide-days">
+        <span class="guide-days-label">Days</span>
+        {days.map((d, i) => {
+          const on = viewStart >= d && viewStart < d + 86400_000;
+          return <button type="button" class={`f chip ${on ? 'chip-active' : ''}`} onClick={() => (i === 0 ? jumpNow() : jumpDay(d))}>{i === 0 ? 'Today' : day(d + 12 * 3600_000)}</button>;
+        })}
+        <div class="row gap-sm guide-days-tools">
           <GuideUpdateButton />
           <Button small icon="chevronLeft" onClick={() => shiftView(-STEP * 2)} aria-label="Earlier" />
           <Button small icon="now" onClick={jumpNow}>Now</Button>
@@ -392,7 +429,6 @@ export function GuideScreen() {
         }}
       >
         <div class="guide-ruler" style={{ paddingLeft: `${chW}px` }}>
-          <div class="guide-date">{day(viewStart)}</div>
           <div class="guide-ticks">
             {ticks.map((t) => (
               <span class="tick" style={{ left: `${timeToX(t, viewStart, pxPerMin)}px` }}>{clock(t)}</span>
@@ -422,10 +458,8 @@ export function GuideScreen() {
                     if (!(isCursorRow && cursor.col === 'channel')) setCursor({ row, col: 'channel', anchor: cursor.anchor });
                   }}
                 >
-                  <span class="ch-num">{ch.number}</span>
-                  <ChannelLogo ch={ch} src={ch.logo} name={ch.name} size="sm" />
-                  <ChannelName ch={ch} class="guide-ch-name" />
-                  {ch.favorite && <Icon name="star" class="fav-star" size="1em" />}
+                  <div class="guide-ch-tile"><ChannelLogo ch={ch} src={ch.logo} name={ch.name} size="md" />{ch.favorite && <Icon name="star" class="fav-star" size="0.8em" />}</div>
+                  <div class="guide-ch-sub"><span class="ch-num">{ch.number}</span> <ChannelName ch={ch} class="guide-ch-name" /></div>
                 </div>
                 <div class="guide-progs" style={{ width: `${gridW}px` }}>
                   {blocks.length ? (

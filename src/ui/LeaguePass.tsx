@@ -284,6 +284,17 @@ export function LeaguePass() {
       }
       // 2. The local stations picked for the teams, when the game is on them tonight.
       for (const p of picks.filter((x) => x.main && !x.team)) list.push({ key: p.ch.key, label: `${abbr(p.side)} local`, sub: p.ch.name });
+      // Blitz: the game's networks by name (CBS, FOX, ESPN…), the teams' local stations and the game channels.
+      if (cfg.league === 'nfl') {
+        const net = (name: string) => g.broadcasts.find((b) => b.kind !== 'streaming' && new RegExp(`(^|[^a-z0-9])${b.name.replace(/[^a-z0-9]+/gi, '\\W*')}([^a-z0-9]|$)`, 'i').test(name))?.name;
+        for (const p of picks.filter((x) => !extras.some((e) => e.key === x.ch.key)).slice(0, 6)) {
+          const n = net(p.ch.name);
+          const label = p.kind === 'event' ? 'Game channel' : p.kind === 'local' && p.side ? `${abbr(p.side)} local${n ? ` · ${n}` : ''}` : n ?? (p.kind === 'national' ? 'National' : 'Other');
+          list.push({ key: p.ch.key, label, sub: p.ch.name });
+        }
+        m.set(g.id, list);
+        continue;
+      }
       // 3. A few other good streams, just in case.
       for (const p of picks.filter((x) => !x.main && !extras.some((e) => e.key === x.ch.key)).slice(0, cfg.league === 'nba' ? 3 : 5)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : p.kind === 'event' ? 'Game channel' : p.kind === 'local' ? 'Local' : 'Other', sub: p.ch.name });
       m.set(g.id, list);
@@ -398,10 +409,12 @@ export function LeaguePass() {
     const f = feedsOf(g);
     const k = key ?? (f.some((x) => x.key === playing) ? playing : f[0]?.key);
     const feed = f.find((x) => x.key === k);
-    if (feed?.team && offAir(g, Date.now())) {
+    // An off-air game: the timeout screen (NBA: a team's own channel; Blitz: any of the game's channels, which
+    // show other programmes until the game).
+    if ((feed?.team || cfg.league === 'nfl') && offAir(g, Date.now())) {
       player.stop();
       setState({ currentKey: undefined });
-      setOff({ gameId: g.id, key: feed.key });
+      setOff({ gameId: g.id, key: feed?.key ?? '' });
       return;
     }
     setOff(null);
@@ -415,12 +428,13 @@ export function LeaguePass() {
   const anyOnAir = games.some((g) => !offAir(g, now));
   // The timeout screen only comes up once you pick a broadcast that's off the air (never by itself on the League Pass
   // page, where it kept showing pictures from earlier).
-  const timeoutUp = !playing && !mv && !!offGame && !!offFeed;
+  const timeoutUp = !playing && !mv && !!offGame && (!!offFeed || cfg.league === 'nfl');
   // The broadcast opens (an hour before tip-off): go to it without being asked.
   useEffect(() => {
     if (!off || !offGame || offAir(offGame, now)) return;
     setOff(null);
-    void tune(off.key, { fullscreen: false });
+    const k = off.key || feedsOf(offGame)[0]?.key;
+    if (k) void tune(k, { fullscreen: false });
   }, [now, off, offGame?.state]);
   const step = (d: number) => {
     const withStream = games.filter((g) => feedsOf(g).length);
@@ -534,7 +548,7 @@ export function LeaguePass() {
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span class="lp-spacer" />
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
-        {timeoutUp && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
+        {timeoutUp && cfg.league !== 'nfl' && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
         <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
         {(onThisGame || timeoutUp) && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
         <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>Close</Button>
@@ -545,21 +559,21 @@ export function LeaguePass() {
           <VideoSlot priority={150} class="lp-video">
             {timeoutUp && (() => {
               // A team broadcast picked while it's off the air, or nothing on at all.
-              const team = offGame && offFeed ? (offFeed.team === 'away' ? offGame.away : offGame.home) : undefined;
+              const team = !offGame ? undefined : cfg.league === 'nfl' ? (offFeed?.team === 'away' ? offGame.away : offGame.home) : offFeed?.team ? (offFeed.team === 'away' ? offGame.away : offGame.home) : undefined;
               const pre = offGame?.state === 'pre';
               const next = games.filter((g) => g.state === 'pre').sort((x, y) => x.start - y.start)[0];
               const lines = (
                 <>
                   <div class="lp-off-kicker"><LpLogo size="1.6rem" kind={cfg.league} /> LTTV {cfg.name}</div>
                   <div class="lp-off-title">LTTV {cfg.name} took a timeout</div>
-                  <div class="lp-off-line">{team && anyOnAir ? `The ${team.name} broadcast is off the air` : 'No games on at this time'}</div>
+                  <div class="lp-off-line">{cfg.league === 'nfl' && offGame ? `${offGame.away.name} at ${offGame.home.name}` : team && anyOnAir ? `The ${team.name} broadcast is off the air` : 'No games on at this time'}</div>
                   {team && offGame ? (
-                    pre ? <div class="lp-off-count">{team.name} broadcast on the air in <b>{untilText(offGame.start - ON_AIR_BEFORE - now)}</b></div>
+                    pre ? <div class="lp-off-count">{cfg.league === 'nfl' ? `${offFeed?.label ?? 'The game'} · on the air in` : `${team.name} broadcast on the air in`} <b>{untilText(offGame.start - ON_AIR_BEFORE - now)}</b></div>
                       : <div class="lp-off-count">{hideScore ? `Final · ${offGame.away.abbr} at ${offGame.home.abbr}` : `Final · ${offGame.away.abbr} ${offGame.away.score ?? ''} – ${offGame.home.score ?? ''} ${offGame.home.abbr}`}</div>
                   ) : next ? <div class="lp-off-count">Next: {next.away.abbr} at {next.home.abbr} · {gameLine(next, now)}</div> : null}
                 </>
               );
-              return <TimeoutShow media={tmedia} team={team}>{lines}</TimeoutShow>;
+              return <TimeoutShow media={tmedia} team={cfg.league === 'nfl' ? undefined : team} plain={cfg.league === 'nfl'}>{lines}</TimeoutShow>;
             })()}
             {!onThisGame && !full && !timeoutUp && <div class="lp-hint">{!loading && games.length && !anyOnAir ? 'No games on at this time · pick a game below to see when it comes on' : game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
             {full && (

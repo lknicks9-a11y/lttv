@@ -170,7 +170,7 @@ export function setMusicOn(on: boolean) {
 }
 
 /** Your songs, one after another, on a loop, fading in and out with the screen. */
-function useMusic(tracks: string[]) {
+function useMusic(tracks: string[], silent = false) {
   const [on, setOn] = useState(musicOn);
   useEffect(() => {
     const f = () => setOn(musicOn());
@@ -178,7 +178,7 @@ function useMusic(tracks: string[]) {
     return () => window.removeEventListener('lttv-timeout-music', f);
   }, []);
   useEffect(() => {
-    if (!on) return;
+    if (!on || silent) return;
     // No songs of your own: LTTV's built-in beat.
     if (!tracks.length) return startBeat();
     const a = new Audio();
@@ -216,7 +216,7 @@ function useMusic(tracks: string[]) {
         a.removeAttribute('src');
       });
     };
-  }, [on, tracks.join('|')]);
+  }, [on, silent, tracks.join('|')]);
 }
 
 /** The pictures cross-fading behind `children` (the words). Only two pictures are ever on screen at once. */
@@ -241,13 +241,14 @@ export function teamPictures(media: TimeoutMedia, team: Pick<GameTeam, 'short' |
   });
 }
 
-export function TimeoutShow({ media, team, children }: { media: TimeoutMedia; team?: GameTeam; children: ComponentChildren }) {
+/** plain: no pictures and no music (Blitz) — just the words over a dark background. */
+export function TimeoutShow({ media, team, plain, children }: { media: TimeoutMedia; team?: GameTeam; plain?: boolean; children: ComponentChildren }) {
   const [i, setI] = useState(0);
   const prev = useRef(-1);
   // A team's broadcast picked: that team's own pictures, else its built-in team picture. Otherwise your pictures,
   // else LTTV's built-in scenes.
   const own = team ? teamPictures(media, team) : [];
-  const images = team ? (own.length ? own : [teamArt(team)]) : media.images.length ? media.images : TIMEOUT_ART;
+  const images = plain ? [] : team ? (own.length ? own : [teamArt(team)]) : media.images.length ? media.images : TIMEOUT_ART;
   useEffect(() => {
     setI(0);
     prev.current = -1;
@@ -261,10 +262,10 @@ export function TimeoutShow({ media, team, children }: { media: TimeoutMedia; te
     }), 9000);
     return () => window.clearInterval(t);
   }, [n]);
-  useMusic(media.audio);
+  useMusic(media.audio, plain);
   const img = (k: number, cls: string) => <div class={`lp-slide ${cls}`} key={k} style={{ backgroundImage: `url("${images[k]}"), linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("${images[k]}")` }} />;
   return (
-    <div class="lp-timeout">
+    <div class={`lp-timeout ${plain ? 'is-plain' : ''}`}>
       {n > 0 && prev.current >= 0 && prev.current !== i && img(prev.current, 'out')}
       {n > 0 && img(i % n, 'in')}
       <div class="lp-timeout-shade" />

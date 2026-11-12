@@ -7,7 +7,7 @@ import {
 import { countryLabel, filterLineup, reorder, sortLineup } from '../core/organize';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../core/normalize';
 import { nameSimilarity, isUsableMatch } from '../core/match';
-import type { CategoryId, LineupChannel, SortMode } from '../core/types';
+import type { CategoryId, LineupChannel, Programme, SortMode } from '../core/types';
 import { ChannelLogo, Icon, Button, Choice, Modal, VirtualList, useRemPx, Empty } from './common';
 import { onBack } from '../app/nav';
 import { myTvEntryFor, myTvName, pinScore } from '../core/mytv';
@@ -57,7 +57,7 @@ export function ChannelsScreen() {
   const groups = useMemo(() => [...new Set(lineup.map((c) => c.group).filter((g): g is string => !!g))].sort(), [lineup]);
   const viewOptions = useMemo(() => {
     const opts: { value: ViewFilter; label: string }[] = [
-      { value: 'all', label: 'All visible' },
+      { value: 'all', label: 'All channels' },
       { value: 'favorites', label: 'Favorites' },
       { value: 'hidden', label: 'Hidden' },
       { value: 'duplicates', label: 'Possible duplicates' },
@@ -119,119 +119,206 @@ export function ChannelsScreen() {
   const hiddenCount = lineup.filter((c) => c.hidden).length;
   const initialIndex = Math.max(0, list.findIndex((c) => c.key === (moving ?? currentKey)));
 
+  const guide = useApp((s) => s.guide);
+  useApp((s) => s.guideVersion);
+  const matches = useApp((s) => s.matches);
+  const now = useApp((s) => s.now);
+  const visible = useMemo(() => lineup.filter((c) => !c.hidden), [lineup]);
+  const groupCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of visible) if (c.group) m.set(c.group, (m.get(c.group) ?? 0) + 1);
+    return m;
+  }, [visible]);
+  const countryCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of visible) m.set(c.country ?? 'none', (m.get(c.country ?? 'none') ?? 0) + 1);
+    return [...m.entries()].filter(([k]) => k !== 'none').sort((a, b) => (a[0] === 'us' ? -1 : b[0] === 'us' ? 1 : b[1] - a[1]));
+  }, [visible]);
+  const organize = moving !== null || view === 'hidden' || view === 'duplicates' || view === 'noguide' || view === 'pending';
+  const label = viewOptions.find((o) => o.value === view)?.label.replace(/^(Group|Country|Provider): /, '') ?? 'Channels';
+  const side = (v: ViewFilter, text: string, count: number, icon?: string) => (
+    <button type="button" class={`f ch-side-item ${view === v ? 'on' : ''}`} data-autofocus={view === v ? '' : undefined} onClick={() => { setView(v); setQ(''); }}>
+      {icon && <Icon name={icon} size="1.05em" />}<span class="ch-side-label">{text}</span><span class="ch-side-count">{count.toLocaleString()}</span>
+    </button>
+  );
+  const watch = (c: LineupChannel) => {
+    if (getState().currentKey === c.key) setState({ fullscreen: true });
+    else void tune(c.key);
+  };
+
   return (
-    <section class="screen channels">
-      <header class="screen-head">
-        <div>
-          <h1>Channels</h1>
-          <p class="muted">
-            {lineup.length.toLocaleString()} channels · {hiddenCount} hidden · {dupCount} possible duplicates
-          </p>
-        </div>
-        <div class="head-controls" data-group="channel-controls">
-          <input
-            class="f input"
-            type="search"
-            placeholder="Filter by name or number"
-            value={q}
-            onInput={(e) => setQ((e.target as HTMLInputElement).value)}
-            aria-label="Filter channels"
-          />
-          <Choice label="Show" value={view} options={viewOptions} onChange={(v) => setView(v)} />
-          <Choice label="Sort" value={sortMode} options={SORT_OPTIONS} onChange={(v) => void updateSettings({ sortMode: v })} />
-        </div>
-      </header>
+    <section class="screen channels ch2">
       {moving && (
         <div class="banner">
           <Icon name="move" /> Moving <b>{channelByKey(moving)?.name}</b>: use ▲ ▼ to move, OK to finish.
         </div>
       )}
+      <div class="ch2-body">
+        <aside class="ch-side" data-group="ch-side">
+          <Choice label="Sort" value={sortMode} options={SORT_OPTIONS} onChange={(v) => void updateSettings({ sortMode: v })} />
+          <input class="f input ch-side-search" type="search" placeholder="Find a channel" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} aria-label="Find a channel" />
+          {side('all', 'All channels', visible.length, 'tv')}
+          {side('favorites', 'Favorites', visible.filter((c) => c.favorite).length, 'star')}
+          {lineup.some((c) => c.myTv !== undefined) && side('mytv', 'My TV', visible.filter((c) => c.myTv !== undefined).length, 'live')}
+          {countryCounts.length > 1 && <div class="ch-side-h">Countries · {countryCounts.length}</div>}
+          {countryCounts.length > 1 && countryCounts.slice(0, 40).map(([k, n]) => side(`country:${k}` as ViewFilter, countryLabel(k), n))}
+          <div class="ch-side-h">All groups · {groupCounts.size.toLocaleString()}</div>
+          {groups.slice(0, 400).map((g) => (groupCounts.get(g) ? side(`group:${g}` as ViewFilter, g, groupCounts.get(g)!) : null))}
+          <div class="ch-side-h">Organize</div>
+          {side('hidden', 'Hidden', hiddenCount)}
+          {side('duplicates', 'Possible duplicates', dupCount)}
+          {side('noguide', 'Without guide', lineup.filter((c) => !c.hidden && !(c.matchStatus === 'auto' || c.matchStatus === 'approved')).length)}
+          {side('pending', 'Guide needs review', lineup.filter((c) => c.matchStatus === 'pending').length)}
+        </aside>
+        <div class="ch-main">
+          <div class="ch-main-head"><h2>{q.trim() ? `“${q.trim()}”` : label}</h2><span class="muted">{list.length.toLocaleString()} channels</span></div>
+          {organize ? (
       <div class="channels-list">
-        {list.length ? (
-          <VirtualList
-            key={view + '|' + (moving ?? '')}
-            items={list}
-            rowHeight={4.75 * rem}
-            initialIndex={initialIndex}
-            keyOf={(c) => c.key}
-            groupName="channels-list"
-            render={(c, i) => {
-              const m = matchLabel(c);
-              const isMoving = moving === c.key;
-              return (
-                <div
-                  class={`f org-row ${isMoving ? 'moving' : ''} ${c.hidden ? 'is-hidden' : ''} ${dragKey === c.key ? 'dragging' : ''}`}
-                  tabIndex={0}
-                  data-index={i}
-                  data-autofocus={i === initialIndex ? '' : undefined}
-                  draggable={sortMode === 'custom' || sortMode === 'number' || sortMode === 'playlist'}
-                  onDragStart={(e) => {
-                    setDragKey(c.key);
-                    e.dataTransfer?.setData('text/plain', c.key);
-                  }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const from = e.dataTransfer?.getData('text/plain') || dragKey;
-                    setDragKey(null);
-                    if (!from || from === c.key) return;
-                    const ordered = sortLineup(lineup, sortMode, recents);
-                    void setOrder(reorder(ordered, from, ordered.findIndex((x) => x.key === c.key)));
-                  }}
-                  onDragEnd={() => setDragKey(null)}
-                  onKeyDown={(e) => {
-                    if (!isMoving) {
-                      if (e.key === 'ContextMenu' || e.key === 'm' || e.key === 'M') {
-                        e.preventDefault();
-                        setState({ channelMenu: c.key });
+          {list.length ? (
+            <VirtualList
+              key={view + '|' + (moving ?? '')}
+              items={list}
+              rowHeight={4.75 * rem}
+              initialIndex={initialIndex}
+              keyOf={(c) => c.key}
+              groupName="channels-list"
+              render={(c, i) => {
+                const m = matchLabel(c);
+                const isMoving = moving === c.key;
+                return (
+                  <div
+                    class={`f org-row ${isMoving ? 'moving' : ''} ${c.hidden ? 'is-hidden' : ''} ${dragKey === c.key ? 'dragging' : ''}`}
+                    tabIndex={0}
+                    data-index={i}
+                    data-autofocus={i === initialIndex ? '' : undefined}
+                    draggable={sortMode === 'custom' || sortMode === 'number' || sortMode === 'playlist'}
+                    onDragStart={(e) => {
+                      setDragKey(c.key);
+                      e.dataTransfer?.setData('text/plain', c.key);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = e.dataTransfer?.getData('text/plain') || dragKey;
+                      setDragKey(null);
+                      if (!from || from === c.key) return;
+                      const ordered = sortLineup(lineup, sortMode, recents);
+                      void setOrder(reorder(ordered, from, ordered.findIndex((x) => x.key === c.key)));
+                    }}
+                    onDragEnd={() => setDragKey(null)}
+                    onKeyDown={(e) => {
+                      if (!isMoving) {
+                        if (e.key === 'ContextMenu' || e.key === 'm' || e.key === 'M') {
+                          e.preventDefault();
+                          setState({ channelMenu: c.key });
+                        }
+                        return;
                       }
-                      return;
-                    }
-                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void moveBy(c.key, e.key === 'ArrowUp' ? -1 : 1);
-                    } else if (e.key === 'Enter') {
-                      e.preventDefault();
-                      setMoving(null);
-                      toast('Channel order saved', 'success', 2000);
-                    }
-                  }}
-                  onClick={() => {
-                    if (!isMoving) setState({ channelMenu: c.key });
-                  }}
-                >
-                  <span>{sortMode === 'custom' && <Icon name="move" class="drag-handle muted" />}</span>
-                  <span class="ch-num">{c.number}</span>
-                  <ChannelLogo ch={c} src={c.logo} name={c.name} size="sm" />
-                  <span class="org-name">
-                    <span class="org-title">
-                      <ChannelName ch={c} />
-                      {c.favorite && <Icon name="star" class="fav-star" size="1em" />}
-                      {c.hidden && <span class="pill muted">Hidden</span>}
-                      {c.duplicateOf && <span class="pill warn">Duplicate?</span>}
+                      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void moveBy(c.key, e.key === 'ArrowUp' ? -1 : 1);
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        setMoving(null);
+                        toast('Channel order saved', 'success', 2000);
+                      }
+                    }}
+                    onClick={() => {
+                      if (!isMoving) setState({ channelMenu: c.key });
+                    }}
+                  >
+                    <span>{sortMode === 'custom' && <Icon name="move" class="drag-handle muted" />}</span>
+                    <span class="ch-num">{c.number}</span>
+                    <ChannelLogo ch={c} src={c.logo} name={c.name} size="sm" />
+                    <span class="org-name">
+                      <span class="org-title">
+                        <ChannelName ch={c} />
+                        {c.favorite && <Icon name="star" class="fav-star" size="1em" />}
+                        {c.hidden && <span class="pill muted">Hidden</span>}
+                        {c.duplicateOf && <span class="pill warn">Duplicate?</span>}
+                      </span>
+                      {c.name !== c.originalName && <small class="muted">Original: {c.originalName}</small>}
                     </span>
-                    {c.name !== c.originalName && <small class="muted">Original: {c.originalName}</small>}
-                  </span>
-                  <span class="org-cat">
-                    {CATEGORY_LABELS[c.category]}
-                    <small class="muted">{c.categoryEvidence === 'user' ? 'set by you' : c.categoryEvidence === 'group' ? 'from group' : c.categoryEvidence === 'name' ? 'from name' : 'no evidence'}</small>
-                  </span>
-                  <span class="org-group muted">{c.group ?? '—'}</span>
-                  <span class={`pill ${m.cls}`}>{m.text}</span>
-                </div>
-              );
-            }}
-          />
-        ) : (
-          <Empty title="No channels match" icon="channels" />
-        )}
+                    <span class="org-cat">
+                      {CATEGORY_LABELS[c.category]}
+                      <small class="muted">{c.categoryEvidence === 'user' ? 'set by you' : c.categoryEvidence === 'group' ? 'from group' : c.categoryEvidence === 'name' ? 'from name' : 'no evidence'}</small>
+                    </span>
+                    <span class="org-group muted">{c.group ?? '—'}</span>
+                    <span class={`pill ${m.cls}`}>{m.text}</span>
+                  </div>
+                );
+              }}
+            />
+          ) : (
+            <Empty title="No channels match" icon="channels" />
+          )}
+        </div>
+            ) : list.length ? (
+            <ChannelGrid key={view + '|' + q} list={list} now={now} currentKey={currentKey} progOf={(c) => (isUsableMatch(matches.get(c.key)) ? guide.current(c.epgChannelId, now) : undefined)} onWatch={watch} />
+          ) : (
+            <Empty title="No channels match" icon="channels" />
+          )}
+        </div>
       </div>
-      <p class="guide-hint muted">OK: channel options · ☰ Menu: options · Desktop: drag rows to reorder</p>
-      {/* Move mode is entered from the channel options sheet */}
+      <p class="guide-hint muted">OK: watch · ☰ Menu: channel options{organize ? ' · Desktop: drag rows to reorder' : ''}</p>
       <MoveBridge onMove={(k) => setMoving(k)} />
     </section>
   );
+}
+
+/** The channel tiles: logo card with a progress line, the name, what's on and how long is left. More load as you go down. */
+function ChannelGrid({ list, now, currentKey, progOf, onWatch }: { list: LineupChannel[]; now: number; currentKey?: string; progOf: (c: LineupChannel) => Programme | undefined; onWatch: (c: LineupChannel) => void }) {
+  const [shown, setShown] = useState(48);
+  const more = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = more.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setShown((n) => Math.min(list.length, n + 48)), { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [list.length, shown]);
+  return (
+    <div class="ch-grid" data-group="ch-grid">
+      {list.slice(0, shown).map((c, i) => {
+        const p = progOf(c);
+        const pct = p ? Math.max(0, Math.min(1, (now - p.start) / Math.max(1, p.stop - p.start))) : 0;
+        return (
+          <button
+            type="button"
+            class={`f ch-tile ${c.key === currentKey ? 'playing' : ''}`}
+            key={c.key}
+            data-autofocus={i === 0 ? '' : undefined}
+            onClick={() => onWatch(c)}
+            onContextMenu={(e) => { e.preventDefault(); setState({ channelMenu: c.key }); }}
+            onKeyDown={(e) => {
+              if (e.key === 'ContextMenu' || e.key === 'm' || e.key === 'M') {
+                e.preventDefault();
+                setState({ channelMenu: c.key });
+              }
+              // Near the end of what's drawn: draw more.
+              if (e.key === 'ArrowDown' && i >= shown - 12) setShown((n) => Math.min(list.length, n + 48));
+            }}
+          >
+            <div class="ch-tile-logo">
+              <ChannelLogo ch={c} src={c.logo} name={c.name} size="lg" />
+              {c.favorite && <Icon name="star" class="fav-star" size="0.9em" />}
+            </div>
+            <div class="ch-tile-bar">{p && <span style={{ width: `${pct * 100}%` }} />}</div>
+            <div class="ch-tile-name"><ChannelName ch={c} /></div>
+            <div class="ch-tile-now"><span>{p?.title ?? 'No information'}</span>{p && <span class="ch-tile-left">{shortLeft(p.stop - now)}</span>}</div>
+          </button>
+        );
+      })}
+      {shown < list.length && <div ref={more} class="ch-grid-more" />}
+    </div>
+  );
+}
+
+function shortLeft(ms: number): string {
+  if (ms <= 0) return '';
+  const m = Math.round(ms / 60000);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m left` : `${m}m left`;
 }
 
 // Lets the ChannelMenu (rendered at app level) start move mode in this screen.
