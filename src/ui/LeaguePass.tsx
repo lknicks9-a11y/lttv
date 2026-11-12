@@ -224,11 +224,11 @@ function LpTile({ i, tile, label, active, onOpen }: { i: number; tile: MvTile | 
 interface Feed { key: string; label: string; sub: string; /** A team's own channel: only on the air around its game. */ team?: 'home' | 'away' }
 
 /**
- * A team's own channel only carries something around its game: from an hour before tip-off until about an hour
- * and a half after the final (a game runs about two and a half hours). Outside that the provider shows a holding
- * slide; League Pass shows its own off-air screen instead and goes to the broadcast by itself when it opens.
+ * A team's own channel only carries something around its game. League Pass shows its own timeout screen until
+ * the game's listed start time (7:00 game: until 7:00), then goes to the broadcast by itself; it stays on the
+ * air until about an hour and a half after the final (a game runs about two and a half hours).
  */
-const ON_AIR_BEFORE = 3600_000;
+const ON_AIR_BEFORE = 0;
 const ON_AIR_AFTER_START = 4 * 3600_000;
 function offAir(g: Game, now: number): boolean {
   if (g.state === 'in') return false;
@@ -579,7 +579,7 @@ export function LeaguePass() {
                   <div class="lp-off-title">LTTV {cfg.name} took a timeout</div>
                   <div class="lp-off-line">{cfg.league === 'nfl' && offGame ? `${offGame.away.name} at ${offGame.home.name}` : team && anyOnAir ? `The ${team.name} broadcast is off the air` : 'No games on at this time'}</div>
                   {team && offGame ? (
-                    pre ? <div class="lp-off-count">{cfg.league === 'nfl' ? `${offFeed?.label ?? 'The game'} · on the air in` : `${team.name} broadcast on the air in`} <b>{untilText(offGame.start - ON_AIR_BEFORE - now)}</b></div>
+                    pre ? <div class="lp-off-count">{cfg.league === 'nfl' ? `${offFeed?.label ?? 'The game'} · on the air in` : `${team.name} broadcast on the air in`} <b>{untilText(offGame.start - ON_AIR_BEFORE - now)}</b> · {clock(offGame.start)}</div>
                       : <div class="lp-off-count">{hideScore ? `Final · ${offGame.away.abbr} at ${offGame.home.abbr}` : `Final · ${offGame.away.abbr} ${offGame.away.score ?? ''} – ${offGame.home.score ?? ''} ${offGame.home.abbr}`}</div>
                   ) : next ? <div class="lp-off-count">Next: {next.away.abbr} at {next.home.abbr} · {gameLine(next, now)}</div> : null}
                 </>
