@@ -1,11 +1,12 @@
 import { ChannelName } from './ChannelName';
 import { h, Fragment } from 'preact';
-import { useMemo, useState } from 'preact/hooks';
-import { useApp, tune, setState } from '../app/state';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useApp, tune, setState, toggleFavorite } from '../app/state';
 import { searchChannels, searchProgrammes } from '../core/search';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../core/normalize';
 import type { CategoryId } from '../core/types';
-import { ChannelLogo, Choice, Toggle, Empty, Progress, Icon } from './common';
+import { Button, ChannelLogo, Choice, Toggle, Empty, Modal, Progress, Icon } from './common';
+import type { LineupChannel } from '../core/types';
 import { when, progress, range, UNAVAILABLE } from './fmt';
 
 export function SearchScreen() {
@@ -19,8 +20,16 @@ export function SearchScreen() {
   const [withGuideOnly, setWithGuide] = useState(false);
   const filters = { category, favoritesOnly, withGuideOnly };
 
-  const chHits = useMemo(() => searchChannels(lineup, q, filters, guide).slice(0, 40), [lineup, q, category, favoritesOnly, withGuideOnly, guideVersion]);
-  const pHits = useMemo(() => searchProgrammes(lineup, guide, q, Date.now(), filters, 60), [lineup, q, category, favoritesOnly, withGuideOnly, guideVersion]);
+  // Searching a big lineup and guide on every key press made the TV keyboard crawl: the box updates at once,
+  // the search itself runs when you pause typing.
+  const [dq, setDq] = useState(q);
+  useEffect(() => {
+    const t = setTimeout(() => setDq(q), 350);
+    return () => clearTimeout(t);
+  }, [q]);
+  const [card, setCard] = useState<LineupChannel | null>(null);
+  const chHits = useMemo(() => searchChannels(lineup, dq, filters, guide).slice(0, 40), [lineup, dq, category, favoritesOnly, withGuideOnly, guideVersion]);
+  const pHits = useMemo(() => searchProgrammes(lineup, guide, dq, Date.now(), filters, 60), [lineup, dq, category, favoritesOnly, withGuideOnly, guideVersion]);
 
   const catOptions = [{ value: 'all' as const, label: 'All categories' }, ...CATEGORY_ORDER.filter((c) => lineup.some((l) => l.category === c)).map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))];
 
@@ -67,7 +76,7 @@ export function SearchScreen() {
               const usable = c.matchStatus === 'auto' || c.matchStatus === 'approved';
               const cur = usable ? guide.current(c.epgChannelId, now) : undefined;
               return (
-                <button type="button" class="f result-row" onClick={() => void tune(c.key)} onContextMenu={(e) => { e.preventDefault(); setState({ channelMenu: c.key }); }}>
+                <button type="button" class="f result-row" onClick={() => setCard(c)} onContextMenu={(e) => { e.preventDefault(); setState({ channelMenu: c.key }); }}>
                   <span class="ch-num">{c.number}</span>
                   <ChannelLogo ch={c} src={c.logo} name={c.name} size="sm" />
                   <span class="result-main">
@@ -96,6 +105,39 @@ export function SearchScreen() {
           </div>
         </div>
       )}
+      {card && <WatchCard ch={lineup.find((c) => c.key === card.key) ?? card} onClose={() => setCard(null)} />}
     </section>
+  );
+}
+
+/** A channel you picked: what's on, and Watch (full screen, straight from here). */
+export function WatchCard({ ch, onClose }: { ch: LineupChannel; onClose: () => void }) {
+  const guide = useApp((s) => s.guide);
+  const now = useApp((s) => s.now);
+  const usable = ch.matchStatus === 'auto' || ch.matchStatus === 'approved';
+  const cur = usable ? guide.current(ch.epgChannelId, now) : undefined;
+  return (
+    <Modal onClose={onClose} class="watch-card" title={ch.name}>
+      <div class="watch-card-body">
+        <div class="watch-card-logo"><ChannelLogo ch={ch} src={ch.logo} name={ch.name} size="lg" /></div>
+        <div class="watch-card-info">
+          <small class="watch-card-ch">{ch.number} · {CATEGORY_LABELS[ch.category]}</small>
+          <div class="watch-card-title">{cur ? cur.title : ch.name}</div>
+          {cur ? (
+            <>
+              <small class="muted">{range(cur)}</small>
+              <Progress value={progress(cur, now)} />
+              {cur.desc && <p class="watch-card-desc">{cur.desc}</p>}
+            </>
+          ) : (
+            <small class="muted">{UNAVAILABLE}</small>
+          )}
+        </div>
+      </div>
+      <div class="row gap modal-actions">
+        <Button variant="primary" icon="play" data-autofocus onClick={() => { onClose(); void tune(ch.key, { fullscreen: true }); }}>Watch live</Button>
+        <Button icon={ch.favorite ? 'star' : 'starOutline'} onClick={() => void toggleFavorite(ch.key)}>{ch.favorite ? 'Remove from favorites' : 'Add to favorites'}</Button>
+      </div>
+    </Modal>
   );
 }

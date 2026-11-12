@@ -397,6 +397,11 @@ export async function reloadAll() {
     await repo.saveSettings(settings);
     await repo.setKv('a7Introduced', true).catch(() => undefined);
   }
+  // NBA city themes were removed: anyone on one goes to the Glass look.
+  if (settings.theme.startsWith('nba-')) {
+    settings = { ...settings, theme: 'glass' };
+    await repo.saveSettings(settings);
+  }
   // The Glass look (top menu, glass panels) is switched on once when it arrives; Settings → Theme switches back.
   if (!(await repo.getKv<boolean>('glassIntroduced').catch(() => true))) {
     settings = { ...settings, theme: 'glass' };

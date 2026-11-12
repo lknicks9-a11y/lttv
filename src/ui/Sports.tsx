@@ -51,7 +51,7 @@ export function useTeamListings(teams: Team[], opts: { includeShows?: boolean; h
   const custom = useApp((s) => s.settings.customTeams);
   // "Live" needs a real game: not a replay / classic airing, and (for leagues with a scoreboard) the team's game in progress.
   const tz = useApp((s) => s.settings.timeZone);
-  const leagues = teams.map((t) => t.league).filter((l): l is ScheduleLeagueId => !!scheduleLeague(l));
+  const leagues = teams.map((t) => t.league as string).filter((l) => !!scheduleLeague(l as ScheduleLeagueId)) as ScheduleLeagueId[];
   const liveGames = useLiveGames(leagues, tz);
   return useMemo(() => {
     if (!teams.length) return [];

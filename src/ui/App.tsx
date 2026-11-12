@@ -105,7 +105,10 @@ function LoadingScreen() {
   }, []);
   return (
     <div class="loading-screen">
-      <div class="row gap"><span class="spinner big" /> Loading your lineup…</div>
+      <LogoMark size="9rem" />
+      <Wordmark class="loading-word" />
+      <div class="loading-by">a YKGR Studios product</div>
+      <div class="row gap"><span class="spinner" /> Loading your lineup…</div>
       {slow && (
         <div class="loading-slow">
           <p class="muted">Still working: {phase ?? 'starting'}. Large provider lineups can take a moment.</p>

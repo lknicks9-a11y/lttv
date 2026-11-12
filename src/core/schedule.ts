@@ -4,7 +4,7 @@
 // home and away local broadcasts (RSNs). LTTV only uses it as a schedule; the
 // streams always come from the user's own playlist.
 
-export type ScheduleLeagueId = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ucl' | 'epl' | 'bundesliga' | 'seriea' | 'ligue1' | 'laliga' | 'mls' | 'cbb' | 'cfb';
+export type ScheduleLeagueId = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ucl' | 'epl' | 'bundesliga' | 'seriea' | 'ligue1' | 'laliga' | 'mls' | 'cbb' | 'cfb' | 'wcbb' | 'championship';
 
 export interface ScheduleLeague {
   id: ScheduleLeagueId;
@@ -13,10 +13,17 @@ export interface ScheduleLeague {
   name: string;
   path: string;
   query?: string;
+  /** College: conferences to narrow the day's games to (ESPN group ids). */
+  conferences?: { id: string; name: string }[];
   sport: 'basketball' | 'football' | 'baseball' | 'hockey' | 'soccer';
   /** Words that identify the league in channel names / guide text. */
   words: RegExp;
 }
+
+// Conference ids as ESPN's scoreboard lists them ('' = no group: its Top 25 slate).
+const conf = (rows: string[][]) => rows.map(([id, name]) => ({ id, name }));
+const HOOPS = (summit: string) => conf([['', 'Top 25'], ['2', 'ACC'], ['8', 'Big 12'], ['4', 'Big East'], ['7', 'Big Ten'], ['23', 'SEC'], ['3', 'A-10'], ['62', 'American'], ['44', 'Mountain West'], ['29', 'WCC'], ['1', 'Am. East'], ['46', 'Atlantic Sun'], ['5', 'Big Sky'], ['6', 'Big South'], ['9', 'Big West'], ['10', 'CAA'], ['11', 'CUSA'], ['45', 'Horizon'], ['12', 'Ivy'], ['14', 'MAC'], ['16', 'MEAC'], ['18', 'MVC'], ['19', 'NEC'], ['20', 'OVC'], ['22', 'Patriot'], ['24', 'SoCon'], ['25', 'Southland'], ['SUMMIT', 'Summit'], ['27', 'Sun Belt'], ['26', 'SWAC'], ['30', 'UAC']].map(([id, n]) => [id === 'SUMMIT' ? summit : id, n]));
+const CFB_CONFS = conf([['', 'Top 25'], ['1', 'ACC'], ['4', 'Big 12'], ['5', 'Big Ten'], ['8', 'SEC'], ['151', 'American'], ['12', 'CUSA'], ['15', 'MAC'], ['17', 'Mountain West'], ['9', 'Pac-12'], ['37', 'Sun Belt'], ['18', 'Independents']]);
 
 export const SCHEDULE_LEAGUES: ScheduleLeague[] = [
   { id: 'nba', tab: 'NBA', name: 'NBA', path: 'basketball/nba', sport: 'basketball', words: /\bnba\b|basketball/i },
@@ -25,13 +32,15 @@ export const SCHEDULE_LEAGUES: ScheduleLeague[] = [
   { id: 'nhl', tab: 'NHL', name: 'NHL', path: 'hockey/nhl', sport: 'hockey', words: /\bnhl\b|hockey/i },
   { id: 'ucl', tab: 'UCL', name: 'UEFA Champions League', path: 'soccer/uefa.champions', sport: 'soccer', words: /\b(ucl|champions league|uefa)\b/i },
   { id: 'epl', tab: 'EPL', name: 'Premier League', path: 'soccer/eng.1', sport: 'soccer', words: /\b(epl|premier league)\b/i },
+  { id: 'championship', tab: 'Championship', name: 'EFL Championship', path: 'soccer/eng.2', sport: 'soccer', words: /\b(efl|english championship|sky bet)\b/i },
   { id: 'bundesliga', tab: 'Bundesliga', name: 'Bundesliga', path: 'soccer/ger.1', sport: 'soccer', words: /\bbundesliga\b/i },
   { id: 'seriea', tab: 'Serie A', name: 'Serie A', path: 'soccer/ita.1', sport: 'soccer', words: /\bserie a\b/i },
   { id: 'ligue1', tab: 'Ligue 1', name: 'Ligue 1', path: 'soccer/fra.1', sport: 'soccer', words: /\bligue 1\b/i },
   { id: 'laliga', tab: 'LaLiga', name: 'LaLiga', path: 'soccer/esp.1', sport: 'soccer', words: /\bla ?liga\b/i },
   { id: 'mls', tab: 'MLS', name: 'MLS', path: 'soccer/usa.1', sport: 'soccer', words: /\bmls\b/i },
-  { id: 'cbb', tab: 'CBB', name: 'College Basketball', path: 'basketball/mens-college-basketball', query: 'groups=50&limit=400', sport: 'basketball', words: /\b(ncaa|college basketball|cbb)\b/i },
-  { id: 'cfb', tab: 'CFB', name: 'College Football', path: 'football/college-football', query: 'groups=80&limit=400', sport: 'football', words: /\b(ncaa|college football|cfb)\b/i },
+  { id: 'cbb', tab: 'CBB', name: 'College Basketball', path: 'basketball/mens-college-basketball', query: 'groups=50&limit=400', conferences: HOOPS('49'), sport: 'basketball', words: /\b(ncaa|college basketball|cbb)\b/i },
+  { id: 'wcbb', tab: 'WCBB', name: 'Women’s College Basketball', path: 'basketball/womens-college-basketball', query: 'groups=50&limit=400', conferences: HOOPS('47'), sport: 'basketball', words: /\b(ncaaw|wcbb|women'?s (college )?basketball)\b/i },
+  { id: 'cfb', tab: 'CFB', name: 'College Football', path: 'football/college-football', query: 'groups=80&limit=400', conferences: CFB_CONFS, sport: 'football', words: /\b(ncaa|college football|cfb)\b/i },
 ];
 
 export function scheduleLeague(id: string): ScheduleLeague | undefined {
@@ -41,8 +50,10 @@ export function scheduleLeague(id: string): ScheduleLeague | undefined {
 export const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
 /** Scoreboard URL for a league and a day ("20261015"). */
-export function scoreboardUrl(league: ScheduleLeague, day: string, base = ESPN_BASE): string {
-  return `${base}/${league.path}/scoreboard?dates=${day}${league.query ? '&' + league.query : ''}`;
+export function scoreboardUrl(league: ScheduleLeague, day: string, base = ESPN_BASE, group?: string): string {
+  // A conference replaces the league's "everything" group; '' drops it (ESPN then sends its Top 25 slate).
+  const query = group === undefined ? league.query : (league.query ?? '').replace(/groups=\d+&?/, group ? `groups=${group}&` : '');
+  return `${base}/${league.path}/scoreboard?dates=${day}${query ? '&' + query : ''}`;
 }
 
 export interface GameTeam {
@@ -379,7 +390,7 @@ export function parseTeams(json: unknown, league?: string): DirTeam[] {
 }
 
 /** League logos ESPN uses on its scoreboards (shown before a league's schedule has loaded). */
-export const LEAGUE_LOGO_FALLBACK: Record<ScheduleLeagueId, string> = {
+export const LEAGUE_LOGO_FALLBACK: Partial<Record<ScheduleLeagueId, string>> = {
   nba: 'https://a.espncdn.com/i/teamlogos/leagues/500/nba.png',
   nfl: 'https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png',
   mlb: 'https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png',

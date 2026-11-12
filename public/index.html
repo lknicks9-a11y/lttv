@@ -8,9 +8,27 @@
     <title>LTTV</title>
     <link rel="icon" href="icon.svg" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="preload" href="fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="main.css" />
   </head>
   <body>
+    <!-- Shown at once while the app loads; main.tsx removes it. -->
+    <div id="boot" style="position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.4vw;background:#08080a;color:#f5f5f7;font-family:Inter,-apple-system,'Segoe UI',Roboto,sans-serif">
+      <div style="width:10vw;height:10vw"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+        <linearGradient id="bgt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b32" /><stop offset="1" stop-color="#0b0b0e" /></linearGradient>
+        <linearGradient id="bgs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.5" /><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.08" /><stop offset="1" stop-color="#ffffff" stop-opacity="0.2" /></linearGradient>
+        <linearGradient id="bgh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.2" /><stop offset="1" stop-color="#ffffff" stop-opacity="0" /></linearGradient>
+      </defs>
+      <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#bgt)" stroke="url(#bgs)" stroke-width="1.4" />
+      <path d="M8 22C8 12.6 12.6 8 22 8h20c9.400 0 14 4.600 14 14v3C44 20 20 20 8 25z" fill="url(#bgh)" />
+      <g fill="none" stroke="#fff" stroke-width="6.200" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.500 20v25h11.500" />
+        <path d="M29.500 20h17M38 20v25" />
+      </g>
+      <circle class="logo-dot" cx="47.200" cy="44.600" r="3.700" fill="#4cc2ff" /></svg></div>
+      <div style="font-size:6.2vw;font-weight:800;letter-spacing:-0.035em;line-height:1">LT<span style="color:#4cc2ff">TV</span></div>
+      <div style="font-size:1.55vw;font-weight:500;color:#8e8e96">a YKGR Studios product</div>
+    </div>
     <div id="app"></div>
     <noscript>LTTV needs JavaScript.</noscript>
     <script type="module" src="main.js"></script>

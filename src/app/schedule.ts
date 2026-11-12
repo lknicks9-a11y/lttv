@@ -103,15 +103,15 @@ function ttl(games: Game[], day: string, today: string): number {
   return games.some((g) => g.state === 'in') ? 45_000 : 5 * 60_000;
 }
 
-export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: string, force = false): Promise<Game[]> {
+export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: string, force = false, group?: string): Promise<Game[]> {
   const league = scheduleLeague(leagueId)!;
-  const k = `${leagueId}|${day}`;
+  const k = `${leagueId}|${day}${group === undefined ? '' : '|' + group}`;
   const hit = cache.get(k);
   if (hit && !force && Date.now() - hit.at < ttl(hit.games, day, today)) return hit.games;
   const running = inflight.get(k);
   if (running) return running;
   const p = (async () => {
-    const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase()), AbortSignal.timeout?.(20_000));
+    const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase(), group), AbortSignal.timeout?.(20_000));
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
     if (leagueId === 'nba' && games.length) {
@@ -133,19 +133,20 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
 }
 
 /** Games for a league/day, refreshed while live games are on. */
-export function useGames(leagueId: ScheduleLeagueId, day: string, today: string): { games: Game[]; loading: boolean; error?: string; reload: () => void } {
-  const [state, setState] = useState<{ games: Game[]; loading: boolean; error?: string }>(() => ({ games: cache.get(`${leagueId}|${day}`)?.games ?? [], loading: true }));
+export function useGames(leagueId: ScheduleLeagueId, day: string, today: string, group?: string): { games: Game[]; loading: boolean; error?: string; reload: () => void } {
+  const key = `${leagueId}|${day}${group === undefined ? '' : '|' + group}`;
+  const [state, setState] = useState<{ games: Game[]; loading: boolean; error?: string }>(() => ({ games: cache.get(key)?.games ?? [], loading: true }));
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    setState((s) => ({ games: cache.get(`${leagueId}|${day}`)?.games ?? (s.games.length && s.games[0]?.league === leagueId ? s.games : []), loading: true }));
-    loadGames(leagueId, day, today, tick > 0)
+    setState((s) => ({ games: cache.get(key)?.games ?? (s.games.length && s.games[0]?.league === leagueId && group === undefined ? s.games : []), loading: true }));
+    loadGames(leagueId, day, today, tick > 0, group)
       .then((games) => alive && setState({ games, loading: false }))
       .catch((e: Error) => alive && setState((s) => ({ games: s.games, loading: false, error: e.message || 'Could not load the schedule.' })));
     return () => {
       alive = false;
     };
-  }, [leagueId, day, tick]);
+  }, [leagueId, day, tick, group]);
   // Keep scores fresh while games are live today.
   useEffect(() => {
     if (day !== today) return;

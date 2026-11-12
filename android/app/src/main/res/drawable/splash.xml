@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What shows the moment LTTV is opened, before the app itself has drawn: the logo and "a YKGR Studios product". -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><color android:color="#FF08080A" /></item>
+    <item><bitmap android:src="@drawable/splash_art" android:gravity="fill" /></item>
+</layer-list>

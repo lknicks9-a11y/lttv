@@ -58,7 +58,19 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   const today = scheduleDay(now, tz);
   const day = scheduleDay(dayOffset(now, offset), tz);
   const league = scheduleLeague(leagueId)!;
-  const { games: raw, loading, error, reload } = useGames(leagueId, day, today);
+  // College: one conference (or the Top 25) instead of every game in the country.
+  const [conf, setConf] = useState<string | undefined>(undefined);
+  useEffect(() => setConf(undefined), [leagueId]);
+  const { games: raw, loading, error, reload } = useGames(leagueId, day, today, league.conferences ? conf : undefined);
+  // Leaving a game you were watching comes back to that game's streams, not the whole list.
+  const fullscreen = useApp((s) => s.fullscreen);
+  const watching = useRef<string | null>(null);
+  useEffect(() => {
+    if (fullscreen || !watching.current) return;
+    const g = raw.find((x) => x.id === watching.current);
+    watching.current = null;
+    if (g) setOpen(g);
+  }, [fullscreen]);
   // Live games first, then upcoming (by start time), then finished.
   const games = useMemo(() => {
     const rank = (g: Game) => (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
@@ -120,6 +132,12 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
         </span>
         {error && <Button small icon="refresh" onClick={reload}>Retry</Button>}
       </div>
+      {league.conferences && (
+        <div class="chips compact conf-chips" data-group="game-confs" data-hlock>
+          <Chip active={conf === undefined} onClick={() => setConf(undefined)}>All</Chip>
+          {league.conferences.map((c) => <Chip key={c.id} active={conf === c.id} onClick={() => setConf(c.id)}>{c.name}</Chip>)}
+        </div>
+      )}
       {error && !games.length ? (
         <p class="muted">Couldn’t load the {league.name} schedule: {error}</p>
       ) : !loading && !games.length ? (
@@ -158,7 +176,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
         </div>
       )}
       <p class="hint">Schedule, scores, logos and TV listings: ESPN. Streams are matched only from your own playlists.</p>
-      {open && <WatchGame game={open} index={index} onClose={() => setOpen(null)} onPick={onPick} />}
+      {open && <WatchGame game={open} index={index} onClose={() => setOpen(null)} onPick={onPick} onWatch={(g) => (watching.current = g.id)} />}
     </div>
   );
 }
@@ -167,7 +185,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 /** How many of a game's top streams are checked for being on the air. */
 const CHECK_TOP = 4;
 
-export function WatchGame({ game, index, onClose, onPick }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler }) {
+export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler; onWatch?: (g: Game) => void }) {
   const lineup = useApp((s) => s.lineup);
   const favs = useApp((s) => s.settings.favoriteTeams);
   const custom = useApp((s) => s.settings.customTeams);
@@ -210,7 +228,10 @@ export function WatchGame({ game, index, onClose, onPick }: { game: Game; index:
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
-    else void tune(key, { fullscreen: true });
+    else {
+      onWatch?.(game);
+      void tune(key, { fullscreen: true });
+    }
   };
 
   return (

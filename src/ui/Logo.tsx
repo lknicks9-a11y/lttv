@@ -9,6 +9,7 @@ let gid = 0;
 export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
   return (
     <>
+      <GlassMark size={size} class={cls} />
       <AeroMark size={size} class={cls} />
       <OwlMark size={size} class={cls} />
       <A7Mark size={size} class={cls} />
@@ -236,6 +237,27 @@ export function AutoSixMark({ size = '3rem', class: cls }: { size?: string; clas
       </g>
       <rect x="5" y="10" width="54" height="39" rx="11" fill="none" stroke={`url(#${id('rim')})`} stroke-width="1.8" />
       <path d="M27 49v5M37 49v5M22 55.5h20" stroke={`url(#${id('rim')})`} stroke-width="1.9" stroke-linecap="round" />
+    </svg>
+  );
+}
+
+/** Glass theme mark (the LTTV logo): a dark glass tile, a white "LT" and the on-air dot in your accent color. */
+export function GlassMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
+  const g = `lttv-gl${++gid}`;
+  return (
+    <svg class={'logo-mark logo-glass ' + (cls ?? '')} viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <defs>
+        <linearGradient id={g + "t"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b32" /><stop offset="1" stop-color="#0b0b0e" /></linearGradient>
+        <linearGradient id={g + "s"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.5" /><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.08" /><stop offset="1" stop-color="#ffffff" stop-opacity="0.2" /></linearGradient>
+        <linearGradient id={g + "h"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.2" /><stop offset="1" stop-color="#ffffff" stop-opacity="0" /></linearGradient>
+      </defs>
+      <rect x="3" y="3" width="58" height="58" rx="17" fill={`url(#${g}t)`} stroke={`url(#${g}s)`} stroke-width="1.4" />
+      <path d="M8 22C8 12.6 12.6 8 22 8h20c9.400 0 14 4.600 14 14v3C44 20 20 20 8 25z" fill={`url(#${g}h)`} />
+      <g fill="none" stroke="#fff" stroke-width="6.200" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.500 20v25h11.500" />
+        <path d="M29.500 20h17M38 20v25" />
+      </g>
+      <circle class="logo-dot" cx="47.200" cy="44.600" r="3.700" fill="var(--accent, #4cc2ff)" />
     </svg>
   );
 }

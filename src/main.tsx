@@ -34,6 +34,7 @@ async function boot() {
   (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports, addPlaylist, addEpgSource, rematchAndReload };
   applySavedTheme();
   render(<App />, document.getElementById('app')!);
+  document.getElementById('boot')?.remove();
 
   try {
     await reloadAll();

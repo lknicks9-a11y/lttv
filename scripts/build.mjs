@@ -84,7 +84,7 @@ const appCtx = await esbuild.context({
   inject: [join(root, 'src/jsx-shim.ts')],
   loader: { '.svg': 'file' },
   // Background photos are copied from public/ and loaded at runtime.
-  external: ['/bg/*'],
+  external: ['/bg/*', '/fonts/*'],
 });
 // Team Channel Picker: a separate page of the desktop helper (picker.html), not part of the app.
 const pickerCtx = await esbuild.context({

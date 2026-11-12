@@ -65,7 +65,8 @@ class MainActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
         root = FrameLayout(this)
-        root.setBackgroundColor(Color.parseColor("#0A0D12"))
+        // The start screen (logo, "a YKGR Studios product") stays up until the app itself has drawn.
+        root.setBackgroundResource(R.drawable.splash)
 
         player = PlayerController(this) { json -> sendToPage("window.lttvHost && window.lttvHost.onPlayerEvent(${JSONObject.quote(json)})") }
         root.addView(player.view, FrameLayout.LayoutParams(0, 0))
@@ -106,6 +107,10 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                root.setBackgroundColor(Color.parseColor("#08080A"))
+            }
+
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val url = request.url
                 if (url.host == HOST && (url.path ?: "").startsWith("/api/")) return api.handle(url)
