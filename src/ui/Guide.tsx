@@ -373,7 +373,7 @@ export function GuideScreen() {
       <LiveTeamBanner />
       <div class="guide-head">
         <h2>{groupLabel}</h2>
-        <span class="guide-head-meta">{rows.length.toLocaleString()} channels · {day(now)}, {clock(now)}{lastUpdate ? ` · Guide updated ${clock(lastUpdate)}` : ''}</span>
+        <span class="guide-head-meta">{rows.length.toLocaleString()} channels · {clock(now)}{lastUpdate ? ` · Guide updated ${clock(lastUpdate)}` : ''}</span>
       </div>
       <div class="guide-controls" data-group="guide-controls">
         <div class="chips compact country-tabs">
@@ -397,14 +397,7 @@ export function GuideScreen() {
             );
           })}
         </div>
-      </div>
-      <div class="guide-days" data-group="guide-days">
-        <span class="guide-days-label">Days</span>
-        {days.map((d, i) => {
-          const on = viewStart >= d && viewStart < d + 86400_000;
-          return <button type="button" class={`f chip ${on ? 'chip-active' : ''}`} onClick={() => (i === 0 ? jumpNow() : jumpDay(d))}>{i === 0 ? 'Today' : day(d + 12 * 3600_000)}</button>;
-        })}
-        <div class="row gap-sm guide-days-tools">
+        <div class="row gap-sm">
           <GuideUpdateButton />
           <Button small icon="chevronLeft" onClick={() => shiftView(-STEP * 2)} aria-label="Earlier" />
           <Button small icon="now" onClick={jumpNow}>Now</Button>
