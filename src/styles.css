@@ -1836,3 +1836,40 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .lp-modal .lp-feed:focus, .lp-modal .lp-tab:focus, .lp-modal .lpm-game:focus { background: #fff; color: #0b0b0d; }
 .lp-modal .lp-feed:focus b { color: #0b0b0d; }
 .lp-modal .lp-feed:focus small { color: #44444a; }
+
+/* ================= Player: big title over the picture, round controls, thin progress line =================
+   Top: back, the channel (or Movies / Shows), the time. Bottom: quality and channel, the title large, one meta
+   line, then a white play button with "Playing · ends at 9:30", round buttons on the right, and the progress line. */
+.player .osd-top { left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 0.9rem; padding: calc(var(--safe-y) * 0.8) var(--safe-x) 3rem; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent); }
+.osd-back { width: 2.8rem; height: 2.8rem; flex: none; display: grid; place-items: center; padding: 0; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.14); color: #fff; cursor: pointer; }
+.osd-src { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40rem; }
+.osd-top .channel-logo { width: 3.6rem; height: 2.4rem; }
+.osd-spacer { flex: 1; }
+.player .osd-clock { font-size: 1.25rem; font-weight: 600; color: rgba(255, 255, 255, 0.85); text-shadow: none; }
+
+.player .osd { display: flex; flex-direction: column; gap: 0.55rem; padding: 9rem var(--safe-x) calc(var(--safe-y) * 0.8); background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.7) 45%, transparent 100%); }
+.osd-tags { display: flex; align-items: center; gap: 0.7rem; font-size: 0.92rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); }
+.osd-badge { padding: 0.1rem 0.45rem; border-radius: 0.3rem; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.1); color: #fff; letter-spacing: 0.02em; font-feature-settings: 'tnum'; }
+.player .osd-title { font-size: 3.4rem; font-weight: 800; letter-spacing: -0.035em; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+.osd-meta { font-size: 1.15rem; color: rgba(255, 255, 255, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.osd-bar { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem; flex-wrap: nowrap; }
+.osd-play { width: 3.9rem; height: 3.9rem; flex: none; display: grid; place-items: center; padding: 0; border-radius: 50%; border: 0; background: #f5f5f7; color: #0b0b0d; cursor: pointer; }
+.osd-status { margin-left: 0.5rem; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.02em; color: rgba(255, 255, 255, 0.72); white-space: nowrap; }
+.osd-round { width: 3rem; height: 3rem; flex: none; display: grid; place-items: center; padding: 0; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.14); color: #fff; cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 800; }
+.osd-round .icon { width: 1.35rem; height: 1.35rem; }
+.osd-round:hover, .osd-back:hover { background: rgba(255, 255, 255, 0.26); }
+.osd-cc.on { background: rgba(255, 255, 255, 0.9); color: #0b0b0d; }
+:root .player .osd-round.f:focus, :root .player .osd-back.f:focus { background: #f5f5f7; color: #0b0b0d; box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.35) !important; }
+:root .player .osd-play.f:focus { box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.45) !important; }
+.osd-progress { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; margin-top: 0.4rem; font-size: 1rem; font-weight: 600; color: rgba(255, 255, 255, 0.8); font-feature-settings: 'tnum'; }
+.osd-track { position: relative; height: 0.32rem; border-radius: 999px; background: rgba(255, 255, 255, 0.22); }
+.osd-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: var(--accent); }
+.osd-knob { position: absolute; top: 50%; width: 1rem; height: 1rem; margin: -0.5rem 0 0 -0.5rem; border-radius: 50%; background: #fff; box-shadow: 0 0 0 0.15rem rgba(0, 0, 0, 0.25); }
+.osd-progress .live-pill { font-size: 0.85rem; }
+.player .osd-hints { font-size: 0.95rem; margin-top: 0.2rem; }
+.player .osd-controls { flex-wrap: nowrap; }
+/* glass theme glass on the round buttons (computer only; plain on TV) */
+:root:not(.tv)[data-theme='glass'] .osd-round, :root:not(.tv)[data-theme='glass'] .osd-back { -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+[data-theme='glass'] .osd-controls .osd-round { border: 0; box-shadow: none; }
+
+.portal { display: contents; }

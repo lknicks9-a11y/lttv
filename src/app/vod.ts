@@ -242,6 +242,10 @@ export interface VodPlay {
   series?: SeriesRef;
   /** Following episodes (played automatically when one ends). */
   queue?: VodPlay[];
+  /** Small label over the title in the player ("MOVIES · ACTION"). */
+  kicker?: string;
+  /** The line under the title ("2026 · 2h 25m · Science Fiction · PG-13"). */
+  meta?: string;
 }
 
 

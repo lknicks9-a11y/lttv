@@ -13,6 +13,7 @@ import { usePlayerStatus, PlayerBadge, ChannelRowBody } from './Home';
 import type { LiveInfo } from '../app/player';
 import { ProgDesc } from './ProgDesc';
 import { clock, range, remaining, progress, UNAVAILABLE } from './fmt';
+import { CATEGORY_LABELS } from '../core/normalize';
 
 type Panel = 'none' | 'strip' | 'menu' | 'info' | 'controls';
 
@@ -27,6 +28,7 @@ export function PlayerOverlay() {
   const recents = useApp((s) => s.recents);
   const status = usePlayerStatus();
   const [osd, setOsd] = useState(true);
+  const [hint, setHint] = useState('');
   const [panel, setPanel] = useState<Panel>('none');
   const [digits, setDigits] = useState('');
   const hideTimer = useRef<number>();
@@ -223,58 +225,45 @@ export function PlayerOverlay() {
 
       {ch && (
         <div class="osd-top">
+          <button type="button" class="f osd-back" onClick={() => setState({ fullscreen: false })} aria-label="Exit" data-nav-skip={panel === 'controls' ? undefined : ''}><Icon name="chevronLeft" size="1.3em" /></button>
+          <ChannelLogo ch={ch} src={ch.logo} name={ch.name} size="sm" />
+          <span class="osd-src"><ChannelName ch={ch} /></span>
+          <span class="osd-spacer" />
           <span class="osd-clock">{clock(now)}</span>
         </div>
       )}
 
       {ch && (
         <div class="osd" aria-live="polite">
-          <div class="osd-row">
-            <ChannelLogo ch={ch} src={ch.logo} name={ch.name} size="lg" />
-            <div class="osd-ch">
-              <div class="osd-chnum">{ch.number}</div>
-              <div class="osd-chname">
-                <ChannelName ch={ch} />
-                {ch.favorite && <Icon name="star" class="fav-star" size="0.9em" />}
-              </div>
-            </div>
-            <div class="osd-prog">
-              {cur ? (
-                <>
-                  <div class="osd-title">{cur.title}{cur.episode ? <span class="muted"> · {cur.episode}</span> : null}</div>
-                  <div class="osd-times">
-                    <span>{range(cur)}</span>
-                    <Progress value={progress(cur, now)} class="progress-lg" />
-                    <span class="muted">{remaining(cur, now)}</span>
-                  </div>
-                  <ProgDesc p={cur} ch={ch} short class="osd-desc" />
-                  {nxt && <div class="osd-next"><span class="muted">Next {clock(nxt.start)}</span> {nxt.title}</div>}
-                </>
-              ) : (
-                <div class="osd-title muted">{UNAVAILABLE}</div>
-              )}
-            </div>
+          <div class="osd-tags">
+            {status.videoHeight ? <span class="osd-badge">{status.videoHeight >= 2000 ? '4K' : `${status.videoHeight}p`}</span> : null}
+            <span>{ch.number} · {CATEGORY_LABELS[ch.category]}</span>
+            {ch.favorite && <Icon name="star" class="fav-star" size="0.95em" />}
           </div>
-          <LiveBar />
-          <div class="osd-controls" data-group="osd-controls" data-nav-skip={panel === 'controls' ? undefined : ''}>
-            <Button small icon="rewind" onClick={() => skip(-1)} aria-label="Rewind 10 seconds">10s</Button>
-            <Button small data-autofocus icon={status.state === 'paused' ? 'play' : 'pause'} onClick={() => { player.togglePause(); poke(); }} aria-label="Play/pause" />
-            <Button small icon="ffwd" onClick={() => skip(1)} aria-label="Fast forward 10 seconds">10s</Button>
-            {watchingSports() && <Button small icon="multiview" class="mv-btn" onClick={() => openMultiview()}>{mvName()}</Button>}
+          <div class="osd-title">{cur ? cur.title : ch.name}</div>
+          <div class="osd-meta">
+            {cur ? [range(cur), cur.episode, nxt ? `Next ${clock(nxt.start)} ${nxt.title}` : ''].filter(Boolean).join(' · ') : UNAVAILABLE}
+          </div>
+          <div class="osd-bar osd-controls" data-group="osd-controls" data-nav-skip={panel === 'controls' ? undefined : ''} onFocusIn={(e) => setHint((e.target as HTMLElement).getAttribute('aria-label') ?? '')}>
+            <button type="button" class="f osd-play" data-autofocus onClick={() => { player.togglePause(); poke(); }} aria-label={status.state === 'paused' ? 'Play' : 'Pause'}><Icon name={status.state === 'paused' ? 'play' : 'pause'} size="1.6rem" /></button>
+            <span class="osd-status">{panel === 'controls' && hint ? hint : `${status.state === 'paused' ? 'Paused' : 'Playing'}${cur ? ` · ends at ${clock(cur.stop)}` : ''}`}</span>
+            <span class="osd-spacer" />
+            <button type="button" class="f osd-round" onClick={() => skip(-1)} aria-label="Rewind 10 seconds"><Icon name="rewind" /></button>
+            <button type="button" class="f osd-round" onClick={() => skip(1)} aria-label="Forward 10 seconds"><Icon name="ffwd" /></button>
+            <button type="button" class="f osd-round osd-live" onClick={goLive} aria-label="Back to live"><Icon name="live" /></button>
             {status.textTracks ? (
-              <Button small class={`cc-btn ${settings.captions ? 'cc-on' : ''}`} aria-pressed={!!settings.captions} onClick={() => { const on = !settings.captions; void updateSettings({ captions: on }); player.setCaptions(on); poke(); }}>CC {settings.captions ? 'On' : 'Off'}</Button>
+              <button type="button" class={`f osd-round osd-cc ${settings.captions ? 'on' : ''}`} aria-pressed={!!settings.captions} aria-label={settings.captions ? 'Captions on' : 'Captions off'} onClick={() => { const on = !settings.captions; void updateSettings({ captions: on }); player.setCaptions(on); poke(); }}>CC</button>
             ) : null}
-            <Button small icon="live" class="live-btn" onClick={goLive}>Live</Button>
-            <span class="osd-sep" />
-            <Button small icon="channels" onClick={() => setPanel('strip')}>Channels</Button>
-            <Button small icon="info" onClick={() => setPanel('info')}>Info</Button>
-            <Button small icon="menu" onClick={() => setPanel('menu')}>Options</Button>
-            <Button small icon="back" onClick={() => setState({ fullscreen: false })}>Exit</Button>
+            {watchingSports() && <button type="button" class="f osd-round" onClick={() => openMultiview()} aria-label={mvName()}><Icon name="multiview" /></button>}
+            <button type="button" class="f osd-round" onClick={() => setPanel('strip')} aria-label="Channels"><Icon name="channels" /></button>
+            <button type="button" class="f osd-round" onClick={() => setPanel('info')} aria-label="Info"><Icon name="info" /></button>
+            <button type="button" class="f osd-round" onClick={() => setPanel('menu')} aria-label="Options"><Icon name="menu" /></button>
           </div>
+          <LiveProgress cur={cur} now={now} />
           <div class="osd-hints muted">
             {panel === 'controls'
               ? '◀ ▶ choose · OK select · ▲▼ change channel · Back: hide'
-              : 'OK: controls (rewind · live) · ⏪ ⏩ skip · ▲▼ channel · ◀ list · ▶ info · Back: exit'}
+              : 'OK: controls · ⏪ ⏩ skip · ▲▼ channel · ◀ list · ▶ info · Back: exit'}
             {status.via && status.via !== 'native' && <span> · {status.via}</span>}
             {status.videoHeight ? <span> · Picture: {status.videoWidth}×{status.videoHeight}</span> : null}
             {status.drops ? <span> · Reconnected {status.drops}×{status.replays ? ` (${status.replays}× the provider restarted the feed)` : ''}</span> : null}
@@ -375,6 +364,34 @@ export function LiveBar() {
         <div class="livebar-head" style={{ left: `${pos * 100}%` }} />
       </div>
       <span class="muted livebar-note">{Math.round(info.window / 60) >= 1 ? `${Math.round(info.window / 60)} min kept` : `${Math.round(info.window)} s kept`}</span>
+    </div>
+  );
+}
+
+/** The line under the controls: how far into the programme (or, after rewinding, how far behind live). */
+function LiveProgress({ cur, now }: { cur?: { start: number; stop: number }; now: number }) {
+  const [info, setInfo] = useState<LiveInfo | null>(() => player.liveInfo());
+  useEffect(() => {
+    const t = window.setInterval(() => setInfo(player.liveInfo()), 500);
+    return () => window.clearInterval(t);
+  }, []);
+  const behind = info?.seekable ? info.behind : 0;
+  if (behind >= 2 && info) {
+    const pos = info.window > 0 ? Math.max(0, Math.min(1, 1 - behind / info.window)) : 1;
+    return (
+      <div class="osd-progress">
+        <span class="live-pill">{fmtBehind(behind)}</span>
+        <div class="osd-track" aria-hidden="true"><div class="osd-fill" style={{ width: `${pos * 100}%` }} /><div class="osd-knob" style={{ left: `${pos * 100}%` }} /></div>
+        <span>{Math.round(info.window / 60) >= 1 ? `${Math.round(info.window / 60)} min kept` : `${Math.round(info.window)} s kept`}</span>
+      </div>
+    );
+  }
+  const frac = cur ? Math.max(0, Math.min(1, (now - cur.start) / Math.max(1, cur.stop - cur.start))) : 1;
+  return (
+    <div class="osd-progress">
+      <span class="live-pill on">LIVE</span>
+      <div class="osd-track" aria-hidden="true"><div class="osd-fill" style={{ width: `${frac * 100}%` }} /><div class="osd-knob" style={{ left: `${frac * 100}%` }} /></div>
+      <span>{cur ? `-${remaining(cur, now).replace(/\s*left$/, '')}` : ''}</span>
     </div>
   );
 }

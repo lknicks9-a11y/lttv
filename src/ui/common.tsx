@@ -197,11 +197,15 @@ export function Choice<T extends string | number>({ label, value, options, onCha
  */
 function Portal({ children }: { children: ComponentChildren }) {
   const host = useRef<HTMLDivElement | null>(null);
+  const anchor = useRef<HTMLSpanElement>(null);
   if (!host.current) host.current = document.createElement('div');
   useLayoutEffect(() => {
     const el = host.current!;
     el.className = 'portal';
-    document.body.appendChild(el);
+    // At the end of the layer it was opened in (the screens, League Pass, or the page), so it still hides with that
+    // layer: a movie's page must not sit on top of the movie once it plays.
+    const a = anchor.current;
+    (a?.closest('.lp-overlay') ?? a?.closest('.shell') ?? document.body).appendChild(el);
     return () => {
       render(null, el);
       el.remove();
@@ -210,7 +214,7 @@ function Portal({ children }: { children: ComponentChildren }) {
   useLayoutEffect(() => {
     render(h(Fragment, null, children), host.current!);
   });
-  return null;
+  return <span ref={anchor} hidden />;
 }
 
 export function Modal(props: { title?: string; onClose: () => void; children: ComponentChildren; wide?: boolean; class?: string }) {

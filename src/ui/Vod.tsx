@@ -14,6 +14,7 @@ import {
 import { cleanTitle, formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
 import { Button, Chip, Empty, Icon, Modal } from './common';
 import { VideoSlot } from './VideoSlot';
+import { clock } from './fmt';
 import { useArt } from '../app/vodmeta';
 import { isForeignScript } from '../core/lang';
 import { updateSettings } from '../app/state';
@@ -443,7 +444,9 @@ function MovieDetail({ playlistId, m, onClose, onOpen }: { playlistId: string; m
   }, [cur.m.id, playing]);
   const play = (startSec?: number) => {
     const v = moviePlay(cur.playlistId, cur.m, startSec);
-    if (v) playVod({ ...v, poster: art?.poster ?? v.poster });
+    const genre = d?.genre ?? art?.genre;
+    const meta = [d?.year ?? cur.m.year ?? art?.year, formatDuration(d?.durationSec), genre, (d?.rating ?? cur.m.rating) ? `★ ${(d?.rating ?? cur.m.rating)!.toFixed(1)}` : ''].filter(Boolean).join(' · ');
+    if (v) playVod({ ...v, poster: art?.poster ?? v.poster, kicker: ['Movies', genre?.split(/[,/]/)[0]?.trim()].filter(Boolean).join(' · '), meta });
   };
   const quality = qualityOf(cur.m.name, d?.height).label;
   const plot = goodText(d?.plot) ?? art?.plot;
@@ -596,6 +599,8 @@ function SeriesDetail({ playlistId, s, onClose, onOpen }: { playlistId: string; 
     const show = { ...cur.s, poster: art?.poster ?? cur.s.poster };
     const v = episodePlay(cur.playlistId, show, e, startSec);
     if (!v) return;
+    v.kicker = 'Shows';
+    v.meta = formatDuration(e.durationSec) || undefined;
     v.queue = flat.slice(i + 1, i + 31).map((x) => episodePlay(cur.playlistId, show, x)).filter((x): x is VodPlay => !!x);
     playVod(v);
   };
@@ -844,6 +849,7 @@ export function VodPlayer() {
 
   const frac = pos.dur > 0 ? Math.min(1, pos.at / pos.dur) : 0;
   const paused = status.state === 'paused';
+  const [hint, setHint] = useState('');
   return (
     <div
       class={`player vod-player ${osd || paused || controls ? 'osd-on' : 'osd-off'}`}
@@ -858,37 +864,42 @@ export function VodPlayer() {
       <VideoSlot priority={200} class="player-video">
         <PlayerBadge status={status} />
       </VideoSlot>
+      <div class="osd-top">
+        <button type="button" class="f osd-back" onClick={close} aria-label="Close" data-nav-skip={controls ? undefined : ''}><Icon name="chevronLeft" size="1.3em" /></button>
+        <span class="osd-src">{v.kicker?.split(' · ')[0] ?? 'LTTV'}</span>
+        <span class="osd-spacer" />
+        <span class="osd-clock">{clock(Date.now())}</span>
+      </div>
       <div class="osd vod-osd">
-        <div class="vod-osd-title">
-          <div class="osd-title">{v.title}</div>
-          {v.subtitle && <div class="muted">{v.subtitle}</div>}
-          <div class="vod-osd-badges">
-            {status.videoHeight ? <span class="vod-quality">{qualityOf('', status.videoHeight).label || `${status.videoHeight}p`}</span> : null}
-            {captions && status.textTracks === 0 ? <span class="muted">No captions in this video</span> : null}
-          </div>
+        <div class="osd-tags">
+          {status.videoHeight ? <span class="osd-badge">{qualityOf('', status.videoHeight).label || `${status.videoHeight}p`}</span> : null}
+          {v.kicker && <span>{v.kicker}</span>}
+          {captions && status.textTracks === 0 ? <span>No captions in this video</span> : null}
         </div>
-        <div class="livebar">
-          <span class="livebar-note">{fmtClock(pos.at)}</span>
-          <div class="livebar-track" aria-hidden="true">
-            <div class="livebar-fill" style={{ width: `${frac * 100}%` }} />
-            <div class="livebar-head" style={{ left: `${frac * 100}%` }} />
-          </div>
-          <span class="livebar-note muted">{pos.dur ? `-${fmtClock(pos.dur - pos.at)}` : ''}</span>
-        </div>
-        <div class="osd-controls vod-controls" data-group="vod-controls" data-nav-skip={controls ? undefined : ''}>
-          <Button small icon="rewind" onClick={() => skip(-1)} aria-label="Back 10 seconds">10s</Button>
-          <Button small data-autofocus icon={paused ? 'play' : 'pause'} onClick={() => { player.togglePause(); poke(); }} aria-label="Play/pause" />
-          <Button small icon="ffwd" onClick={() => skip(1)} aria-label="Forward 10 seconds">10s</Button>
-          {v.queue?.length ? <Button small icon="ffwd" onClick={nextEpisode}>Next episode</Button> : null}
+        <div class="osd-title">{v.title}</div>
+        {(v.subtitle || v.meta) && <div class="osd-meta">{(v.kicker === 'Shows' || !v.meta ? [v.subtitle, v.meta] : [v.meta]).filter(Boolean).join(' · ')}</div>}
+        <div class="osd-bar vod-controls" data-group="vod-controls" data-nav-skip={controls ? undefined : ''} onFocusIn={(e) => setHint((e.target as HTMLElement).getAttribute('aria-label') ?? '')}>
+          <button type="button" class="f osd-play" data-autofocus onClick={() => { player.togglePause(); poke(); }} aria-label={paused ? 'Play' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} size="1.6rem" /></button>
+          <span class="osd-status">{controls && hint ? hint : `${paused ? 'Paused' : 'Playing'}${pos.dur ? ` · ends at ${clock(Date.now() + (pos.dur - pos.at) * 1000)}` : ''}`}</span>
+          <span class="osd-spacer" />
+          <button type="button" class="f osd-round" onClick={() => skip(-1)} aria-label="Back 10 seconds"><Icon name="rewind" /></button>
+          <button type="button" class="f osd-round" onClick={() => skip(1)} aria-label="Forward 10 seconds"><Icon name="ffwd" /></button>
+          {v.queue?.length ? <button type="button" class="f osd-round" onClick={nextEpisode} aria-label="Next episode"><Icon name="chevronRight" /></button> : null}
+          <button type="button" class={`f osd-round osd-cc ${captions ? 'on' : ''}`} onClick={toggleCaptions} aria-pressed={captions} aria-label={captions ? 'Captions on' : 'Captions off'}>CC</button>
           {isSd && native?.setPictureMode && (
-            <Button small icon="fullscreen" onClick={() => void updateSettings({ sdPicture: sdPicture === 'sharp' ? 'full' : 'sharp' })}>{sdPicture === 'sharp' ? 'Picture: Sharper' : 'Picture: Full screen'}</Button>
+            <button type="button" class="f osd-round" onClick={() => void updateSettings({ sdPicture: sdPicture === 'sharp' ? 'full' : 'sharp' })} aria-label={sdPicture === 'sharp' ? 'Picture: sharper' : 'Picture: full screen'}><Icon name="fullscreen" /></button>
           )}
-          <Button small class={`cc-btn ${captions ? 'cc-on' : ''}`} onClick={toggleCaptions} aria-pressed={captions} aria-label="Captions">
-            CC {captions ? 'On' : 'Off'}
-          </Button>
-          <Button small icon="close" onClick={close}>Close</Button>
-          <span class="muted vod-hint">← → seek · OK pause · ↓ more · Back to close</span>
+          <button type="button" class="f osd-round" onClick={close} aria-label="Close"><Icon name="close" /></button>
         </div>
+        <div class="osd-progress">
+          <span>{fmtClock(pos.at)}</span>
+          <div class="osd-track" aria-hidden="true">
+            <div class="osd-fill" style={{ width: `${frac * 100}%` }} />
+            <div class="osd-knob" style={{ left: `${frac * 100}%` }} />
+          </div>
+          <span>{pos.dur ? `-${fmtClock(pos.dur - pos.at)}` : ''}</span>
+        </div>
+        <div class="osd-hints muted">{controls ? '◀ ▶ choose · OK select · ▲ hide' : '◀ ▶ seek · OK pause · ▼ controls · Back to close'}</div>
       </div>
     </div>
   );
