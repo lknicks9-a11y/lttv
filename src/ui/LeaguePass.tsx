@@ -80,10 +80,10 @@ function BoxScore({ game, box }: { game: Game; box: BoxTeam[] | null }) {
   if (!box) return <div class="lp-box"><p class="muted">Loading the box score…</p></div>;
   const team = box[side] ?? box[0];
   return (
-    <div class="lp-box" data-group="lp-box">
+    <div class="lp-box" data-group="lp-box" data-enter-top>
       <div class="lp-box-tabs">
         {box.map((t, i) => (
-          <button type="button" class={`f lp-tab ${i === side ? 'on' : ''}`} key={t.abbr} onClick={() => setSide(i)}>{t.name}</button>
+          <button type="button" class={`f lp-tab ${i === side ? 'on' : ''}`} key={t.abbr} data-default-focus={i === side ? '' : undefined} onClick={() => setSide(i)}>{t.name}</button>
         ))}
       </div>
       <div class="lp-box-head"><span>{team?.players.some((p) => p.starter) ? 'STARTERS' : 'PLAYERS'}</span><span>PTS</span><span>REB</span><span>AST</span><span>BLK</span></div>
@@ -120,9 +120,9 @@ function NflBox({ game, box }: { game: Game; box: StatTeam[] | null }) {
   if (!box) return <div class="lp-box"><p class="muted">Loading the stats…</p></div>;
   const team = box[side] ?? box[0];
   return (
-    <div class="lp-box" data-group="lp-box">
+    <div class="lp-box" data-group="lp-box" data-enter-top>
       <div class="lp-box-tabs">
-        {box.map((t, i) => <button type="button" class={`f lp-tab ${i === side ? 'on' : ''}`} key={t.abbr} onClick={() => setSide(i)}>{t.name}</button>)}
+        {box.map((t, i) => <button type="button" class={`f lp-tab ${i === side ? 'on' : ''}`} key={t.abbr} data-default-focus={i === side ? '' : undefined} onClick={() => setSide(i)}>{t.name}</button>)}
       </div>
       <div class="lp-box-rows">
         {team?.groups.map((g) => (
@@ -254,7 +254,12 @@ export function LeaguePass() {
   const extras = useMemo(() => cfg.extras.flatMap((x) => extraChannels(lineup, x.re).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: ch.name }))), [lineup, cfg]);
   const games = useMemo(() => {
     const rank = (g: Game) => (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
-    return [...raw].sort((a, b) => rank(a) - rank(b) || a.start - b.start);
+    // Small logos: the source's are 500 px, shown here at 30 to 140 px (dozens of full-size ones slow a Fire TV Stick).
+    const small = (t: Game['home']) => {
+      const m = /^https:\/\/a\.espncdn\.com(\/i\/teamlogos\/[^?]+)$/.exec(t.logo ?? '');
+      return m ? { ...t, logo: `https://a.espncdn.com/combiner/i?img=${m[1]}&w=160&h=160` } : t;
+    };
+    return [...raw].sort((a, b) => rank(a) - rank(b) || a.start - b.start).map((g) => ({ ...g, home: small(g.home), away: small(g.away) }));
   }, [raw]);
   const [index, setIndex] = useState<GameIndexEntry[] | null>(null);
   useEffect(() => {
@@ -337,7 +342,7 @@ export function LeaguePass() {
     const el = ref.current;
     if (!el || full || mv) return;
     const up = (e: KeyboardEvent) => {
-      if (e.key !== 'ArrowUp' || !getState().currentKey) return;
+      if (e.key !== 'ArrowUp' || !(getState().currentKey || el.querySelector('.lp-timeout'))) return;
       const a = document.activeElement as HTMLElement | null;
       // From the broadcasts; or from the games when there are no broadcast buttons to pass through.
       if (!a?.closest('.lp-feeds') && !(a?.classList.contains('lp-card') && !el.querySelector('.lp-feeds'))) return;
@@ -410,6 +415,16 @@ export function LeaguePass() {
   const anyOnAir = games.some((g) => !offAir(g, now));
   // The timeout screen: a team broadcast picked while it's off the air, or nothing playing and nothing on.
   const timeoutUp = !playing && !mv && ((!!offGame && !!offFeed) || (!loading && index !== null && !anyOnAir) || (!loading && !games.length));
+  // Waiting on the timeout screen with nothing picked: when a game comes on the air, go to it.
+  const idleTimeout = timeoutUp && !off;
+  const wasIdle = useRef(false);
+  useEffect(() => {
+    const was = wasIdle.current;
+    wasIdle.current = idleTimeout;
+    if (!was || idleTimeout || playing || off || mv) return;
+    const g = games.find((x) => !offAir(x, now) && feedsOf(x).length > 0);
+    if (g) watch(g);
+  }, [idleTimeout, now]);
   // The broadcast opens (an hour before tip-off): go to it without being asked.
   useEffect(() => {
     if (!off || !offGame || offAir(offGame, now)) return;
@@ -461,7 +476,7 @@ export function LeaguePass() {
     const active = mv.tiles[mv.active];
     return (
       <section class={`league-pass lpm lpm-${mv.layout}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name} Multiview`} style={{ '--lp-accent': cfg.accent }}>
-        <div class="lp-bg" />
+        <div class="lp-bg"><i /><i /><i /><i /></div>
         <div class="lpm-grid" data-group="lpm-grid">
           {Array.from({ length: mv.layout }, (_, i) => (
             <LpTile key={i} i={i} tile={mv.tiles[i]} label={tileFeed(mv.tiles[i])?.label} active={mv.active === i && !!mv.tiles[i]} onOpen={() => setSheet({ i, games: !mv.tiles[i] })} />
@@ -522,7 +537,7 @@ export function LeaguePass() {
 
   return (
     <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name}`} style={{ '--lp-accent': cfg.accent }}>
-      <div class="lp-bg" />
+      <div class="lp-bg"><i /><i /><i /><i /></div>
       <header class="lp-top">
         <h1><LpLogo kind={cfg.league} /> <span class="lp-mark">LTTV</span> {cfg.name}</h1>
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
@@ -530,7 +545,7 @@ export function LeaguePass() {
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
         {timeoutUp && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
         <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
-        {onThisGame && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
+        {(onThisGame || timeoutUp) && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
         <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>Close</Button>
       </header>
 

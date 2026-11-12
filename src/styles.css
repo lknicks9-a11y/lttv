@@ -1812,3 +1812,19 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .lp-timeout .lp-off-line { font-size: 1.6rem; font-weight: 600; color: #fff; text-shadow: 0 0.1rem 0.8rem rgba(0, 0, 0, 0.8); }
 .lp-timeout .lp-off-count { background: rgba(0, 0, 0, 0.55); }
 :root.tv .lp-timeout .lp-off-title, :root.tv .lp-timeout .lp-off-line { text-shadow: 0 0.12rem 0 rgba(0, 0, 0, 0.75); }
+
+
+/* ---------- League Pass on Fire TV: the dark around the video as four plain bars, not a cut-out layer ---------- */
+.league-pass { --lpbg: #05070b; }
+[data-theme='glass'] .league-pass { --lpbg: var(--bg); }
+.lp-bg > i { display: none; }
+.native.one-hole .league-pass:not(.lpm) > .lp-bg { background: none !important; clip-path: none; }
+.native.one-hole .league-pass:not(.lpm) > .lp-bg > i { display: block; position: fixed; background: var(--lpbg); }
+.native.one-hole .league-pass:not(.lpm) > .lp-bg > i:nth-child(1) { left: 0; right: 0; top: 0; height: var(--hole-t); }
+.native.one-hole .league-pass:not(.lpm) > .lp-bg > i:nth-child(2) { left: 0; right: 0; top: var(--hole-b); bottom: 0; }
+.native.one-hole .league-pass:not(.lpm) > .lp-bg > i:nth-child(3) { left: 0; top: var(--hole-t); width: var(--hole-l); height: calc(var(--hole-b) - var(--hole-t)); }
+.native.one-hole .league-pass:not(.lpm) > .lp-bg > i:nth-child(4) { left: var(--hole-r); right: 0; top: var(--hole-t); height: calc(var(--hole-b) - var(--hole-t)); }
+
+/* Timeout pictures: the whole picture is always in view, centered; a dimmed copy of it fills what's left over. */
+.lp-slide { background-position: center, center, center; background-size: contain, cover, cover; background-repeat: no-repeat; }
+.lp-full .lp-timeout-text { padding-bottom: 9rem; }

@@ -661,7 +661,7 @@ function applyHoles() {
   const root = document.documentElement;
   if (!holes.size) {
     root.style.removeProperty('--hole');
-    root.classList.remove('has-hole');
+    root.classList.remove('has-hole', 'one-hole');
     return;
   }
   const W = window.innerWidth;
@@ -675,6 +675,16 @@ function applyHoles() {
   }
   root.style.setProperty('--hole', poly + ')');
   root.classList.add('has-hole');
+  // One window (the usual case): its edges too, so a background can be laid around it as four plain bars instead
+  // of one layer with a hole cut in it (a cut-out layer is slow to redraw on a Fire TV Stick).
+  const one = holes.size === 1 ? [...holes.values()][0] : null;
+  root.classList.toggle('one-hole', !!one);
+  if (one) {
+    root.style.setProperty('--hole-l', `${Math.max(0, Math.round(one.x))}px`);
+    root.style.setProperty('--hole-t', `${Math.max(0, Math.round(one.y))}px`);
+    root.style.setProperty('--hole-r', `${Math.round(one.x + one.w)}px`);
+    root.style.setProperty('--hole-b', `${Math.round(one.y + one.h)}px`);
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -213,7 +213,7 @@ export function TimeoutShow({ media, children }: { media: TimeoutMedia; children
     return () => window.clearInterval(t);
   }, [n]);
   useMusic(media.audio);
-  const img = (k: number, cls: string) => <div class={`lp-slide ${cls}`} key={k} style={{ backgroundImage: `url("${images[k]}")` }} />;
+  const img = (k: number, cls: string) => <div class={`lp-slide ${cls}`} key={k} style={{ backgroundImage: `url("${images[k]}"), linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("${images[k]}")` }} />;
   return (
     <div class="lp-timeout">
       {n > 0 && prev.current >= 0 && prev.current !== i && img(prev.current, 'out')}

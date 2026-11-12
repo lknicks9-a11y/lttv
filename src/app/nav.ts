@@ -160,8 +160,9 @@ function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
   // Restore the remembered element when entering a group from outside.
   const group = best.closest<HTMLElement>('[data-group]');
   if (group && !group.contains(active)) {
-    // The top menu always opens on the section you are in.
-    const remembered = group.dataset.zone === 'h' ? undefined : lastInGroup.get(group);
+    // The top menu always opens on the section you are in; a [data-enter-top] group (League Pass's box score) always
+    // at its marked top element, so the buttons above it are one press away instead of a climb through every row.
+    const remembered = group.dataset.zone === 'h' || group.hasAttribute('data-enter-top') ? undefined : lastInGroup.get(group);
     if (remembered && remembered.isConnected && isVisible(remembered) && scope.contains(remembered)) best = remembered;
     else {
       const pref = group.querySelector<HTMLElement>('[data-default-focus]');
