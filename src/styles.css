@@ -1789,3 +1789,12 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .lp-row.lp-nfl { grid-template-columns: 2.4rem minmax(5rem, 1fr) repeat(var(--n, 3), 3.2rem); }
 .lp-box-head.lp-nfl { grid-template-columns: minmax(5rem, 1fr) repeat(var(--n, 3), 3.2rem); }
 .lp-row.lp-nfl span, .lp-box-head.lp-nfl span { white-space: nowrap; }
+
+/* ---------- League Pass: its own off-air screen for a team broadcast ---------- */
+.lp-off { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.7rem; text-align: center; padding: 2rem; color: #fff; background: linear-gradient(160deg, color-mix(in srgb, var(--t) 78%, #000) 0%, #0b0b0d 62%), #0b0b0d; }
+.lp-off-logo .team-logo { width: 9rem; height: 9rem; font-size: 3rem; }
+.lp-off-kicker { display: flex; align-items: center; gap: 0.45rem; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); }
+.lp-off-title { font-size: 2.8rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.lp-off-line { font-size: 1.35rem; color: rgba(255, 255, 255, 0.86); }
+.lp-off-count { margin-top: 0.4rem; padding: 0.45rem 1.2rem; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 1.25rem; }
+.lp-off-note { font-size: 1rem; color: rgba(255, 255, 255, 0.6); max-width: 34rem; }

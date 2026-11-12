@@ -218,7 +218,24 @@ function LpTile({ i, tile, label, active, onOpen }: { i: number; tile: MvTile | 
 }
 
 /** A way to watch a game: one team's own broadcast, or another channel carrying it. */
-interface Feed { key: string; label: string; sub: string }
+interface Feed { key: string; label: string; sub: string; /** A team's own channel: only on the air around its game. */ team?: 'home' | 'away' }
+
+/**
+ * A team's own channel only carries something around its game: from an hour before tip-off until about an hour
+ * and a half after the final (a game runs about two and a half hours). Outside that the provider shows a holding
+ * slide; League Pass shows its own off-air screen instead and goes to the broadcast by itself when it opens.
+ */
+const ON_AIR_BEFORE = 3600_000;
+const ON_AIR_AFTER_START = 4 * 3600_000;
+function offAir(g: Game, now: number): boolean {
+  if (g.state === 'in') return false;
+  if (g.state === 'pre') return g.start - now > ON_AIR_BEFORE;
+  return now - g.start > ON_AIR_AFTER_START;
+}
+function untilText(ms: number): string {
+  const m = Math.max(1, Math.round(ms / 60000));
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim();
+}
 
 export function LeaguePass() {
   const tz = useApp((s) => s.settings.timeZone);
@@ -256,7 +273,7 @@ export function LeaguePass() {
       const abbr = (side?: 'home' | 'away') => (side === 'away' ? g.away : g.home).abbr;
       // 1. Each team's own channel from the playlist (the one named after the team), away then home.
       for (const side of ['away', 'home'] as const) {
-        for (const p of picks.filter((x) => x.main && x.team && x.side === side)) list.push({ key: p.ch.key, label: `${abbr(side)} broadcast`, sub: p.ch.name });
+        for (const p of picks.filter((x) => x.main && x.team && x.side === side)) list.push({ key: p.ch.key, label: `${abbr(side)} broadcast`, sub: p.ch.name, team: side });
       }
       // 2. The local stations picked for the teams, when the game is on them tonight.
       for (const p of picks.filter((x) => x.main && !x.team)) list.push({ key: p.ch.key, label: `${abbr(p.side)} local`, sub: p.ch.name });
@@ -367,12 +384,30 @@ export function LeaguePass() {
     };
   }, [full]);
 
+  /** A team broadcast picked while it's off the air: League Pass's own screen shows instead of the provider's slide. */
+  const [off, setOff] = useState<{ gameId: string; key: string } | null>(null);
   const watch = (g: Game, key?: string) => {
     setSelected(g.id);
     const f = feedsOf(g);
     const k = key ?? (f.some((x) => x.key === playing) ? playing : f[0]?.key);
+    const feed = f.find((x) => x.key === k);
+    if (feed?.team && offAir(g, Date.now())) {
+      player.stop();
+      setState({ currentKey: undefined });
+      setOff({ gameId: g.id, key: feed.key });
+      return;
+    }
+    setOff(null);
     if (k && k !== playing) void tune(k, { fullscreen: false });
   };
+  const offGame = off ? games.find((g) => g.id === off.gameId) : undefined;
+  const offFeed = offGame && feedsOf(offGame).find((f) => f.key === off!.key);
+  // The broadcast opens (an hour before tip-off): go to it without being asked.
+  useEffect(() => {
+    if (!off || !offGame || offAir(offGame, now)) return;
+    setOff(null);
+    void tune(off.key, { fullscreen: false });
+  }, [now, off, offGame?.state]);
   const step = (d: number) => {
     const withStream = games.filter((g) => feedsOf(g).length);
     const i = withStream.findIndex((g) => g.id === game?.id);
@@ -393,7 +428,7 @@ export function LeaguePass() {
   const tileGame = (t: MvTile | null | undefined) => (t ? games.find((g) => feedsOf(g).some((f) => f.key === t.key)) : undefined);
   const tileFeed = (t: MvTile | null | undefined) => feedsOf(tileGame(t)).find((f) => f.key === t?.key);
   const feedButtons = (cls: string) => [...extras.map((f) => ({ f, extra: true })), ...gameFeeds.map((f) => ({ f, extra: false }))].map(({ f, extra }) => (
-    <button type="button" class={`f ${cls} ${extra ? 'extra' : ''} ${f.key === playing ? 'on' : ''}`} key={f.key} onClick={() => (extra ? f.key !== playing && void tune(f.key, { fullscreen: false }) : game && watch(game, f.key))} title={f.sub}>
+    <button type="button" class={`f ${cls} ${extra ? 'extra' : ''} ${f.key === playing || (off?.key === f.key && off.gameId === game?.id) ? 'on' : ''}`} key={f.key} onClick={() => (extra ? (setOff(null), f.key !== playing && void tune(f.key, { fullscreen: false })) : game && watch(game, f.key))} title={f.sub}>
       <b>{f.label}</b>
       <small>{f.sub}</small>
     </button>
@@ -493,7 +528,31 @@ export function LeaguePass() {
       <div class="lp-main">
         <div class="lp-stage">
           <VideoSlot priority={150} class="lp-video">
-            {!onThisGame && !full && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
+            {offGame && offFeed && !onThisGame && (() => {
+              const team = offFeed.team === 'away' ? offGame.away : offGame.home;
+              const other = offFeed.team === 'away' ? offGame.home : offGame.away;
+              const pre = offGame.state === 'pre';
+              return (
+                <div class="lp-off" style={{ '--t': team.color ? `#${team.color}` : '#26262b' }}>
+                  <div class="lp-off-logo"><TeamLogo team={team} size="lg" /></div>
+                  <div class="lp-off-kicker"><LpLogo size="1.3rem" kind={cfg.league} /> {cfg.name} · Off air</div>
+                  <div class="lp-off-title">{team.name} broadcast</div>
+                  {pre ? (
+                    <>
+                      <div class="lp-off-line">{offFeed.team === 'away' ? 'at' : 'vs'} {other.name} · {gameLine(offGame, now)}</div>
+                      <div class="lp-off-count">On the air in <b>{untilText(offGame.start - ON_AIR_BEFORE - now)}</b></div>
+                      <div class="lp-off-note">This broadcast opens an hour before tip-off and starts here by itself.</div>
+                    </>
+                  ) : (
+                    <>
+                      <div class="lp-off-line">{hideScore ? `Final · ${offGame.away.abbr} at ${offGame.home.abbr}` : `Final · ${offGame.away.abbr} ${offGame.away.score ?? ''} – ${offGame.home.score ?? ''} ${offGame.home.abbr}`}</div>
+                      <div class="lp-off-note">The broadcast has signed off. It is back an hour before the team’s next game.</div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+            {!onThisGame && !full && !offGame && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
             {full && (
               <div class="lp-bc" data-group="lp-bc">
                 <div class="lp-bc-top">
