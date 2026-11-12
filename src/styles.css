@@ -1433,6 +1433,8 @@ small, .small { font-size: 1.15rem; }
 @media (max-width: 900px) { .lp-main { grid-template-columns: 1fr; } .lp-box { max-height: 40vh; } }
 
 /* ================= Top menu (replaces the side rail, every theme) ================= */
+/* In a column the screen must be allowed to shrink, or long lists push past the bottom instead of scrolling. */
+.content { min-height: 0; }
 .shell { flex-direction: column; gap: 1rem; padding: calc(var(--safe-y) * 0.75) var(--safe-x) var(--safe-y); }
 .topbar { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1.5rem; position: relative; z-index: 5; }
 .topbar .brand { height: auto; padding: 0; gap: 0.6rem; overflow: visible; }
