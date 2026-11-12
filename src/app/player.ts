@@ -271,12 +271,19 @@ export class WebBackend implements Backend {
       return;
     }
     const target = this.hls?.targetLatency;
-    // Every little stall leaves the picture a bit further behind live, and it adds up over an evening. Rather than
-    // jumping (which empties the buffer), play slightly fast until it is back where it should be; you can't tell
-    // by eye or ear.
-    if (info.behind > 6) {
-      if (v.playbackRate === 1) v.playbackRate = 1.08;
-    } else if (info.behind < 1.5 && v.playbackRate !== 1) v.playbackRate = 1;
+    // Every little stall leaves the picture a bit further behind live, and it adds up over an evening. When it has
+    // slipped, skip ahead inside what is already downloaded (instant, nothing to re-buffer). It used to play
+    // slightly fast instead; sound drifting from the picture was reported after that, so the speed stays at 1.
+    if (v.playbackRate !== 1) v.playbackRate = 1;
+    if (info.behind > 10) {
+      let end = -Infinity;
+      for (let i = 0; i < v.buffered.length; i++) if (v.buffered.start(i) <= v.currentTime + 0.3 && v.buffered.end(i) > v.currentTime) end = v.buffered.end(i);
+      const to = Math.min(sp.edge, end - 2);
+      if (to > v.currentTime + 4) {
+        v.currentTime = to;
+        return;
+      }
+    }
     // Multiview tiles: only catch up when far behind. With several streams sharing the connection a tile often
     // falls a few seconds back; jumping to the live edge each time emptied its buffer, so it buffered, fell behind
     // and jumped again every few seconds.

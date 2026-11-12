@@ -26,7 +26,7 @@
   --focus: 0 0 0 0.2rem var(--bg), 0 0 0 0.48rem var(--accent);
   --safe-x: 3.5rem; /* ~5% overscan-safe margins on TV */
   --safe-y: 2.25rem;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Segoe UI Variable Display', 'Segoe UI', Roboto, 'Amazon Ember', Arial, 'Noto Sans', sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Helvetica Neue', 'Segoe UI Variable Display', 'Segoe UI', Roboto, 'Amazon Ember', Arial, 'Noto Sans', sans-serif;
   color-scheme: dark;
   font-size: clamp(8px, calc(100vw / 120), 32px);
 }
@@ -1603,9 +1603,10 @@ small, .small { font-size: 1.15rem; }
 .lpm-game { display: flex; align-items: center; justify-content: center; gap: 0.6rem; padding: 0.8rem; border-radius: 0.8rem; border: 1px solid #2a3240; background: #121722; color: #fff; font-size: 1.15rem; cursor: pointer; }
 
 /* ---------- Inter everywhere (the older themes named their own system fonts) ---------- */
-:root, :root[data-theme] { --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', Roboto, 'Amazon Ember', Arial, 'Noto Sans', sans-serif; }
-body { font-optical-sizing: auto; font-feature-settings: 'cv11', 'ss03', 'calt'; -webkit-font-smoothing: antialiased; }
-.ch-num, .game-score, .top-clock, .lp-pts { font-feature-settings: 'tnum', 'cv11'; }
+/* The iPhone's font (San Francisco) wherever the device has it; Inter, its closest open relative, everywhere else. */
+:root, :root[data-theme] { --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Helvetica Neue', 'Segoe UI', Roboto, 'Amazon Ember', Arial, 'Noto Sans', sans-serif; }
+body { font-optical-sizing: auto; font-feature-settings: 'calt'; -webkit-font-smoothing: antialiased; letter-spacing: -0.011em; }
+.ch-num, .game-score, .top-clock, .lp-pts { font-feature-settings: 'tnum'; }
 
 /* start screen */
 .loading-screen { gap: 1rem; }
