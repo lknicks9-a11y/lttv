@@ -1,7 +1,7 @@
 import { LeaguePass, watchLeaguePassKeys } from './LeaguePass';
 import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
-import { dismissUpdate, installUpdate, useAvailableUpdate, versionOf } from '../app/updates';
+import { dismissUpdate, installUpdate, useAvailableUpdate, useKnownUpdate, versionOf } from '../app/updates';
 import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
@@ -68,11 +68,24 @@ function TopBar() {
         ))}
       </nav>
       <div class="top-right">
+        <UpdatePill />
         <SidebarProfile />
         {!isTV && <FullscreenButton />}
         <span class="top-clock">{clock(now)}</span>
       </div>
     </header>
+  );
+}
+
+/** A newer build is out: always in the menu, so it can't be missed (or lost after "Later"). */
+function UpdatePill() {
+  const u = useKnownUpdate();
+  if (!u) return null;
+  return (
+    <button type="button" class="f tab tab-update" onClick={() => { installUpdate(u); navigate('settings'); }}>
+      <Icon name="refresh" size="1.25rem" />
+      <span class="tab-label">Update</span>
+    </button>
   );
 }
 
@@ -125,7 +138,8 @@ function LoadingScreen() {
 /** "A new LTTV build is available" — installs over the current app (no uninstalling). */
 function UpdatePrompt() {
   const u = useAvailableUpdate();
-  const fullscreen = useApp((s) => s.fullscreen || !!s.vodPlaying || !!s.multiview);
+  // Not over League Pass either: there the pop-up opened behind it and quietly took the remote.
+  const fullscreen = useApp((s) => s.fullscreen || !!s.vodPlaying || !!s.multiview || s.leaguePass);
   const inSettings = useApp((s) => s.screen === 'settings');
   // The Update Center in Settings shows the same thing (with progress) — no pop-up on top of it.
   if (!u || fullscreen || inSettings) return null;

@@ -1726,3 +1726,6 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .vod-card:focus .vod-rank { -webkit-text-stroke-color: #f5f5f7; }
 /* Without real blur (Fire TV) a see-through pop-up just shows clutter: keep pop-ups nearly solid there. */
 :root.tv[data-theme='glass'] .modal { background: var(--glass), rgba(26, 26, 30, 0.97); }
+
+/* an update is waiting */
+.top-right .tab.tab-update, [data-theme='glass'] .top-right .tab.tab-update { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }

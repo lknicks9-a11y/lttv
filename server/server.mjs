@@ -23,6 +23,7 @@ import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
+import { localBuild, selfUpdate } from './update.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -547,6 +548,12 @@ export function createServer() {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Newer build out? Replace this copy and start the new one in its place (see update.mjs).
+  if (!process.env.LTTV_UPDATED && !args.includes('--no-update') && (await selfUpdate(root))) {
+    const next = spawn(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, LTTV_UPDATED: '1' } });
+    next.on('exit', (code) => process.exit(code ?? 0));
+    await new Promise(() => undefined);
+  }
   if (!existsSync(join(dist, 'index.html'))) {
     console.error('dist/ is missing. Run "npm run build" first.');
     process.exit(1);
@@ -554,7 +561,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const server = createServer();
   server.listen(PORT, HOST, () => {
     const url = `http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/`;
-    console.log(`\n  LTTV ${pkg.version} is running at ${url}`);
+    console.log(`\n  LTTV ${pkg.version}${localBuild(root) ? ` (build ${localBuild(root)})` : ''} is running at ${url}`);
     console.log(`  ffmpeg: ${hasFfmpegNow() ? 'found (raw MPEG-TS channels can play)' : 'not found (HLS channels only in the browser)'}`);
     if (REMOTE) {
       const r = createRemoteServer();

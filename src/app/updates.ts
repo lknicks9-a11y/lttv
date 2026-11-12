@@ -165,6 +165,19 @@ export function dismissUpdate() {
 }
 
 /** The update to offer (null when none, or when "Later" was chosen for that build). */
+/** The newer build, whether or not its pop-up was put off with "Later" (for the Update button in the menu). */
+export function useKnownUpdate(): UpdateInfo | null {
+  const [, set] = useState(0);
+  useEffect(() => {
+    const l = () => set((n) => n + 1);
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
+  return available;
+}
+
 export function useAvailableUpdate(): UpdateInfo | null {
   const [, set] = useState(0);
   useEffect(() => {
