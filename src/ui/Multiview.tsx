@@ -82,6 +82,7 @@ function Tile({ i, tile, active, onAdd, onOptions }: { i: number; tile: MvTile |
           {active && <Icon name="volume" size="1.1em" />}
           <b>{tile.title}</b>
           {tile.sub && <small>{tile.sub}</small>}
+          {st.drops ? <small>· reconnected {st.drops}×</small> : null}
         </span>
       )}
     </button>

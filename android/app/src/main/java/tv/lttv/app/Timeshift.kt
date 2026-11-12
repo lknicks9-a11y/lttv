@@ -26,6 +26,7 @@ class TimeshiftRecorder(
 ) : Thread("lttv-timeshift") {
     @Volatile private var stopped = false
     @Volatile private var conn: HttpURLConnection? = null
+    val filter = TsOverlapFilter()
 
     init {
         isDaemon = true
@@ -36,7 +37,6 @@ class TimeshiftRecorder(
         val chunk = ByteArray(64 * 1024)
         val out = ByteArray(chunk.size + TsOverlapFilter.PACKET)
         // A reconnect makes the server send its last seconds again: skip them so the recording doesn't repeat.
-        val filter = TsOverlapFilter()
         var connected = false
         while (!stopped) {
             try {

@@ -27,6 +27,14 @@ class TsOverlapFilter {
     var droppedTotal = 0L
         private set
 
+    /** How many times the connection had to be made again. */
+    var reconnects = 0
+        private set
+    /** Reconnects where the server's clock didn't line up, so its repeated seconds could not be removed. */
+    var replays = 0
+        private set
+    private var firstClock = false
+
     /** A new connection starts now: skip what was already delivered. */
     fun reconnected() {
         carryLen = 0
@@ -34,6 +42,8 @@ class TsOverlapFilter {
         if (lastPcr >= 0) {
             skipping = true
             skippedBytes = 0
+            reconnects++
+            firstClock = true
         }
     }
 
@@ -76,6 +86,13 @@ class TsOverlapFilter {
         val pcr = pcrOf(b, p)
         if (pcr >= 0 && pcrPid < 0) pcrPid = pid
         val clock = if (pcr >= 0 && pid == pcrPid) pcr else -1L
+        if (skipping && clock >= 0 && firstClock) {
+            firstClock = false
+            // A clock nowhere near the old one (in either direction) is a new timeline: nothing to line up with.
+            val d = (clock - lastPcr) and MASK33
+            val near = d < NEW_TIMELINE || MASK33 + 1 - d <= NEW_TIMELINE
+            if (!near) replays++
+        }
         if (skipping) {
             if (clock >= 0 && (passed(clock) || skippedBytes > MAX_SKIP_BYTES)) {
                 // Caught up with what was already shown. Resume at the next keyframe (a packet marked as a random

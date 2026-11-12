@@ -277,6 +277,7 @@ export function PlayerOverlay() {
               : 'OK: controls (rewind · live) · ⏪ ⏩ skip · ▲▼ channel · ◀ list · ▶ info · Back: exit'}
             {status.via && status.via !== 'native' && <span> · {status.via}</span>}
             {status.videoHeight ? <span> · Picture: {status.videoWidth}×{status.videoHeight}</span> : null}
+            {status.drops ? <span> · Reconnected {status.drops}×{status.replays ? ` (${status.replays}× the provider restarted the feed)` : ''}</span> : null}
           </div>
         </div>
       )}

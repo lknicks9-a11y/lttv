@@ -109,6 +109,9 @@ class PlayerController(
     private var tsExtractors: DefaultExtractorsFactory? = null
     /** How far behind live playback runs when "at live" (the player's own buffer); measured once playing. */
     private var liveLagMs = -1L
+    private var errorRestarts = 0
+    private var lastErrorRestartAt = 0L
+    private var playerRestarts = 0
     private var hlsGapMs = -1L
     private var lastLive = ""
     /** Playing a movie / episode (seekable, ends, no live recording). */
@@ -208,14 +211,15 @@ class PlayerController(
         override fun run() {
             emitLive()
             // Position updates only matter while the picture is on screen.
-            main.postDelayed(this, if (videoOff || view.visibility != View.VISIBLE) 5000 else 1000)
+            main.postDelayed(this, if (!audioFocus || videoOff || view.visibility != View.VISIBLE) 5000 else 1000)
         }
     }
 
     init {
         view.addOnLayoutChangeListener { _, l, t, rr, b, ol, ot, or2, ob -> if (rr - l != or2 - ol || b - t != ob - ot) applySdFrame() }
-        // Only the main player reports its live-rewind position (Multiview tiles are plain live).
-        if (audioFocus) main.postDelayed(liveTicker, 1000)
+        // The main player reports its live-rewind position every second; Multiview tiles only need their
+        // reconnect count now and then.
+        main.postDelayed(liveTicker, 1000)
     }
 
     private fun ensurePlayer(): ExoPlayer {
@@ -341,9 +345,20 @@ class PlayerController(
             }
             val buf = tsBuffer
             if (buf != null && buf.failure == null && !buf.isEmpty) {
-                // Paused or rewound past what is still kept on the device: continue from the oldest part.
-                reopenAt(buf.offsetForTime(buf.earliestTime + 2000))
-                return
+                val now = System.currentTimeMillis()
+                errorRestarts = if (now - lastErrorRestartAt < 15_000) errorRestarts + 1 else 1
+                lastErrorRestartAt = now
+                if (errorRestarts <= 4) {
+                    // Paused or rewound past what is still kept on the device: continue from the oldest part.
+                    // Any other hiccup (a damaged bit of the stream, a decoder error): carry on from where it was,
+                    // or from live when it keeps happening. (It used to restart from the oldest part every time,
+                    // which threw the picture back by minutes.)
+                    val gone = generateSequence(error as Throwable) { it.cause }.any { it.message?.contains("no longer kept") == true }
+                    val at = if (gone) buf.earliestTime + 2000 else if (errorRestarts >= 3) now else playingAt() + 500
+                    playerRestarts++
+                    reopenAt(buf.offsetForTime(at))
+                    return
+                }
             }
             val (message, fatal) = describe(error)
             lastError = "${error.errorCodeName}: ${generateSequence(error as Throwable) { it.cause }.mapNotNull { it.message }.firstOrNull { it.isNotBlank() }?.take(140) ?: ""}"
@@ -424,6 +439,8 @@ class PlayerController(
             lastError = ""
             liveLagMs = -1L
             hlsGapMs = -1L
+            playerRestarts = 0
+            errorRestarts = 0
             if (currentUrlBefore != null) tsFilterAt = System.currentTimeMillis()
             // Close the previous stream first: many providers allow only one connection.
             exo?.stop()
@@ -635,6 +652,9 @@ class PlayerController(
                 }
             }
         }
+        // How often the connection was made again, and how often the server's repeat couldn't be removed.
+        val f = recorder?.filter ?: if (currentUrl != null && currentUrl == tsFilterUrl) tsFilter else null
+        o.put("drops", (f?.reconnects ?: 0) + playerRestarts).put("replays", f?.replays ?: 0)
         val s = o.toString()
         if (s != lastLive) {
             lastLive = s

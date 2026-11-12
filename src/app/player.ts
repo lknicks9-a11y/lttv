@@ -32,6 +32,10 @@ export interface PlayerStatus {
   retrySame?: boolean;
   /** Subtitle / caption tracks in the stream. */
   textTracks?: number;
+  /** Times the connection to the channel had to be made again since tuning in. */
+  drops?: number;
+  /** Of those, times the provider's repeated seconds could not be removed (the picture jumped back). */
+  replays?: number;
 }
 
 export interface PlayRequest {
@@ -553,6 +557,8 @@ const tileHandlers = new Map<number, (json: string) => void>();
 
 class NativeBackend implements Backend {
   private live: LiveInfo | null = null;
+  private drops = 0;
+  private replays = 0;
   /** slot = Multiview tile (0–3); undefined = the main player. */
   constructor(private emit: (s: Partial<PlayerStatus>) => void, getSettings: () => Settings, private slot?: number) {
     window.lttvHost = window.lttvHost ?? ({} as NonNullable<Window['lttvHost']>);
@@ -565,6 +571,12 @@ class NativeBackend implements Backend {
         }
         if (ev.type === 'live') {
           this.live = { seekable: !!ev.seekable, behind: Math.max(0, (ev.behind ?? 0) / 1000), window: Math.max(0, (ev.window ?? 0) / 1000), live: ev.live !== false };
+          const d = ev as { drops?: number; replays?: number };
+          if ((d.drops ?? 0) !== this.drops || (d.replays ?? 0) !== this.replays) {
+            this.drops = d.drops ?? 0;
+            this.replays = d.replays ?? 0;
+            this.emit({ drops: this.drops, replays: this.replays });
+          }
           return;
         }
         this.emit({ state: ev.state, error: ev.error, videoWidth: ev.width, videoHeight: ev.height, via: 'native', noRetry: ev.fatal });
@@ -799,7 +811,7 @@ export class PlayerController {
         this.attempt++;
         if (list.length > 1) this.urlIndex = this.workingIndex ?? 0;
         const delay = Math.min(8000, 1000 * 2 ** (this.attempt - 1));
-        this.set({ ...s, state: 'retrying', attempt: this.attempt, maxAttempts: max });
+        this.set({ ...s, state: 'retrying', attempt: this.attempt, maxAttempts: max, ...(native ? {} : { drops: (this.status.drops ?? 0) + 1 }) });
         window.clearTimeout(this.retryTimer);
         this.retryTimer = window.setTimeout(() => this.req === req && this.backend.load(this.variant(req), this.attempt), delay);
         return;
@@ -848,7 +860,7 @@ export class PlayerController {
     this.uaIndex = native ? 0 : Math.min(rememberedUa()[hostOfUrl(req.url)] ?? 0, STREAM_IDENTITIES.length - 1);
     this.lastPos = -1;
     this.lastProgressAt = Date.now();
-    this.set({ state: 'loading', key: req.key, error: undefined, attempt: undefined, noRetry: undefined, videoWidth: undefined, videoHeight: undefined, textTracks: undefined });
+    this.set({ state: 'loading', key: req.key, error: undefined, attempt: undefined, noRetry: undefined, videoWidth: undefined, videoHeight: undefined, textTracks: undefined, drops: undefined, replays: undefined });
     this.backend.setCaptions?.(!!this.getSettings().captions);
     this.backend.load(this.variant(req), 0);
     this.updateRect();
