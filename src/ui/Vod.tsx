@@ -240,7 +240,6 @@ function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) 
   return (
     <section class="vod-hero" ref={ref} data-group="vod-hero">
       {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${pic(backdrop, 'backdrop') ?? pic(poster, 'poster')}")` }} />}
-      {!backdrop && poster && <img class="vod-hero-poster" src={poster} alt="" />}
       <div class="vod-hero-shade" />
       <div class="vod-hero-text">
         <span class="vod-hero-badge">{top ? `#${(i % items.length) + 1} Trending` : it.kind === 'movie' ? 'Featured' : 'Featured series'}</span>

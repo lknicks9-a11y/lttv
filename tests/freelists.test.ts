@@ -30,3 +30,4 @@ test('pictures are asked for at the size they are shown', () => {
   assert.equal(sizedImage('https://static.tvmaze.com/uploads/images/original_untouched/1/4600.jpg', 'poster', true), 'https://static.tvmaze.com/uploads/images/medium_portrait/1/4600.jpg');
   assert.equal(sizedImage('http://provider.example/p.jpg', 'poster', true), 'http://provider.example/p.jpg');
 });
+

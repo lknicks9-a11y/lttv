@@ -74,10 +74,12 @@ export function canUpdateInApp(): boolean {
   return !!native?.installUpdate && !!native.appBuild;
 }
 
-/** Version shown to people: 1.0.0 is build 34 (numbering restarted), each later build adds 1 (build 35 = 1.0.1). */
-/** 1.0.x counted from build 34; from build 61 it's 1.1.0, and every tenth build moves the middle number (1.1.9 -> 1.2.0). */
+/** Version shown to people. Official launch: build 155 is LTTV 1.0.0, each later build adds 1 (build 156 = 1.0.1).
+ *  Builds 87–154 were "1.0.0 Beta"; older builds kept their earlier numbers. */
+export const LAUNCH_BUILD = 155;
 export function versionOf(build: number): string {
-  if (build >= 87) return '1.0.0 Beta'; // beta mode until numbering goes up again
+  if (build >= LAUNCH_BUILD) return `1.0.${build - LAUNCH_BUILD}`;
+  if (build >= 87) return '1.0.0 Beta';
   if (build < 61) return `1.0.${Math.max(0, build - 34)}`;
   const n = build - 61;
   return `1.${1 + Math.floor(n / 10)}.${n % 10}`;

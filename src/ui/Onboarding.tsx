@@ -2,10 +2,10 @@
 // Shown once, before the main app, when the user has never completed setup.
 import { h, Fragment } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { cloudConfig, currentSession, openCloudAccount, signInEmail, signUpEmail } from '../app/cloud';
+import { currentSession, openCloudAccount, signInEmail, signUpEmail } from '../app/cloud';
 import { focusFirst } from '../app/nav';
-import { isNative, native } from '../app/platform';
-import { navigate, setState } from '../app/state';
+import { isNative } from '../app/platform';
+import { setState } from '../app/state';
 import { Button, Icon } from './common';
 import { LogoMark, Wordmark } from './Logo';
 import { PhoneSignInModal } from './SignIn';

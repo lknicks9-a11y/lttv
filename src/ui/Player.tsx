@@ -6,13 +6,13 @@ import { useApp, setState, tune, zapList, toggleFavorite, updateSettings, player
 import { adjacentChannel } from '../core/organize';
 import { isUsableMatch } from '../core/match';
 import { onBack, onAppKey, focusFirst } from '../app/nav';
-import { ChannelLogo, Progress, Icon, Button, VirtualList, useRemPx } from './common';
+import { ChannelLogo, Icon, Button, VirtualList, useRemPx } from './common';
 import { VideoSlot } from './VideoSlot';
 import { mvName, openMultiview } from '../app/multiview';
 import { usePlayerStatus, PlayerBadge, ChannelRowBody } from './Home';
 import type { LiveInfo } from '../app/player';
 import { ProgDesc } from './ProgDesc';
-import { clock, range, remaining, progress, UNAVAILABLE } from './fmt';
+import { clock, range, remaining, UNAVAILABLE } from './fmt';
 import { CATEGORY_LABELS } from '../core/normalize';
 
 type Panel = 'none' | 'strip' | 'menu' | 'info' | 'controls';

@@ -5,7 +5,6 @@ import { ProfilesSection } from './Profiles';
 
 
 import { h, Fragment } from 'preact';
-import { currentBuild, versionOf } from '../app/updates';
 import { UpdateCenter } from './UpdateCenter';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { navigate, useApp, updateSettings, repo, reloadAll, toast, pruneExpired, getState, loadGuide, stopPlayback, player } from '../app/state';

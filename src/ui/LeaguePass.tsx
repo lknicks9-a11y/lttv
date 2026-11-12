@@ -237,6 +237,11 @@ function offAir(g: Game, now: number): boolean {
 }
 function untilText(ms: number): string {
   const m = Math.max(1, Math.round(ms / 60000));
+  if (m >= 24 * 60) {
+    const d = Math.floor(m / 1440);
+    const h = Math.floor((m % 1440) / 60);
+    return `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}`;
+  }
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim();
 }
 

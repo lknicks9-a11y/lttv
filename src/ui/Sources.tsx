@@ -1,5 +1,5 @@
 import { h, Fragment } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import {
   useApp, navigate, refreshAll, refreshPlaylist, refreshEpg, deletePlaylist, deleteEpgSource, togglePlaylist, toggleEpg, rematchAndReload, reloadAll, toast,
 } from '../app/state';

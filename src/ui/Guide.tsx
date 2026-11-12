@@ -259,27 +259,6 @@ export function GuideScreen() {
     setCursor({ row: 0, col: 'grid', anchor: Date.now() });
   };
 
-  // Day buttons: today and the next days the guide covers (up to a week).
-  const days = useMemo(() => {
-    const out: number[] = [];
-    const d0 = new Date(Date.now());
-    d0.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(d0);
-      d.setDate(d0.getDate() + i);
-      if (i > 0 && (!coverage || d.getTime() >= coverage.end)) break;
-      out.push(d.getTime());
-    }
-    return out;
-  }, [coverage, Math.floor(now / 3600_000)]);
-  const jumpDay = (d: number) => {
-    // The same time of day on that day (prime time if it's late now).
-    const t = new Date(Date.now());
-    const at = d + ((t.getHours() >= 22 || t.getHours() < 6 ? 19 : t.getHours()) * 60 + t.getMinutes()) * 60_000;
-    const vs = Math.max(minStart, Math.min(maxStart, floor(at)));
-    setViewStart(vs);
-    setCursor((c) => ({ ...c, col: 'grid', anchor: vs, start: pickInRow(c.row, vs, vs, vs + span) }));
-  };
   const chipNow = chips.find((c) => filter === c.id || String(filter).startsWith(`${c.id}|`));
   const groupLabel = chipNow?.label ?? 'All channels';
   const epgSources = useApp((s) => s.epgSources);
