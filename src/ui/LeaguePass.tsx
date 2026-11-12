@@ -1,6 +1,6 @@
 // LTTV League Pass: tonight's NBA games in one place. Opened from anywhere with Up, Up, Left, Right.
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
-import { h } from 'preact';
+import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
 import { focusFirst, onBack } from '../app/nav';
@@ -168,11 +168,15 @@ export function LeaguePass() {
     for (const g of games) {
       const picks = bestStreams(g, lineup, 'basketball', index);
       const list: Feed[] = [];
+      const abbr = (side?: 'home' | 'away') => (side === 'away' ? g.away : g.home).abbr;
+      // 1. Each team's own channel from the playlist (the one named after the team), away then home.
       for (const side of ['away', 'home'] as const) {
-        // The team's local channel tonight (if it's on one) and its own NBA team channel.
-        for (const p of picks.filter((x) => x.main && x.side === side)) list.push({ key: p.ch.key, label: `${(side === 'away' ? g.away : g.home).abbr} broadcast`, sub: p.ch.name });
+        for (const p of picks.filter((x) => x.main && x.team && x.side === side)) list.push({ key: p.ch.key, label: `${abbr(side)} broadcast`, sub: p.ch.name });
       }
-      for (const p of picks.filter((x) => !list.some((f) => f.key === x.ch.key)).slice(0, 2)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : 'Other', sub: p.ch.name });
+      // 2. The local stations picked for the teams, when the game is on them tonight.
+      for (const p of picks.filter((x) => x.main && !x.team)) list.push({ key: p.ch.key, label: `${abbr(p.side)} local`, sub: p.ch.name });
+      // 3. A few other good streams, just in case.
+      for (const p of picks.filter((x) => !x.main).slice(0, 3)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : 'Other', sub: p.ch.name });
       m.set(g.id, list);
     }
     return m;
@@ -184,6 +188,9 @@ export function LeaguePass() {
   // Coming back from full screen in Multiview: stay in League Pass, on that game, full screen.
   const [full, setFull] = useState(() => getState().fullscreen && !!getState().currentKey);
   const [boxOpen, setBoxOpen] = useState(false);
+  // No spoilers: hide the score of the game you're watching (remembered).
+  const [hideScore, setHideScore] = useState(() => { try { return localStorage.getItem('lttvLpHideScore') === '1'; } catch { return false; } });
+  const toggleScore = () => setHideScore((v) => { try { localStorage.setItem('lttvLpHideScore', v ? '0' : '1'); } catch { /* not remembered */ } return !v; });
   const mv = useApp((s) => s.multiview);
   /** Multiview: the tile whose options are open, and whether its game list is showing. */
   const [sheet, setSheet] = useState<{ i: number; games: boolean } | null>(null);
@@ -208,19 +215,35 @@ export function LeaguePass() {
     setSheet(null);
     requestAnimationFrame(() => focusFirst(ref.current));
   }, [!!mv]);
+  // The remote starts on tonight's games (they arrive a moment after the screen opens), not on the top buttons.
+  const hasGames = games.length > 0;
+  useEffect(() => {
+    if (!hasGames || full || mv) return;
+    requestAnimationFrame(() => {
+      const strip = ref.current?.querySelector<HTMLElement>('.lp-strip');
+      if (strip && !strip.contains(document.activeElement)) (strip.querySelector<HTMLElement>('.lp-card.current') ?? strip.querySelector<HTMLElement>('.lp-card'))?.focus();
+    });
+  }, [hasGames]);
   // Full screen: the video fills the screen; focus moves to (or back from) the broadcast controls.
   useLayoutEffect(() => {
     player.updateRect();
     setBar(true);
-    requestAnimationFrame(() => focusFirst(ref.current?.querySelector<HTMLElement>(full ? '.lp-bc' : '.lp-strip') ?? ref.current));
+    requestAnimationFrame(() => focusFirst(ref.current?.querySelector<HTMLElement>(full ? '.lp-bc-feeds' : '.lp-strip') ?? ref.current));
   }, [full]);
   // The broadcast controls get out of the way after a few seconds; any key or mouse move brings them back.
   useEffect(() => {
     if (!full) return;
     let t = window.setTimeout(() => setBar(false), 6000);
-    const wake = () => {
+    const wake = (e: Event) => {
       setBar((on) => {
-        if (!on) requestAnimationFrame(() => focusFirst(ref.current?.querySelector<HTMLElement>('.lp-bc') ?? null));
+        if (!on) {
+          // The press that brings the controls back does nothing else (it used to press a hidden button).
+          if (e.type === 'keydown' && !/^(Escape|Backspace|GoBack|BrowserBack)$/.test((e as KeyboardEvent).key)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          requestAnimationFrame(() => focusFirst(ref.current?.querySelector<HTMLElement>('.lp-bc-feeds') ?? ref.current?.querySelector<HTMLElement>('.lp-bc') ?? null));
+        }
         return true;
       });
       window.clearTimeout(t);
@@ -268,9 +291,9 @@ export function LeaguePass() {
   ));
   const scoreBug = game && (
     <div class="lp-score">
-      <TeamLogo team={game.away} size="sm" /><b>{game.away.abbr}</b><span class="lp-pts">{game.away.score ?? ''}</span>
-      <span class="lp-clock">{gameLine(game, now)}</span>
-      <span class="lp-pts">{game.home.score ?? ''}</span><b>{game.home.abbr}</b><TeamLogo team={game.home} size="sm" />
+      <TeamLogo team={game.away} size="sm" /><b>{game.away.abbr}</b>{!hideScore && <span class="lp-pts">{game.away.score ?? ''}</span>}
+      <span class="lp-clock">{hideScore ? (game.state === 'pre' ? clock(game.start) : game.state === 'in' ? 'Live' : 'Final') : gameLine(game, now)}</span>
+      {!hideScore && <span class="lp-pts">{game.home.score ?? ''}</span>}<b>{game.home.abbr}</b><TeamLogo team={game.home} size="sm" />
     </div>
   );
 
@@ -347,6 +370,7 @@ export function LeaguePass() {
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span class="lp-spacer" />
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
+        <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
         {onThisGame && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
         <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>Close</Button>
       </header>
@@ -365,7 +389,8 @@ export function LeaguePass() {
                 <div class="lp-bc-bottom">
                   <button type="button" class="f lp-bc-btn" onClick={() => step(-1)} aria-label="Previous game"><Icon name="chevronLeft" size="1.2em" /></button>
                   <div class="lp-bc-feeds">{feedButtons('lp-bc-feed')}</div>
-                  <button type="button" class={`f lp-bc-btn ${boxOpen ? 'on' : ''}`} onClick={() => setBoxOpen((v) => !v)}>Box score</button>
+                  {!hideScore && <button type="button" class={`f lp-bc-btn ${boxOpen ? 'on' : ''}`} onClick={() => setBoxOpen((v) => !v)}>Box score</button>}
+                  <button type="button" class="f lp-bc-btn" onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</button>
                   <button type="button" class="f lp-bc-btn" onClick={() => step(1)} aria-label="Next game"><Icon name="chevronRight" size="1.2em" /></button>
                 </div>
               </div>
@@ -374,7 +399,7 @@ export function LeaguePass() {
           {scoreBug}
           {gameFeeds.length > 0 && <div class="lp-feeds" data-group="lp-feeds">{feedButtons('lp-feed')}</div>}
         </div>
-        {game && (!full || boxOpen) && <BoxScore game={game} box={box} />}
+        {game && (!full || boxOpen) && (hideScore ? (full ? null : <div class="lp-box"><p class="muted">Score and box score are hidden for this game. Choose “Show score” to see them.</p></div>) : <BoxScore game={game} box={box} />)}
       </div>
 
       <div class="lp-strip" data-group="lp-strip">
@@ -393,8 +418,11 @@ export function LeaguePass() {
               >
                 {g.state === 'in' && <span class="lp-live">LIVE</span>}
                 <span class="lp-teams"><TeamLogo team={g.away} size="sm" /><TeamLogo team={g.home} size="sm" /></span>
-                <span class="lp-line">{g.away.abbr} {g.away.score ?? ''} · {g.home.abbr} {g.home.score ?? ''}</span>
-                <span class="lp-when">{gameLine(g, now)}</span>
+                {hideScore && g.id === game?.id ? (
+                  <><span class="lp-line">{g.away.abbr} · {g.home.abbr}</span><span class="lp-when">{g.state === 'pre' ? clock(g.start) : g.state === 'in' ? 'Live' : 'Final'}</span></>
+                ) : (
+                  <><span class="lp-line">{g.away.abbr} {g.away.score ?? ''} · {g.home.abbr} {g.home.score ?? ''}</span><span class="lp-when">{gameLine(g, now)}</span></>
+                )}
               </button>
               <button type="button" class={`f lp-pick ${on ? 'on' : ''}`} disabled={!has} onClick={() => togglePick(g)} aria-label={on ? 'Remove from games to watch together' : 'Add to games to watch together'}>
                 {on ? '✓ Added' : '+ Add'}

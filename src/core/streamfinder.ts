@@ -24,6 +24,8 @@ export interface StreamPick {
   broadcast?: string;
   /** The team's main stream for this game (NBA: the channel it's on tonight, or its NBA team channel). */
   main?: boolean;
+  /** The team's own channel (named after the team), as opposed to a local station carrying the game. */
+  team?: boolean;
 }
 
 /** Text entries worth checking for games: programme titles around the day, and event channel names. */
@@ -354,7 +356,7 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     for (const key of nbaLocalsNotOnTonight(game, game.nbaTonight, lineup)) picks.delete(key);
     mains.forEach((m, i) => {
       const reason = m.why === 'tonight' ? `${m.team.short} · on tonight` : m.why === 'pass' ? `${m.team.short} · NBA team channel` : `${m.team.short} channel`;
-      picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true });
+      picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true, team: m.why === 'pass' });
     });
   }
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);

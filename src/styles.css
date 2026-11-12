@@ -1642,3 +1642,21 @@ body { font-optical-sizing: auto; font-feature-settings: 'cv11', 'ss03', 'calt';
 [data-theme='glass'] .stream-pick-cta { background: var(--accent); color: var(--accent-ink); border-radius: 0.6rem; padding: 0.3rem 0.7rem; font-weight: 700; }
 [data-theme='glass'] .result-row { border-radius: 0.8rem; }
 [data-theme='glass'] .osd-title { font-size: 2.2rem; }
+
+/* ---------- League Pass with a remote: where you are must be unmistakable ---------- */
+/* The game on screen gets a colored bar; the white frame is only for the thing the remote is on. */
+.lp-card.current { outline: 0; box-shadow: inset 0 -0.35rem 0 #ffa04d; }
+:root .league-pass .f:focus { box-shadow: 0 0 0 0.28rem #fff, 0 0.8rem 2rem rgba(0, 0, 0, 0.6) !important; z-index: 2; }
+:root .league-pass .lp-card.current.f:focus { box-shadow: inset 0 -0.35rem 0 #ffa04d, 0 0 0 0.28rem #fff, 0 0.8rem 2rem rgba(0, 0, 0, 0.6) !important; }
+.league-pass .lp-feed:focus, .league-pass .lp-bc-feed:focus, .league-pass .lp-bc-btn:focus, .league-pass .lp-pick:focus, .league-pass .lp-tab:focus { background: #fff; color: #0b0b0d; }
+.league-pass .lp-feed:focus b, .league-pass .lp-bc-feed:focus b { color: #0b0b0d; }
+.league-pass .lp-feed:focus small, .league-pass .lp-bc-feed:focus small { color: #44444a; }
+.lp-feed.on, .lp-bc-feed.on { background: #121722; border-color: #ffa04d; box-shadow: inset 0 -0.25rem 0 #ffa04d; }
+.lp-feed.on b, .lp-bc-feed.on b { color: #fff; }
+.lp-feed.on small, .lp-bc-feed.on small { color: var(--muted); }
+.lp-strip { padding: 0.5rem 0.4rem 0.6rem; scroll-padding: 2rem; }
+.lp-feeds { padding: 0.3rem; }
+/* TV: bigger targets, and the box score doesn't take the remote on the way to the games */
+:root.tv .lp-card { width: 15rem; height: 7.2rem; }
+:root.tv .lp-pick { padding: 0.5rem; font-size: 1.05rem; }
+:root.tv .lp-main { grid-template-columns: minmax(0, 1fr) 24rem; }
