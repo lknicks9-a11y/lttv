@@ -20,6 +20,13 @@ class Updater(private val activity: MainActivity) {
     @Volatile private var busy = false
     /** Waiting for "Install unknown apps" to be switched on; the install continues when LTTV comes back. */
     @Volatile private var waitingForPermission = false
+        set(v) {
+            field = v
+            // Remembered across a restart: Fire TV may close LTTV while the "Install unknown apps" screen is open.
+            try { activity.getSharedPreferences("lttv-updater", 0).edit().putBoolean("waiting", v).apply() } catch (ignored: Exception) {}
+        }
+    private fun wasWaiting() = waitingForPermission || try { activity.getSharedPreferences("lttv-updater", 0).getBoolean("waiting", false) } catch (e: Exception) { false }
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
     @Volatile private var lastUrl: String? = null
 
     private fun send(o: JSONObject) =
@@ -134,14 +141,26 @@ class Updater(private val activity: MainActivity) {
         else send(JSONObject().put("state", "error").put("error", "The update isn't downloaded yet"))
     }
 
-    /** LTTV came back to the screen: if installs were just allowed, open the installer now. */
+    /**
+     * LTTV came back to the screen: if installs were just allowed, open the installer now — the first update
+     * goes straight on to the install screen. The permission can take a moment to show as granted, so it is
+     * checked a few times before asking again.
+     */
     fun onAppResumed() {
-        if (!waitingForPermission) return
-        if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
-            send(JSONObject().put("state", "permission-needed"))
+        if (!wasWaiting()) return
+        val apk = downloadedApk()
+        if (!apk.exists()) {
+            waitingForPermission = false
             return
         }
-        val apk = downloadedApk()
-        if (apk.exists()) openInstaller(apk)
+        fun attempt(left: Int) {
+            if (Build.VERSION.SDK_INT < 26 || activity.packageManager.canRequestPackageInstalls()) {
+                openInstaller(apk)
+                return
+            }
+            if (left > 0) main.postDelayed({ attempt(left - 1) }, 400)
+            else send(JSONObject().put("state", "permission-needed"))
+        }
+        main.postDelayed({ attempt(6) }, 250)
     }
 }

@@ -107,6 +107,7 @@ export function SettingsScreen() {
     <section class="screen settings">
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
+        <UpdateCenter />
         <ProfilesSection />
         <div class="card settings-section" data-group="set-sources">
           <h3>Playlists &amp; guides</h3>
@@ -129,8 +130,6 @@ export function SettingsScreen() {
           <p class="hint">Everything else LTTV can change. Press Left, Right, Up, Down, Up again to hide this.</p>
           <div class="row gap"><Button small icon="close" onClick={() => setDev(false)}>Hide developer settings</Button></div>
         </div>
-
-        <UpdateCenter />
 
         <WatchmodeSettings />
 
