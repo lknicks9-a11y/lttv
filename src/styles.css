@@ -1798,3 +1798,17 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .lp-off-line { font-size: 1.35rem; color: rgba(255, 255, 255, 0.86); }
 .lp-off-count { margin-top: 0.4rem; padding: 0.45rem 1.2rem; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 1.25rem; }
 .lp-off-note { font-size: 1rem; color: rgba(255, 255, 255, 0.6); max-width: 34rem; }
+
+/* ---------- "Took a timeout": your pictures fading into each other, the words over them ---------- */
+.lp-timeout { position: absolute; inset: 0; overflow: hidden; background: #0b0b0d; color: #fff; }
+.lp-slide { position: absolute; inset: 0; background: center / cover no-repeat; }
+.lp-slide.in { animation: lp-fade 1.6s ease both; }
+:root.tv .lp-slide.in.in { animation: lp-fade 1.6s ease both !important; }
+@keyframes lp-fade { from { opacity: 0; } to { opacity: 1; } }
+.lp-timeout-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.15) 35%, rgba(0, 0, 0, 0.82) 100%); }
+.lp-timeout-text { position: absolute; inset: auto 0 0 0; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 2rem 2rem 2.4rem; text-align: center; }
+.lp-timeout-text .lp-off-kicker { position: static; color: #fff; font-size: 1.05rem; }
+.lp-timeout .lp-off-title { font-size: 3.2rem; text-shadow: 0 0.15rem 1.2rem rgba(0, 0, 0, 0.7); }
+.lp-timeout .lp-off-line { font-size: 1.6rem; font-weight: 600; color: #fff; text-shadow: 0 0.1rem 0.8rem rgba(0, 0, 0, 0.8); }
+.lp-timeout .lp-off-count { background: rgba(0, 0, 0, 0.55); }
+:root.tv .lp-timeout .lp-off-title, :root.tv .lp-timeout .lp-off-line { text-shadow: 0 0.12rem 0 rgba(0, 0, 0, 0.75); }

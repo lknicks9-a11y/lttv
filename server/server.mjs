@@ -22,7 +22,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { networkInterfaces } from 'node:os';
+import { homedir, networkInterfaces } from 'node:os';
 import { localBuild, selfUpdate } from './update.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -483,7 +483,38 @@ const REMOTE_COMMANDS = new Set(['key', 'text', 'state', 'search', 'sportsNow', 
 /** Commands that look up today's schedule get longer to answer. */
 const SLOW_COMMANDS = new Set(['games']);
 
-/** The phone-facing server: only the remote page and its commands. */
+
+// ---------------------------------------------------------------------------
+// "Timeout" pictures and music: the user's own files, shown by League Pass when no game is on. They live in a
+// folder on this computer (never in the app itself): "timeout" next to LTTV, or Documents/LTTV Timeout. The app on
+// this computer reads them from here; the Fire TV app reads the same folder over the home network.
+const TIMEOUT_DIRS = [join(root, 'timeout'), join(homedir(), 'Documents', 'LTTV Timeout')];
+const TIMEOUT_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.wav': 'audio/wav' };
+const extOf = (n) => n.slice(n.lastIndexOf('.')).toLowerCase();
+export function timeoutList(dirs = TIMEOUT_DIRS) {
+  for (const dir of dirs) {
+    try {
+      const names = readdirSync(dir).filter((n) => TIMEOUT_TYPES[extOf(n)]).sort();
+      if (names.length) return { dir, images: names.filter((n) => TIMEOUT_TYPES[extOf(n)].startsWith('image/')), audio: names.filter((n) => TIMEOUT_TYPES[extOf(n)].startsWith('audio/')) };
+    } catch {
+      /* no such folder */
+    }
+  }
+  return { dir: '', images: [], audio: [] };
+}
+/** One file of that folder, by its plain name only (no paths). */
+export function serveTimeout(res, name, dirs = TIMEOUT_DIRS) {
+  const list = timeoutList(dirs);
+  if (!list.dir || !(list.images.includes(name) || list.audio.includes(name))) {
+    res.writeHead(404);
+    return res.end();
+  }
+  const file = join(list.dir, name);
+  res.writeHead(200, { 'content-type': TIMEOUT_TYPES[extOf(name)], 'content-length': statSync(file).size, 'cache-control': 'max-age=3600', 'x-content-type-options': 'nosniff' });
+  createReadStream(file).pipe(res);
+}
+
+/** The phone-facing server: only the remote page, its commands and the timeout pictures and music. */
 export function createRemoteServer() {
   const page = join(here, 'remote.html');
   return http.createServer(async (req, res) => {
@@ -499,6 +530,11 @@ export function createRemoteServer() {
         });
         return createReadStream(page).pipe(res);
       }
+      if (req.method === 'GET' && u.pathname === '/timeout.json') {
+        const l = timeoutList();
+        return sendJson(res, 200, { images: l.images, audio: l.audio });
+      }
+      if (req.method === 'GET' && u.pathname.startsWith('/timeout/')) return serveTimeout(res, decodeURIComponent(u.pathname.slice('/timeout/'.length)));
       if (u.pathname === '/rapi/pair' && req.method === 'POST') {
         if (remote.pinFails >= 10) return sendJson(res, 429, { error: 'Too many wrong codes. Restart LTTV on the computer for a new code.' });
         const b = await readJson(req);
@@ -529,6 +565,11 @@ export function createServer() {
       if (u.pathname.startsWith('/api/')) {
         if (!sameOriginOnly(req)) return sendJson(res, 403, { error: 'Cross-site requests are not allowed.' });
         if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpegNow(), version: pkg.version, platform: `desktop (${process.platform})`, remote: REMOTE });
+        if (u.pathname === '/api/timeout') {
+          const l = timeoutList();
+          const ip = lanAddresses()[0];
+          return sendJson(res, 200, { images: l.images, audio: l.audio, lan: REMOTE && ip ? `http://${ip}:${REMOTE_PORT}` : '' });
+        }
         if (u.pathname.startsWith('/api/remote/')) return await handleRemotePage(req, res, u);
         if (u.pathname === '/api/fetch') return await handleFetch(req, res, u.searchParams);
         if (u.pathname === '/api/probe') return await handleProbe(res, u.searchParams);
@@ -539,6 +580,7 @@ export function createServer() {
         res.writeHead(405);
         return res.end();
       }
+      if (u.pathname.startsWith('/timeout/')) return serveTimeout(res, decodeURIComponent(u.pathname.slice('/timeout/'.length)));
       serveStatic(req, res, u.pathname);
     } catch (e) {
       if (!res.headersSent) sendJson(res, e.status || 500, { error: e.message || 'Server error' });

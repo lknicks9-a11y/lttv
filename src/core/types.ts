@@ -191,6 +191,8 @@ export interface Settings {
   /** Auto-approve fuzzy matches at or above this confidence. 0 = never (default). */
   fuzzyAutoApprove: number;
   accent: string;
+  /** Your computer's address on the home network, where the Fire TV finds your timeout pictures and music. */
+  timeoutMedia?: string;
   /** A built-in look, or an NBA city theme ('nba-bos'). */
   theme: 'glass' | 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast' | `nba-${string}`;
   /** The Frutiger Aero look was introduced (switched on once for existing setups). */
