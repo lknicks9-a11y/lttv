@@ -2026,3 +2026,18 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .vod .vod-hero-bg.is-poster, :root.tv .vod .vod-hero-bg.is-poster { inset: 0 0 0 auto; aspect-ratio: 5 / 4; background-position: center 12%; }
 .vod .vod-hero-shade { background: linear-gradient(90deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 32%, transparent 55%); }
 @media (max-width: 640px) { .vod .vod-hero-bg, .vod .vod-hero-bg.is-poster { inset: 0; width: 100%; aspect-ratio: auto; } }
+
+/* ---------- TV: lighter drawing (a Fire TV Stick redraws every effect on each move) ---------- */
+:root.tv .vod .vod-hero-bg, :root.tv .vod .vod-hero-bg.is-poster { -webkit-mask-image: none; mask-image: none; }
+:root.tv .vod .vod-hero-shade { background: linear-gradient(90deg, var(--bg) 0%, var(--bg) 30%, rgba(10, 13, 18, 0.55) 45%, transparent 62%), linear-gradient(0deg, var(--bg) 0%, transparent 30%); }
+:root.tv .vod .vod-hero-title { text-shadow: none; }
+:root.tv .vod-top-num { -webkit-text-stroke: 0; color: rgba(255, 255, 255, 0.1); }
+:root.tv .vod-gcard:focus .vod-poster, :root.tv .vod-gcard:hover .vod-poster, :root.tv[data-theme] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #f5f5f7; }
+:root.tv .vod-top-wide.is-poster::after { display: none; }
+:root.tv .vod-top-wide.is-poster span { text-shadow: 0 0.1rem 0.3rem #000; }
+:root.tv .vod-row, :root.tv .ch-grid, :root.tv .vod-grid-posters { contain: layout paint; }
+:root.tv .vod-strip { scroll-behavior: auto; }
+:root.tv .ch-tile-logo, :root.tv .guide-ch-tile { border: 0; }
+:root.tv .vod-poster img, :root.tv .ch-tile-logo img, :root.tv .guide-ch-tile img { image-rendering: auto; }
+:root.tv *, :root.tv *::before, :root.tv *::after { transition: none !important; animation-duration: 0s !important; }
+:root.tv .spinner { animation-duration: 0.8s !important; }

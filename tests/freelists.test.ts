@@ -21,3 +21,12 @@ test('TVmaze schedule: English shows with service, genres and popularity', () =>
   assert.ok(SHOW_SERVICES.find((s) => s.label === 'Apple TV+')!.re.test(shows[0].channel));
   assert.ok(SHOW_GENRES.find((g) => g.label === 'Reality')!.test(shows[1]));
 });
+
+import { sizedImage } from '../src/core/vod';
+test('pictures are asked for at the size they are shown', () => {
+  assert.equal(sizedImage('https://image.tmdb.org/t/p/original/abc.jpg', 'poster', true), 'https://image.tmdb.org/t/p/w342/abc.jpg');
+  assert.equal(sizedImage('https://image.tmdb.org/t/p/w600_and_h900_bestv2/abc.jpg', 'backdrop', false), 'https://image.tmdb.org/t/p/w1280/abc.jpg');
+  assert.equal(sizedImage('https://is1-ssl.mzstatic.com/image/thumb/Video/v4/x/600x900bb.jpg', 'poster', true), 'https://is1-ssl.mzstatic.com/image/thumb/Video/v4/x/300x450bb.jpg');
+  assert.equal(sizedImage('https://static.tvmaze.com/uploads/images/original_untouched/1/4600.jpg', 'poster', true), 'https://static.tvmaze.com/uploads/images/medium_portrait/1/4600.jpg');
+  assert.equal(sizedImage('http://provider.example/p.jpg', 'poster', true), 'http://provider.example/p.jpg');
+});

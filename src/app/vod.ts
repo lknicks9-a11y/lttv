@@ -507,12 +507,30 @@ export async function findSeriesByName(playlistId: string, name: string): Promis
  * The Movies / Shows home page: Trending now, Recently added, Top rated and English genre rows
  * (Action, Comedy, Netflix…) from the provider's English categories. Calls onUpdate as rows fill in.
  */
+/** Saved Movies / Shows pages: shown right away next time, and rebuilt quietly when older than 6 hours. */
+const SAVED_TTL = 6 * 3600_000;
+const savedKey = (kind: VodKind) => `vodHome2:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
+
 export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise<VodHome> {
   const hit = homeCache.get(kind);
   if (hit && !hit.loading) {
     onUpdate(hit);
     return hit;
   }
+  const saved = await repo.getKv<{ at: number; home: VodHome }>(savedKey(kind)).catch(() => undefined);
+  if (saved?.home?.rows?.length) {
+    const home = { ...saved.home, loading: false };
+    homeCache.set(kind, home);
+    onUpdate(home);
+    if (Date.now() - saved.at < SAVED_TTL) return home;
+    // Old: build a fresh one in the background and swap it in once it's complete (no half-built page).
+    void buildHome(kind, () => undefined).then((h) => h.rows.length && onUpdate(h)).catch(() => undefined);
+    return home;
+  }
+  return buildHome(kind, onUpdate);
+}
+
+async function buildHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise<VodHome> {
   const cats = await loadCategories(kind);
   const english = cats.filter((c) => isEnglishCategory(c.name));
   const otherLanguages = cats.filter((c) => !isEnglishCategory(c.name));
@@ -617,6 +635,7 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
   await Promise.all([worker(), worker(), worker()]);
   const done = build(false);
   homeCache.set(kind, done);
+  if (done.rows.length) void repo.setKv(savedKey(kind), { at: Date.now(), home: done }).catch(() => undefined);
   onUpdate(done);
   return done;
 }
@@ -667,6 +686,7 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
   if (!wm.length) throw new Error('no lists');
   const done = build(wm, false);
   homeCache.set(kind, done);
+  if (done.rows.length) void repo.setKv(savedKey(kind), { at: Date.now(), home: done }).catch(() => undefined);
   onUpdate(done);
   return done;
 }

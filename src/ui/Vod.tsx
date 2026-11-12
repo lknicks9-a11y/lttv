@@ -4,14 +4,14 @@ import { h, Fragment, type ComponentChildren } from 'preact';
 import { CastRow } from './VodPeople';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { player, setState, toast, useApp } from '../app/state';
-import { native } from '../app/platform';
+import { isTV, native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
   continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadCategories, loadHome, loadMovieDetails, loadSeriesDetails,
   moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching, movieResume, showEntries, providerPresent, findMovieByName,
   type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
-import { cleanTitle, formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
+import { sizedImage, cleanTitle, formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
 import { Button, Chip, Empty, Icon, Modal } from './common';
 import { VideoSlot } from './VideoSlot';
 import { clock } from './fmt';
@@ -24,13 +24,15 @@ import { usePlayerStatus, PlayerBadge } from './Home';
 const PAGE = 48;
 /** A title as shown: no "EN -" / "|NF|" prefixes or quality tags ("EN - The Batman 4K" -> "The Batman"). */
 const tt = (n: string) => cleanTitle(n) || n;
+/** Pictures at the size they're shown (smaller on a TV). */
+const pic = (u: string | undefined, use: 'poster' | 'backdrop' | 'still') => sizedImage(u, use, isTV);
 
 function Poster({ src, name }: { src?: string; name: string }) {
   const [bad, setBad] = useState(false);
   useEffect(() => setBad(false), [src]);
   return (
     <div class="vod-poster">
-      {src && !bad ? <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBad(true)} /> : <div class="vod-poster-fallback">{name.replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'}</div>}
+      {src && !bad ? <img src={pic(src, 'poster')} alt="" loading="lazy" decoding="async" onError={() => setBad(true)} /> : <div class="vod-poster-fallback">{name.replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'}</div>}
     </div>
   );
 }
@@ -237,7 +239,7 @@ function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) 
   const meta = [it.kind === 'movie' ? 'Movie' : 'Series', genre, year ?? art?.year, it.kind === 'movie' ? formatDuration(d?.durationSec) : '', rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return (
     <section class="vod-hero" ref={ref} data-group="vod-hero">
-      {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${backdrop ?? poster}")` }} />}
+      {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${pic(backdrop, 'backdrop') ?? pic(poster, 'poster')}")` }} />}
       {!backdrop && poster && <img class="vod-hero-poster" src={poster} alt="" />}
       <div class="vod-hero-shade" />
       <div class="vod-hero-text">
@@ -310,7 +312,7 @@ function TopCard({ it, rank, wide, autofocus, onFocus, onOpen }: { it: VodItem; 
       <span class="vod-top-num" aria-hidden="true">{rank}</span>
       <div class="vod-top-col">
         <button type="button" class="f vod-top-card" data-autofocus={autofocus ? '' : undefined} onFocus={onFocus} onClick={() => onOpen(it)} aria-label={`${rank}. ${name}`}>
-          {wide && backdrop ? <img class="vod-top-wide" src={backdrop} alt="" decoding="async" /> : wide ? <div class="vod-top-wide is-poster" style={poster ? { backgroundImage: `url("${poster}")` } : undefined}><span>{cleanTitle(name) || name}</span></div> : <ArtPoster kind={it.kind} name={name} year={year} src={it.kind === 'movie' ? it.m.poster : it.s.poster} />}
+          {wide && backdrop ? <img class="vod-top-wide" src={pic(backdrop, 'backdrop')} alt="" decoding="async" /> : wide ? <div class="vod-top-wide is-poster" style={poster ? { backgroundImage: `url("${pic(poster, 'poster')}")` } : undefined}><span>{cleanTitle(name) || name}</span></div> : <ArtPoster kind={it.kind} name={name} year={year} src={it.kind === 'movie' ? it.m.poster : it.s.poster} />}
         </button>
         {wide && (
           <div class="vod-top-text">
@@ -582,7 +584,7 @@ function MovieDetail({ playlistId, m, onClose, onOpen }: { playlistId: string; m
   const plot = goodText(d?.plot) ?? art?.plot;
   return (
     <Modal title={tt(m.name)} onClose={onClose} wide class="vod-detail">
-      {(d?.backdrop || art?.poster || m.poster) && <div class={`vod-detail-bg ${d?.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${d?.backdrop ?? art?.poster ?? m.poster}")` }} />}
+      {(d?.backdrop || art?.poster || m.poster) && <div class={`vod-detail-bg ${d?.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${pic(d?.backdrop, 'backdrop') ?? pic(art?.poster ?? m.poster, 'poster')}")` }} />}
       <div class="vod-detail-body">
         <Poster src={art?.poster ?? d?.poster ?? m.poster} name={m.name} />
         <div class="vod-detail-text">
@@ -620,7 +622,7 @@ function EpisodeImage({ srcs, fallback, num }: { srcs: string[]; fallback?: stri
     setI(0);
     setFbBad(false);
   }, [key, fallback]);
-  if (i < srcs.length) return <img class="vod-ep-img" src={srcs[i]} alt="" loading="lazy" onError={() => setI(i + 1)} />;
+  if (i < srcs.length) return <img class="vod-ep-img" src={pic(srcs[i], 'still')} alt="" loading="lazy" onError={() => setI(i + 1)} />;
   if (fallback && !fbBad) return <span class="vod-ep-img vod-ep-fallback"><img src={fallback} alt="" loading="lazy" onError={() => setFbBad(true)} /><b>{num}</b></span>;
   return <span class="vod-ep-num">{num}</span>;
 }
@@ -739,7 +741,7 @@ function SeriesDetail({ playlistId, s, onClose, onOpen }: { playlistId: string; 
 
   return (
     <Modal title={tt(s.name)} onClose={onClose} wide class="vod-detail">
-      {(s.backdrop || art?.poster || s.poster) && <div class={`vod-detail-bg ${s.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${s.backdrop ?? art?.poster ?? s.poster}")` }} />}
+      {(s.backdrop || art?.poster || s.poster) && <div class={`vod-detail-bg ${s.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${pic(s.backdrop, 'backdrop') ?? pic(art?.poster ?? s.poster, 'poster')}")` }} />}
       <div class="vod-detail-body">
         <Poster src={art?.poster ?? d.poster ?? s.poster} name={s.name} />
         <div class="vod-detail-text">

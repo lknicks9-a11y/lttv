@@ -486,3 +486,20 @@ export function parseTvmazeSchedule(json: unknown): string[] {
   }
   return out;
 }
+
+// ---------------- Picture sizes ----------------
+
+/**
+ * Ask the picture's host for a size that fits where it's shown (a 2000 px TMDB original for a 10 rem poster
+ * makes a Fire TV Stick crawl). TMDB, Apple and TVmaze addresses are rewritten; others are left as they are.
+ */
+export function sizedImage(src: string | undefined, use: 'poster' | 'backdrop' | 'still', tv: boolean): string | undefined {
+  if (!src) return src;
+  const tmdb = /^(https?:\/\/image\.tmdb\.org\/t\/p\/)[^/]+(\/.+)$/i.exec(src);
+  if (tmdb) return tmdb[1] + (use === 'poster' ? (tv ? 'w342' : 'w500') : use === 'still' ? 'w300' : tv ? 'w780' : 'w1280') + tmdb[2];
+  const apple = /^(https?:\/\/[^/]*mzstatic\.com\/.+\/)\d+x\d+(bb)?\.(jpg|png|webp)$/i.exec(src);
+  if (apple) return apple[1] + (use === 'poster' ? (tv ? '300x450bb.jpg' : '500x750bb.jpg') : tv ? '780x1170bb.jpg' : '1000x1500bb.jpg');
+  const maze = /^(https?:\/\/static\.tvmaze\.com\/uploads\/images\/)(original_untouched|medium_portrait|medium_landscape|large_landscape)(\/.+)$/i.exec(src);
+  if (maze && tv) return maze[1] + (use === 'poster' ? 'medium_portrait' : use === 'still' ? 'medium_landscape' : 'large_landscape') + maze[3];
+  return src;
+}
