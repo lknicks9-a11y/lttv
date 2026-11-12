@@ -49,11 +49,14 @@ export function scheduleLeague(id: string): ScheduleLeague | undefined {
 
 export const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
-/** Scoreboard URL for a league and a day ("20261015"). */
+/** Scoreboard URL for a league and a day ("20261015"), or "week" for the current week. */
 export function scoreboardUrl(league: ScheduleLeague, day: string, base = ESPN_BASE, group?: string): string {
   // A conference replaces the league's "everything" group; '' drops it (ESPN then sends its Top 25 slate).
   const query = group === undefined ? league.query : (league.query ?? '').replace(/groups=\d+&?/, group ? `groups=${group}&` : '');
-  return `${base}/${league.path}/scoreboard?dates=${day}${query ? '&' + query : ''}`;
+  // 'week': the league's current week (the NFL's scoreboard doesn't take a range of dates).
+  const dates = day === 'week' ? '' : `dates=${day}`;
+  const q = [dates, query].filter(Boolean).join('&');
+  return `${base}/${league.path}/scoreboard${q ? '?' + q : ''}`;
 }
 
 export interface GameTeam {

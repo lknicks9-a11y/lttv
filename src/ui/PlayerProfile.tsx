@@ -5,12 +5,14 @@ import { openRemote } from '../app/platform';
 import { ATHLETE_BASE, athleteUrls, parseBio, parseGamelog, parseOverview, parseSeasons, type PlayerBio, type PlayerOverview } from '../core/playerprofile';
 import { Modal } from './common';
 
-const base = () => {
+const base = (league: 'nba' | 'nfl' = 'nba') => {
+  let b = ATHLETE_BASE;
   try {
-    return localStorage.getItem('lttvAthleteBase') || ATHLETE_BASE;
+    b = localStorage.getItem('lttvAthleteBase') || ATHLETE_BASE;
   } catch {
-    return ATHLETE_BASE;
+    /* default */
   }
+  return league === 'nfl' ? b.replace('basketball/nba', 'football/nfl') : b;
 };
 async function getJson(url: string): Promise<unknown> {
   const { stream } = await openRemote(url, AbortSignal.timeout?.(15_000));
@@ -62,8 +64,8 @@ function Table({ head, rows, lead }: { head: string[]; rows: { key: string; cell
   );
 }
 
-export function PlayerProfile({ id, name, headshot, onClose }: { id: string; name: string; headshot?: string; onClose: () => void }) {
-  const u = athleteUrls(id, base());
+export function PlayerProfile({ id, name, headshot, onClose, league = 'nba' }: { id: string; name: string; headshot?: string; onClose: () => void; league?: 'nba' | 'nfl' }) {
+  const u = athleteUrls(id, base(league));
   const bio = useJson<PlayerBio | null>(u.bio, parseBio);
   const ov = useJson(u.overview, parseOverview);
   const [tab, setTab] = useState<'overview' | 'games' | 'seasons'>('overview');
@@ -73,7 +75,7 @@ export function PlayerProfile({ id, name, headshot, onClose }: { id: string; nam
   const day = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const face = bio?.headshot ?? headshot;
   return (
-    <Modal onClose={onClose} wide class="pp lp-modal" title={bio?.name ?? name}>
+    <Modal onClose={onClose} wide class={`pp lp-modal ${league}`} title={bio?.name ?? name}>
       <div class="pp-head">
         {face ? <img class="pp-face" src={face} alt="" /> : <span class="pp-face" />}
         <div class="pp-id">

@@ -99,7 +99,7 @@ export function logoFor(name: string): string | undefined {
 }
 
 function ttl(games: Game[], day: string, today: string): number {
-  if (day !== today && !day.startsWith(today + '-')) return 30 * 60_000; // a range starting today (Blitz) is live too
+  if (day !== today && day !== 'week' && !day.startsWith(today + '-')) return 30 * 60_000; // this week's games (Blitz) are live too
   return games.some((g) => g.state === 'in') ? 45_000 : 5 * 60_000;
 }
 
@@ -149,7 +149,7 @@ export function useGames(leagueId: ScheduleLeagueId, day: string, today: string,
   }, [leagueId, day, tick, group]);
   // Keep scores fresh while games are live today.
   useEffect(() => {
-    if (day !== today && !day.startsWith(today + '-')) return;
+    if (day !== today && day !== 'week' && !day.startsWith(today + '-')) return;
     const live = state.games.some((g) => g.state === 'in');
     const t = setInterval(() => setTick((x) => x + 1), live ? 60_000 : 5 * 60_000);
     return () => clearInterval(t);

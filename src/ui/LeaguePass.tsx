@@ -116,6 +116,7 @@ function gameLine(g: Game, now: number) {
 /** Blitz: each team's passing, rushing and receiving lines. Rows take the remote so the list scrolls. */
 function NflBox({ game, box }: { game: Game; box: StatTeam[] | null }) {
   const [side, setSide] = useState(0);
+  const [who, setWho] = useState<{ id: string; name: string; headshot?: string } | null>(null);
   if (game.state === 'pre') return <div class="lp-box"><p class="muted">Stats start at kickoff ({new Date(game.start).toLocaleDateString(undefined, { weekday: 'short' })} {clock(game.start)}).</p></div>;
   if (!box) return <div class="lp-box"><p class="muted">Loading the stats…</p></div>;
   const team = box[side] ?? box[0];
@@ -129,7 +130,7 @@ function NflBox({ game, box }: { game: Game; box: StatTeam[] | null }) {
           <Fragment key={g.title}>
             <div class="lp-box-head lp-nfl" style={{ '--n': g.head.length }}><span>{g.title.toUpperCase()}</span>{g.head.map((x) => <span key={x}>{x}</span>)}</div>
             {g.rows.map((r, i) => (
-              <button type="button" class="f lp-row lp-nfl" key={r.name + i} style={{ '--n': g.head.length }}>
+              <button type="button" class="f lp-row lp-nfl" key={r.name + i} style={{ '--n': g.head.length }} disabled={!r.id} onClick={() => r.id && setWho({ id: r.id, name: r.name, headshot: r.headshot })} aria-label={`${r.name}: stats and recent games`}>
                 <span class="lp-num">{r.jersey}</span>
                 {r.headshot ? <img class="lp-face" src={r.headshot} alt="" loading="lazy" /> : <span class="lp-face" />}
                 <span class="lp-name">{r.name}</span>
@@ -140,6 +141,7 @@ function NflBox({ game, box }: { game: Game; box: StatTeam[] | null }) {
         ))}
         {!team?.groups.length && <p class="muted">No stats yet.</p>}
       </div>
+      {who && <PlayerProfile league="nfl" id={who.id} name={who.name} headshot={who.headshot} onClose={() => setWho(null)} />}
     </div>
   );
 }
@@ -249,7 +251,7 @@ export function LeaguePass() {
   // The day's games stay up until 7:00 the next morning: late games run past midnight.
   const today = scheduleDay(now - 7 * 3600_000, tz);
   // The NFL's games come by the week (Thursday to Monday), so Blitz lists the next days too.
-  const day = cfg.days > 1 ? `${today}-${scheduleDay(now - 7 * 3600_000 + cfg.days * 86400_000, tz)}` : today;
+  const day = cfg.league === 'nfl' ? 'week' : today;
   const { games: raw, loading } = useGames(cfg.league as ScheduleLeagueId, day, today);
   const extras = useMemo(() => cfg.extras.flatMap((x) => extraChannels(lineup, x.re).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: ch.name }))), [lineup, cfg]);
   const games = useMemo(() => {
@@ -287,10 +289,14 @@ export function LeaguePass() {
       // Blitz: the game's networks by name (CBS, FOX, ESPN…), the teams' local stations and the game channels.
       if (cfg.league === 'nfl') {
         const net = (name: string) => g.broadcasts.find((b) => b.kind !== 'streaming' && new RegExp(`(^|[^a-z0-9])${b.name.replace(/[^a-z0-9]+/gi, '\\W*')}([^a-z0-9]|$)`, 'i').test(name))?.name;
-        for (const p of picks.filter((x) => !extras.some((e) => e.key === x.ch.key)).slice(0, 6)) {
-          const n = net(p.ch.name);
-          const label = p.kind === 'event' ? 'Game channel' : p.kind === 'local' && p.side ? `${abbr(p.side)} local${n ? ` · ${n}` : ''}` : n ?? (p.kind === 'national' ? 'National' : 'Other');
-          list.push({ key: p.ch.key, label, sub: p.ch.name });
+        // Like League Pass: each team's own channel first (away, home), then the networks, the locals and game channels.
+        const isTeam = (x: typeof picks[number]) => /team channel/.test(x.reason ?? '') && !!x.side;
+        const rest = picks.filter((x) => !extras.some((e) => e.key === x.ch.key));
+        const ordered = [...rest.filter((x) => isTeam(x) && x.side === 'away'), ...rest.filter((x) => isTeam(x) && x.side === 'home'), ...rest.filter((x) => !isTeam(x))];
+        for (const p of ordered.slice(0, 8)) {
+          const n = p.broadcast ?? net(p.ch.name);
+          const label = isTeam(p) ? `${abbr(p.side)} broadcast` : p.kind === 'event' ? 'Game channel' : p.kind === 'local' && p.side ? `${abbr(p.side)} local${n ? ` · ${n}` : ''}` : n ?? (p.kind === 'national' ? 'National' : 'Other');
+          list.push({ key: p.ch.key, label, sub: p.ch.name, team: isTeam(p) ? p.side : undefined });
         }
         m.set(g.id, list);
         continue;
