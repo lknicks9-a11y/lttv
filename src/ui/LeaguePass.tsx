@@ -1,4 +1,5 @@
-// LTTV League Pass: tonight's NBA games in one place. Opened from anywhere with Up, Up, Left, Right.
+// LTTV League Pass (NBA) and LTTV Blitz (NFL): the league's games in one place. Opened from Sports, or from anywhere
+// with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -8,7 +9,9 @@ import { openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
 import { bestStreams, buildGameIndexAsync, type GameIndexEntry } from '../core/streamfinder';
-import { parseBoxScore, summaryUrl, type BoxTeam } from '../core/boxscore';
+import { parseBoxScore, parseNflBox, summaryUrl, type BoxTeam, type StatTeam } from '../core/boxscore';
+import type { LineupChannel } from '../core/types';
+import type { ScheduleLeagueId } from '../core/schedule';
 import { MULTI, closeMultiview, openMultiview, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
 import { Button, Icon, Modal } from './common';
 import { TeamLogo } from './Games';
@@ -18,17 +21,42 @@ import { clock } from './fmt';
 
 const MAX_PICKS = MULTI ? 4 : 2;
 
+/** League Pass (NBA) and Blitz (NFL) are the same place with different leagues. */
+interface PassCfg {
+  league: 'nba' | 'nfl';
+  sport: 'basketball' | 'football';
+  path: string;
+  name: string;
+  accent: string;
+  /** Days of games shown from today (the NFL plays Thursday to Monday). */
+  days: number;
+  /** Channels that are always worth having at hand, whatever the game. */
+  extras: { label: string; re: RegExp }[];
+}
+const PASSES: Record<'nba' | 'nfl', PassCfg> = {
+  nba: { league: 'nba', sport: 'basketball', path: 'basketball/nba', name: 'League Pass', accent: '#ffa04d', days: 1, extras: [] },
+  nfl: { league: 'nfl', sport: 'football', path: 'football/nfl', name: 'Blitz', accent: '#3ddc84', days: 6, extras: [{ label: 'NFL RedZone', re: /\bred\s?zone\b/i }, { label: 'NFL Network', re: /\bnfl\s?(network|net|nw)\b/i }] },
+};
+/** The playlist's best channel(s) for an always-on network: English / US and HD first. */
+function extraChannels(lineup: LineupChannel[], re: RegExp): LineupChannel[] {
+  const score = (c: LineupChannel) => {
+    const t = `${c.group ?? ''} ${c.name}`;
+    return (/\b(US|USA|EN)\b/i.test(t) ? 4 : 0) + (/\b(F?HD|RAW)\b|ᴴᴰ|ᴿᴬᵂ/i.test(t) ? 2 : 0) - (/\b(4K|UHD|SD|ES|LAT|FR|DE|IT|PT|AR|MX|ESPA\w*)\b/i.test(t) ? 3 : 0);
+  };
+  return lineup.filter((c) => !c.hidden && re.test(c.name)).sort((a, b) => score(b) - score(a) || a.number - b.number).slice(0, 2);
+}
+
 /** Box score for a game, refreshed every 30 seconds while it's live. */
-function useBox(game: Game | undefined): BoxTeam[] | null {
-  const [box, setBox] = useState<BoxTeam[] | null>(null);
+function useBox<T>(game: Game | undefined, path: string, parse: (j: unknown) => T): T | null {
+  const [box, setBox] = useState<T | null>(null);
   useEffect(() => {
     setBox(null);
     if (!game || game.state === 'pre') return;
     let alive = true;
     const load = async () => {
       try {
-        const { stream } = await openRemote(summaryUrl(scheduleBase(), game.id), AbortSignal.timeout?.(15_000));
-        const teams = parseBoxScore(JSON.parse(await new Response(stream).text()));
+        const { stream } = await openRemote(summaryUrl(scheduleBase(), game.id, path), AbortSignal.timeout?.(15_000));
+        const teams = parse(JSON.parse(await new Response(stream).text()));
         if (alive) setBox(teams);
       } catch {
         /* keep what's shown */
@@ -79,11 +107,59 @@ function BoxScore({ game, box }: { game: Game; box: BoxTeam[] | null }) {
 function gameLine(g: Game, now: number) {
   if (g.state === 'in') return g.detail || 'Live';
   if (g.state === 'post') return 'Final';
-  return g.start < now ? 'Starting' : clock(g.start);
+  if (g.start < now) return 'Starting';
+  // Another day (Blitz lists the week): say which.
+  return new Date(g.start).toDateString() === new Date(now).toDateString() ? clock(g.start) : `${new Date(g.start).toLocaleDateString(undefined, { weekday: 'short' })} ${clock(g.start)}`;
 }
 
-/** The League Pass mark: a ball whose seams frame a play button. LTTV's own artwork. */
-export function LpLogo({ size = '2.2rem' }: { size?: string }) {
+/** Blitz: each team's passing, rushing and receiving lines. Rows take the remote so the list scrolls. */
+function NflBox({ game, box }: { game: Game; box: StatTeam[] | null }) {
+  const [side, setSide] = useState(0);
+  if (game.state === 'pre') return <div class="lp-box"><p class="muted">Stats start at kickoff ({new Date(game.start).toLocaleDateString(undefined, { weekday: 'short' })} {clock(game.start)}).</p></div>;
+  if (!box) return <div class="lp-box"><p class="muted">Loading the stats…</p></div>;
+  const team = box[side] ?? box[0];
+  return (
+    <div class="lp-box" data-group="lp-box">
+      <div class="lp-box-tabs">
+        {box.map((t, i) => <button type="button" class={`f lp-tab ${i === side ? 'on' : ''}`} key={t.abbr} onClick={() => setSide(i)}>{t.name}</button>)}
+      </div>
+      <div class="lp-box-rows">
+        {team?.groups.map((g) => (
+          <Fragment key={g.title}>
+            <div class="lp-box-head lp-nfl" style={{ '--n': g.head.length }}><span>{g.title.toUpperCase()}</span>{g.head.map((x) => <span key={x}>{x}</span>)}</div>
+            {g.rows.map((r, i) => (
+              <button type="button" class="f lp-row lp-nfl" key={r.name + i} style={{ '--n': g.head.length }}>
+                <span class="lp-num">{r.jersey}</span>
+                {r.headshot ? <img class="lp-face" src={r.headshot} alt="" loading="lazy" /> : <span class="lp-face" />}
+                <span class="lp-name">{r.name}</span>
+                {r.cells.map((c, k) => <span key={k}>{c}</span>)}
+              </button>
+            ))}
+          </Fragment>
+        ))}
+        {!team?.groups.length && <p class="muted">No stats yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+/** The marks: League Pass is a ball whose seams frame a play button; Blitz is a bolt on a field. LTTV's own artwork. */
+export function LpLogo({ size = '2.2rem', kind = 'nba' }: { size?: string; kind?: 'nba' | 'nfl' }) {
+  if (kind === 'nfl') {
+    return (
+      <svg class="lp-logo" viewBox="0 0 48 48" style={{ width: size, height: size }} aria-hidden="true">
+        <defs>
+          <linearGradient id="lp-field" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#4fe39a" />
+            <stop offset="1" stop-color="#0f8a4d" />
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#lp-field)" />
+        <g stroke="#063d22" stroke-width="1.6" opacity="0.5"><path d="M2 16h44M2 32h44" /></g>
+        <path d="M27.500 6 13 27h9.500l-3 15L35 20h-9.500z" fill="#fff" />
+      </svg>
+    );
+  }
   return (
     <svg class="lp-logo" viewBox="0 0 48 48" style={{ width: size, height: size }} aria-hidden="true">
       <defs>
@@ -151,8 +227,12 @@ export function LeaguePass() {
   const guide = useApp((s) => s.guide);
   const guideVersion = useApp((s) => s.guideVersion);
   const playing = useApp((s) => s.currentKey);
+  const cfg = PASSES[useApp((s) => s.passLeague) ?? 'nba'];
   const today = scheduleDay(now, tz);
-  const { games: raw, loading } = useGames('nba', today, today);
+  // The NFL's games come by the week (Thursday to Monday), so Blitz lists the next days too.
+  const day = cfg.days > 1 ? `${today}-${scheduleDay(now + cfg.days * 86400_000, tz)}` : today;
+  const { games: raw, loading } = useGames(cfg.league as ScheduleLeagueId, day, today);
+  const extras = useMemo(() => cfg.extras.flatMap((x) => extraChannels(lineup, x.re).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: ch.name }))), [lineup, cfg]);
   const games = useMemo(() => {
     const rank = (g: Game) => (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
     return [...raw].sort((a, b) => rank(a) - rank(b) || a.start - b.start);
@@ -171,7 +251,7 @@ export function LeaguePass() {
     const m = new Map<string, Feed[]>();
     if (!index) return m;
     for (const g of games) {
-      const picks = bestStreams(g, lineup, 'basketball', index);
+      const picks = bestStreams(g, lineup, cfg.sport, index);
       const list: Feed[] = [];
       const abbr = (side?: 'home' | 'away') => (side === 'away' ? g.away : g.home).abbr;
       // 1. Each team's own channel from the playlist (the one named after the team), away then home.
@@ -181,11 +261,11 @@ export function LeaguePass() {
       // 2. The local stations picked for the teams, when the game is on them tonight.
       for (const p of picks.filter((x) => x.main && !x.team)) list.push({ key: p.ch.key, label: `${abbr(p.side)} local`, sub: p.ch.name });
       // 3. A few other good streams, just in case.
-      for (const p of picks.filter((x) => !x.main).slice(0, 3)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : 'Other', sub: p.ch.name });
+      for (const p of picks.filter((x) => !x.main && !extras.some((e) => e.key === x.ch.key)).slice(0, cfg.league === 'nba' ? 3 : 5)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : p.kind === 'event' ? 'Game channel' : p.kind === 'local' ? 'Local' : 'Other', sub: p.ch.name });
       m.set(g.id, list);
     }
     return m;
-  }, [games, index, lineup]);
+  }, [games, index, lineup, extras]);
   const feedsOf = (g: Game | undefined) => (g ? feeds.get(g.id) ?? [] : []);
 
   const [selected, setSelected] = useState<string | undefined>();
@@ -202,8 +282,11 @@ export function LeaguePass() {
   const [bar, setBar] = useState(true);
   const game = games.find((g) => g.id === selected) ?? games.find((g) => feedsOf(g).some((f) => f.key === playing)) ?? games[0];
   const gameFeeds = feedsOf(game);
-  const onThisGame = gameFeeds.some((f) => f.key === playing);
-  const box = useBox(game);
+  const extraOn = extras.find((f) => f.key === playing);
+  // "On" covers the always-on networks too (RedZone has no game of its own).
+  const onThisGame = gameFeeds.some((f) => f.key === playing) || !!extraOn;
+  const nbaBox = useBox(cfg.league === 'nba' ? game : undefined, cfg.path, parseBoxScore);
+  const nflBox = useBox(cfg.league === 'nfl' ? game : undefined, cfg.path, parseNflBox);
   const ref = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -229,15 +312,36 @@ export function LeaguePass() {
       if (strip && !strip.contains(document.activeElement)) (strip.querySelector<HTMLElement>('.lp-card.current') ?? strip.querySelector<HTMLElement>('.lp-card'))?.focus();
     });
   }, [hasGames]);
+  // Up from the broadcasts (the row under the picture) is "just show me the game": full screen, controls hidden.
+  const quietEntry = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || full || mv) return;
+    const up = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowUp' || !getState().currentKey) return;
+      const a = document.activeElement as HTMLElement | null;
+      // From the broadcasts; or from the games when there are no broadcast buttons to pass through.
+      if (!a?.closest('.lp-feeds') && !(a?.classList.contains('lp-card') && !el.querySelector('.lp-feeds'))) return;
+      e.preventDefault();
+      e.stopPropagation();
+      quietEntry.current = true;
+      setFull(true);
+    };
+    el.addEventListener('keydown', up, true);
+    return () => el.removeEventListener('keydown', up, true);
+  }, [full, !!mv]);
   // Full screen: the video fills the screen; focus moves to (or back from) the broadcast controls.
   useLayoutEffect(() => {
     player.updateRect();
-    setBar(true);
+    setBar(!(full && quietEntry.current));
     requestAnimationFrame(() => focusFirst(ref.current?.querySelector<HTMLElement>(full ? '.lp-bc-feeds' : '.lp-strip') ?? ref.current));
   }, [full]);
   // The broadcast controls get out of the way after a few seconds; any key or mouse move brings them back.
   useEffect(() => {
-    if (!full) return;
+    if (!full) {
+      quietEntry.current = false;
+      return;
+    }
     let t = window.setTimeout(() => setBar(false), 6000);
     const wake = (e: Event) => {
       setBar((on) => {
@@ -288,13 +392,13 @@ export function LeaguePass() {
   /** The game and broadcast a Multiview tile is showing. */
   const tileGame = (t: MvTile | null | undefined) => (t ? games.find((g) => feedsOf(g).some((f) => f.key === t.key)) : undefined);
   const tileFeed = (t: MvTile | null | undefined) => feedsOf(tileGame(t)).find((f) => f.key === t?.key);
-  const feedButtons = (cls: string) => gameFeeds.map((f) => (
-    <button type="button" class={`f ${cls} ${f.key === playing ? 'on' : ''}`} key={f.key} onClick={() => game && watch(game, f.key)} title={f.sub}>
+  const feedButtons = (cls: string) => [...extras.map((f) => ({ f, extra: true })), ...gameFeeds.map((f) => ({ f, extra: false }))].map(({ f, extra }) => (
+    <button type="button" class={`f ${cls} ${extra ? 'extra' : ''} ${f.key === playing ? 'on' : ''}`} key={f.key} onClick={() => (extra ? f.key !== playing && void tune(f.key, { fullscreen: false }) : game && watch(game, f.key))} title={f.sub}>
       <b>{f.label}</b>
       <small>{f.sub}</small>
     </button>
   ));
-  const scoreBug = game && (
+  const scoreBug = extraOn ? <div class="lp-score"><b>{extraOn.label}</b></div> : game && (
     <div class="lp-score">
       <TeamLogo team={game.away} size="sm" /><b>{game.away.abbr}</b>{!hideScore && <span class="lp-pts">{game.away.score ?? ''}</span>}
       <span class="lp-clock">{hideScore ? (game.state === 'pre' ? clock(game.start) : game.state === 'in' ? 'Live' : 'Final') : gameLine(game, now)}</span>
@@ -305,6 +409,7 @@ export function LeaguePass() {
   if (mv) {
     const sheetTile = sheet ? mv.tiles[sheet.i] : null;
     const sheetGame = tileGame(sheetTile);
+    const usedKeys = new Set(mv.tiles.filter((t, i) => t && i !== sheet?.i).map((t) => t!.key));
     const inOther = (g: Game) => mv.tiles.some((t, i) => i !== sheet?.i && tileGame(t)?.id === g.id);
     const choose = (g: Game, f: Feed) => {
       if (sheet) setTile(sheet.i, tileOf(g, f));
@@ -312,7 +417,7 @@ export function LeaguePass() {
     };
     const active = mv.tiles[mv.active];
     return (
-      <section class={`league-pass lpm lpm-${mv.layout}`} data-scope ref={ref} aria-label="LTTV League Pass Multiview">
+      <section class={`league-pass lpm lpm-${mv.layout}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name} Multiview`} style={{ '--lp-accent': cfg.accent }}>
         <div class="lp-bg" />
         <div class="lpm-grid" data-group="lpm-grid">
           {Array.from({ length: mv.layout }, (_, i) => (
@@ -320,14 +425,17 @@ export function LeaguePass() {
           ))}
         </div>
         <footer class="lpm-bar">
-          <span class="lpm-brand"><LpLogo size="1.8rem" /> League Pass</span>
+          <span class="lpm-brand"><LpLogo size="1.8rem" kind={cfg.league} /> {cfg.name}</span>
           <span class="lpm-now">{active ? <span><Icon name="volume" size="1.1em" /> {active.title}</span> : 'Pick a game'}</span>
-          <span class="lpm-hint">OK: broadcast and options · Back: League Pass</span>
+          <span class="lpm-hint">OK: broadcast and options · Back: {cfg.name}</span>
         </footer>
         {sheet && (
-          <Modal title={sheet.games || !sheetGame ? 'Tonight’s games' : `${sheetGame.away.name} at ${sheetGame.home.name}`} onClose={() => setSheet(null)} class="lpm-sheet">
-            {sheet.games || !sheetGame ? (
+          <Modal title={sheet.games || !sheetTile ? 'Games' : sheetGame ? `${sheetGame.away.name} at ${sheetGame.home.name}` : sheetTile.title} onClose={() => setSheet(null)} class="lpm-sheet">
+            {sheet.games || !sheetTile ? (
               <div class="lpm-games">
+                {extras.filter((f) => !usedKeys.has(f.key)).map((f) => (
+                  <button type="button" class="f lpm-game" key={f.key} onClick={() => { setTile(sheet.i, { key: f.key, title: f.label, sub: f.sub }); setSheet(null); }}><b>{f.label}</b></button>
+                ))}
                 {games.filter((g) => feedsOf(g).length > 0 && !inOther(g)).map((g) => (
                   <button type="button" class="f lpm-game" key={g.id} onClick={() => choose(g, feedsOf(g)[0])}>
                     <TeamLogo team={g.away} size="sm" /><b>{g.away.abbr}</b><span>{g.away.score ?? ''}</span>
@@ -335,24 +443,26 @@ export function LeaguePass() {
                     <span>{g.home.score ?? ''}</span><b>{g.home.abbr}</b><TeamLogo team={g.home} size="sm" />
                   </button>
                 ))}
-                {!games.some((g) => feedsOf(g).length > 0 && !inOther(g)) && <p class="muted">No other NBA game with a stream right now.</p>}
+                {!games.some((g) => feedsOf(g).length > 0 && !inOther(g)) && !extras.some((f) => !usedKeys.has(f.key)) && <p class="muted">No other game with a stream right now.</p>}
               </div>
             ) : (
               <div class="lpm-opts">
-                <div class="lpm-sub">Broadcast</div>
-                <div class="lp-feeds">
-                  {feedsOf(sheetGame).map((f) => (
-                    <button type="button" class={`f lp-feed ${f.key === sheetTile?.key ? 'on' : ''}`} key={f.key} onClick={() => choose(sheetGame, f)}>
-                      <b>{f.label}</b>
-                      <small>{f.sub}</small>
-                    </button>
-                  ))}
-                </div>
+                {sheetGame && <div class="lpm-sub">Broadcast</div>}
+                {sheetGame && (
+                  <div class="lp-feeds">
+                    {feedsOf(sheetGame).map((f) => (
+                      <button type="button" class={`f lp-feed ${f.key === sheetTile?.key ? 'on' : ''}`} key={f.key} onClick={() => choose(sheetGame, f)}>
+                        <b>{f.label}</b>
+                        <small>{f.sub}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div class="lpm-actions">
-                  <Button icon="fullscreen" onClick={() => {
-                    const k = sheetTile!.key;
+                  <Button icon="fullscreen" data-autofocus={sheetGame ? undefined : ''} onClick={() => {
+                    const k = sheetTile.key;
                     closeMultiview(-1);
-                    setSelected(sheetGame.id);
+                    if (sheetGame) setSelected(sheetGame.id);
                     void tune(k, { fullscreen: false });
                     setFull(true);
                   }}>Full screen</Button>
@@ -368,10 +478,10 @@ export function LeaguePass() {
   }
 
   return (
-    <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''}`} data-scope ref={ref} aria-label="LTTV League Pass">
+    <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name}`} style={{ '--lp-accent': cfg.accent }}>
       <div class="lp-bg" />
       <header class="lp-top">
-        <h1><LpLogo /> <span class="lp-mark">LTTV</span> League Pass</h1>
+        <h1><LpLogo kind={cfg.league} /> <span class="lp-mark">LTTV</span> {cfg.name}</h1>
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span class="lp-spacer" />
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
@@ -383,11 +493,11 @@ export function LeaguePass() {
       <div class="lp-main">
         <div class="lp-stage">
           <VideoSlot priority={150} class="lp-video">
-            {!onThisGame && !full && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a broadcast below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading tonight’s games…' : 'No NBA games today'}</div>}
+            {!onThisGame && !full && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
             {full && (
               <div class="lp-bc" data-group="lp-bc">
                 <div class="lp-bc-top">
-                  <button type="button" class="f lp-bc-btn" onClick={() => setFull(false)}><Icon name="chevronLeft" size="1.2em" /> <LpLogo size="1.5rem" /> League Pass</button>
+                  <button type="button" class="f lp-bc-btn" onClick={() => setFull(false)}><Icon name="chevronLeft" size="1.2em" /> <LpLogo size="1.5rem" kind={cfg.league} /> {cfg.name}</button>
                   {scoreBug}
                   <span class="lp-bc-live">{game?.state === 'in' ? 'LIVE' : ''}</span>
                 </div>
@@ -402,9 +512,9 @@ export function LeaguePass() {
             )}
           </VideoSlot>
           {scoreBug}
-          {gameFeeds.length > 0 && <div class="lp-feeds" data-group="lp-feeds">{feedButtons('lp-feed')}</div>}
+          {gameFeeds.length + extras.length > 0 && <div class="lp-feeds" data-group="lp-feeds">{feedButtons('lp-feed')}</div>}
         </div>
-        {game && (!full || boxOpen) && (hideScore ? (full ? null : <div class="lp-box"><p class="muted">Score and box score are hidden for this game. Choose “Show score” to see them.</p></div>) : <BoxScore game={game} box={box} />)}
+        {game && (!full || boxOpen) && (hideScore ? (full ? null : <div class="lp-box"><p class="muted">Score and box score are hidden for this game. Choose “Show score” to see them.</p></div>) : cfg.league === 'nfl' ? <NflBox game={game} box={nflBox} /> : <BoxScore game={game} box={nbaBox} />)}
       </div>
 
       <div class="lp-strip" data-group="lp-strip">
@@ -440,20 +550,27 @@ export function LeaguePass() {
   );
 }
 
-// ---------------- Up, Up, Left, Right opens it ----------------
-const SEQ = ['ArrowUp', 'ArrowUp', 'ArrowLeft', 'ArrowRight'];
+// ---------------- Up, Up, Left, Right opens League Pass; Up ×5, Down ×2, Right opens Blitz ----------------
+export function openPass(league: 'nba' | 'nfl') {
+  if (getState().multiview) closeMultiview(-1);
+  setState({ leaguePass: true, passLeague: league, fullscreen: false });
+}
+const U = 'ArrowUp';
+const SEQS: ['nba' | 'nfl', string[]][] = [['nba', [U, U, 'ArrowLeft', 'ArrowRight']], ['nfl', [U, U, U, U, U, 'ArrowDown', 'ArrowDown', 'ArrowRight']]];
 let recent: { key: string; at: number }[] = [];
 export function watchLeaguePassKeys(): () => void {
   const on = (e: KeyboardEvent) => {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     const now = Date.now();
-    recent = [...recent.filter((k) => now - k.at < 2500), { key: e.key, at: now }].slice(-SEQ.length);
-    if (recent.length === SEQ.length && recent.every((k, i) => k.key === SEQ[i])) {
+    // Presses count while they keep coming (no more than 2.5 s apart).
+    if (recent.length && now - recent[recent.length - 1].at > 2500) recent = [];
+    recent = [...recent, { key: e.key, at: now }].slice(-8);
+    const hit = SEQS.find(([, seq]) => recent.length >= seq.length && seq.every((k, i) => recent[recent.length - seq.length + i].key === k));
+    if (hit) {
       recent = [];
-      if (getState().leaguePass && !getState().multiview) return;
-      if (getState().multiview) closeMultiview(-1);
-      setState({ leaguePass: true, fullscreen: false });
+      if (getState().leaguePass) return;
+      openPass(hit[0]);
     }
   };
   window.addEventListener('keydown', on, true);

@@ -31,8 +31,8 @@ export function smallHeadshot(href: string): string {
   return m ? `https://a.espncdn.com/combiner/i?img=${m[1]}&w=96&h=70` : href;
 }
 
-export function summaryUrl(base: string, eventId: string): string {
-  return `${base}/basketball/nba/summary?event=${encodeURIComponent(eventId)}`;
+export function summaryUrl(base: string, eventId: string, path = 'basketball/nba'): string {
+  return `${base}/${path}/summary?event=${encodeURIComponent(eventId)}`;
 }
 
 export function parseBoxScore(json: unknown): BoxTeam[] {
@@ -63,4 +63,41 @@ export function parseBoxScore(json: unknown): BoxTeam[] {
     out.push({ abbr: str(team.abbreviation), name: str(team.shortDisplayName) || str(team.displayName), players });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// NFL (LTTV Blitz): each team's passing, rushing and receiving lines. Shape read from the live service (Nov 2026):
+// boxscore.players[].statistics[] = { name: 'passing', labels: ['C/ATT','YDS',…], athletes: [{ athlete, stats }] }.
+export interface StatGroup {
+  title: string;
+  head: string[];
+  rows: { id?: string; name: string; jersey?: string; headshot?: string; cells: string[] }[];
+}
+export interface StatTeam {
+  abbr: string;
+  name: string;
+  groups: StatGroup[];
+}
+const NFL_GROUPS: [string, string, string[], number][] = [
+  ['passing', 'Passing', ['C/ATT', 'YDS', 'TD', 'INT'], 2],
+  ['rushing', 'Rushing', ['CAR', 'YDS', 'TD'], 4],
+  ['receiving', 'Receiving', ['REC', 'YDS', 'TD'], 6],
+];
+export function parseNflBox(json: unknown): StatTeam[] {
+  return arr(obj(obj(json).boxscore).players).map(obj).map((t) => {
+    const team = obj(t.team);
+    const cats = arr(t.statistics).map(obj);
+    const groups: StatGroup[] = [];
+    for (const [name, title, cols, max] of NFL_GROUPS) {
+      const c = cats.find((x) => str(x.name) === name);
+      const labels = arr(c?.labels).map((l) => str(l).toUpperCase());
+      const rows = arr(c?.athletes).map(obj).slice(0, max).map((a) => {
+        const ath = obj(a.athlete);
+        const stats = arr(a.stats).map(str);
+        return { id: str(ath.id) || undefined, name: str(ath.shortName) || str(ath.displayName), jersey: str(ath.jersey) || undefined, headshot: smallHeadshot(str(obj(ath.headshot).href)) || undefined, cells: cols.map((k) => stats[labels.indexOf(k)] ?? '') };
+      });
+      if (rows.length) groups.push({ title, head: cols, rows });
+    }
+    return { abbr: str(team.abbreviation), name: str(team.shortDisplayName) || str(team.displayName), groups };
+  });
 }

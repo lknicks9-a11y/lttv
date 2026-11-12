@@ -13,6 +13,7 @@ import { LeagueGames, TeamLogo } from './Games';
 import { BetsScreen, FantasyScreen } from './Fantasy';
 import { liveLeague } from '../core/livestats';
 import { mvName, openMultiview } from '../app/multiview';
+import { LpLogo, openPass } from './LeaguePass';
 import { fallbackTeamLogo } from '../core/schedule';
 import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams, useLiveGames } from '../app/schedule';
 import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
@@ -193,6 +194,8 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
           <h1>Sports</h1>
           <p class="muted">Choose a league to see today’s games and the best channels for each one in your lineup.</p>
         </div>
+        <Button onClick={() => openPass('nba')}><LpLogo size="1.4rem" /> League Pass</Button>
+        <Button onClick={() => openPass('nfl')}><LpLogo size="1.4rem" kind="nfl" /> Blitz</Button>
         <Button icon="multiview" onClick={() => openMultiview()}>{mvName()}</Button>
       </header>
       <LeagueGrid onPick={onPick} />

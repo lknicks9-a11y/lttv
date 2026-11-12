@@ -1396,7 +1396,7 @@ small, .small { font-size: 1.15rem; }
 .league-pass { display: flex; flex-direction: column; gap: 1rem; height: 100%; padding: 1.4rem 2rem 1.2rem; }
 .lp-top { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .lp-top h1 { margin: 0; font-size: 1.9rem; font-weight: 800; letter-spacing: 0.01em; }
-.lp-mark { background: linear-gradient(90deg, #ffa04d, #e2451c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lp-mark { background: linear-gradient(90deg, var(--lp-accent, #ffa04d), color-mix(in srgb, var(--lp-accent, #ffa04d) 60%, #000)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .lp-spacer { flex: 1; }
 .lp-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 26rem; gap: 1.2rem; }
 .lp-stage { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; min-height: 0; }
@@ -1646,13 +1646,13 @@ body { font-optical-sizing: auto; font-feature-settings: 'calt'; -webkit-font-sm
 
 /* ---------- League Pass with a remote: where you are must be unmistakable ---------- */
 /* The game on screen gets a colored bar; the white frame is only for the thing the remote is on. */
-.lp-card.current { outline: 0; box-shadow: inset 0 -0.35rem 0 #ffa04d; }
+.lp-card.current { outline: 0; box-shadow: inset 0 -0.35rem 0 var(--lp-accent, #ffa04d); }
 :root .league-pass .f:focus { box-shadow: 0 0 0 0.28rem #fff, 0 0.8rem 2rem rgba(0, 0, 0, 0.6) !important; z-index: 2; }
-:root .league-pass .lp-card.current.f:focus { box-shadow: inset 0 -0.35rem 0 #ffa04d, 0 0 0 0.28rem #fff, 0 0.8rem 2rem rgba(0, 0, 0, 0.6) !important; }
+:root .league-pass .lp-card.current.f:focus { box-shadow: inset 0 -0.35rem 0 var(--lp-accent, #ffa04d), 0 0 0 0.28rem #fff, 0 0.8rem 2rem rgba(0, 0, 0, 0.6) !important; }
 .league-pass .lp-feed:focus, .league-pass .lp-bc-feed:focus, .league-pass .lp-bc-btn:focus, .league-pass .lp-pick:focus, .league-pass .lp-tab:focus { background: #fff; color: #0b0b0d; }
 .league-pass .lp-feed:focus b, .league-pass .lp-bc-feed:focus b { color: #0b0b0d; }
 .league-pass .lp-feed:focus small, .league-pass .lp-bc-feed:focus small { color: #44444a; }
-.lp-feed.on, .lp-bc-feed.on { background: #121722; border-color: #ffa04d; box-shadow: inset 0 -0.25rem 0 #ffa04d; }
+.lp-feed.on, .lp-bc-feed.on { background: #121722; border-color: var(--lp-accent, #ffa04d); box-shadow: inset 0 -0.25rem 0 var(--lp-accent, #ffa04d); }
 .lp-feed.on b, .lp-bc-feed.on b { color: #fff; }
 .lp-feed.on small, .lp-bc-feed.on small { color: var(--muted); }
 .lp-strip { padding: 0.5rem 0.4rem 0.6rem; scroll-padding: 2rem; }
@@ -1734,9 +1734,53 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 /* ---------- League Pass on a TV: cheap to move around ---------- */
 /* Soft blurred shadows are repainted on every press of the remote and make a Fire TV Stick lag: a crisp ring only. */
 :root.tv .league-pass .f:focus { box-shadow: 0 0 0 0.28rem #fff !important; }
-:root.tv .league-pass .lp-card.current.f:focus { box-shadow: inset 0 -0.35rem 0 #ffa04d, 0 0 0 0.28rem #fff !important; }
+:root.tv .league-pass .lp-card.current.f:focus { box-shadow: inset 0 -0.35rem 0 var(--lp-accent, #ffa04d), 0 0 0 0.28rem #fff !important; }
 :root.tv .league-pass .btn, :root.tv .lpm-tile, :root.tv .lp-bc-btn, :root.tv .lp-bc .lp-score { box-shadow: none; }
 :root.tv .lp-card.nostream { filter: none; opacity: 0.55; }
 :root.tv .lp-card, :root.tv button.lp-row, :root.tv .lp-feed, :root.tv .lp-pick, :root.tv .pp-tr { contain: layout paint style; }
 :root.tv .lp-box-rows, :root.tv .lp-strip, :root.tv .pp-table { contain: layout paint; }
 :root.tv .lp-bc { transition: none; }
+
+/* ================= Glass on a TV: the same look, drawn cheaply =================
+   Every other theme had this and Glass didn't, which is why the TV got slow after the redesign: blurred shadows
+   (redrawn on every press of the remote), see-through layers and layered gradients are what a Fire TV Stick
+   struggles with. On a TV: solid colors, crisp rings, no shadows. */
+:root.tv[data-theme='glass'] {
+  --focus: 0 0 0 0.2rem #f5f5f7;
+  --soft: #131316; --soft-2: #1c1c20;
+  --glass-edge: none;
+}
+:root.tv[data-theme='glass'] .backdrop { background: var(--bg); }
+:root.tv[data-theme='glass'] .tabs, :root.tv[data-theme='glass'] .top-right .tab, :root.tv[data-theme='glass'] .toast, :root.tv[data-theme='glass'] .lp-box, :root.tv[data-theme='glass'] .osd-controls .btn, :root.tv[data-theme='glass'] .live-banner {
+  background: #1d1d21; box-shadow: none; border-color: #36363c;
+}
+:root.tv[data-theme='glass'] .modal { background: #1b1b1f; box-shadow: none; border-color: #36363c; }
+:root.tv[data-theme='glass'] .tab.active { background: #36363c; box-shadow: none; }
+:root.tv[data-theme='glass'] .tab.f:focus { box-shadow: none !important; }
+:root.tv[data-theme='glass'] .btn { background: #26262b; border-color: #303036; box-shadow: none; }
+:root.tv[data-theme='glass'] .btn:focus { background: #3a3a41; }
+:root.tv[data-theme='glass'] .btn-primary, :root.tv[data-theme='glass'] .btn-primary:focus { background: var(--accent); }
+:root.tv[data-theme='glass'] .btn-ghost { background: transparent; border-color: transparent; }
+:root.tv[data-theme='glass'] .chip { background: #26262b; }
+:root.tv[data-theme='glass'] .chip-active { background: #f5f5f7; }
+:root.tv[data-theme='glass'] .card { background: #131316; border-color: #232328; box-shadow: none; }
+:root.tv[data-theme='glass'] .row-control:focus, :root.tv[data-theme='glass'] .row-control:hover { background: #2a2a30; }
+:root.tv[data-theme='glass'] .input { background: #151518; border-color: #303036; }
+:root.tv[data-theme='glass'] .guide-grid { border-top-color: #232328; }
+:root.tv[data-theme='glass'] .prog-empty { background: #0f0f12; }
+:root.tv[data-theme='glass'] .channel-row:focus, :root.tv[data-theme='glass'] .guide-ch.cursor:focus, :root.tv[data-theme='glass'] .mini-channel:focus { background: #2e2e34; }
+:root.tv[data-theme='glass'] .game-row.is-live { background: #1d1416; }
+:root.tv[data-theme='glass'] .sports .league-card:focus, :root.tv[data-theme='glass'] .sports .game-row:focus, :root.tv[data-theme='glass'] .team-option:focus, :root.tv[data-theme='glass'] .stream-pick-main.f:focus { background-color: #2a2a30 !important; }
+:root.tv[data-theme='glass'] .league-card { border-color: #1f1f24; }
+:root.tv[data-theme='glass'] .vod-card:focus .vod-poster { box-shadow: 0 0 0 0.2rem #f5f5f7; }
+:root.tv[data-theme='glass'] .person:focus .person-face { box-shadow: 0 0 0 0.22rem #f5f5f7; }
+:root.tv[data-theme='glass'] .watch-card-logo, :root.tv[data-theme='glass'] .pp-tile, :root.tv[data-theme='glass'] .pp-face, :root.tv[data-theme='glass'] .person-face { background: #26262b; }
+:root.tv[data-theme='glass'] .pp-tr.f:focus { background: #2e2e34; }
+:root.tv .loading-screen .logo-mark, :root.tv .topbar .logo-mark { filter: none; }
+:root.tv .person, :root.tv .tab, :root.tv .chip, :root.tv .prog, :root.tv .guide-ch, :root.tv .result-row { contain: layout paint style; }
+
+/* ---------- Blitz (NFL): stat groups, always-on networks ---------- */
+.lp-box-head.lp-nfl, .lp-row.lp-nfl { grid-template-columns: 2rem 2.4rem minmax(0, 1fr) repeat(var(--n, 3), 3.6rem); }
+.lp-box-head.lp-nfl { grid-template-columns: minmax(0, 1fr) repeat(var(--n, 3), 3.6rem); margin-top: 0.7rem; }
+.lp-feed.extra, .lp-bc-feed.extra { border-color: color-mix(in srgb, var(--lp-accent, #ffa04d) 55%, #2a3240); }
+.screen-head .btn .lp-logo { display: inline-block; vertical-align: -0.3rem; margin-right: 0.3rem; }

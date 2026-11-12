@@ -79,6 +79,8 @@ export interface AppState {
   profilePicker?: boolean;
   /** LTTV League Pass is open (Up, Up, Left, Right). */
   leaguePass?: boolean;
+  /** Which one is open: League Pass (NBA) or Blitz (NFL). */
+  passLeague?: 'nba' | 'nfl';
   /** Which on-demand screens exist (the playlists have movies / shows). */
   vodAvail?: { movies: boolean; shows: boolean };
   /** The movie / episode playing full screen. */
