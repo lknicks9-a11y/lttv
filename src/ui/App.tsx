@@ -276,10 +276,10 @@ export function App() {
         <TopBar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
-      {leaguePass && !multiview && <div class="lp-overlay"><LeaguePass /></div>}
+      {leaguePass && <div class="lp-overlay"><LeaguePass /></div>}
       {picker && !onboarding && !signIn && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ profilePicker: false })} /></div>}
       {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn && <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div>}
-      {onboarding || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && !leaguePass && <PlayerOverlay />}
+      {onboarding || signIn ? null : multiview ? !leaguePass && <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && !leaguePass && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}

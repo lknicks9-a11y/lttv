@@ -9,8 +9,8 @@ import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
 import { bestStreams, buildGameIndexAsync, type GameIndexEntry } from '../core/streamfinder';
 import { parseBoxScore, summaryUrl, type BoxTeam } from '../core/boxscore';
-import { MULTI, closeMultiview, openMultiview, setTile, type MvTile } from '../app/multiview';
-import { Button, Icon } from './common';
+import { MULTI, closeMultiview, openMultiview, restartTile, setActiveTile, setLayout, setTile, tilePlayer, type MvLayout, type MvTile } from '../app/multiview';
+import { Button, Icon, Modal } from './common';
 import { TeamLogo } from './Games';
 import { VideoSlot } from './VideoSlot';
 import { clock } from './fmt';
@@ -77,6 +77,65 @@ function gameLine(g: Game, now: number) {
   return g.start < now ? 'Starting' : clock(g.start);
 }
 
+/** The League Pass mark: a ball whose seams frame a play button. LTTV's own artwork. */
+export function LpLogo({ size = '2.2rem' }: { size?: string }) {
+  return (
+    <svg class="lp-logo" viewBox="0 0 48 48" style={{ width: size, height: size }} aria-hidden="true">
+      <defs>
+        <linearGradient id="lp-ball" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffa04d" />
+          <stop offset="1" stop-color="#e2451c" />
+        </linearGradient>
+      </defs>
+      <circle cx="24" cy="24" r="22" fill="url(#lp-ball)" />
+      <g fill="none" stroke="#2a1206" stroke-width="1.7" stroke-linecap="round" opacity="0.6">
+        <path d="M2.5 24h43" />
+        <path d="M9 8.2c6.6 7 6.6 24.600 0 31.600" />
+        <path d="M39 8.200c-6.600 7-6.600 24.600 0 31.600" />
+      </g>
+      <path d="M19.500 14.800v18.400l15-9.200z" fill="#fff" />
+    </svg>
+  );
+}
+
+function TileVideo({ i }: { i: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => tilePlayer(i).registerSlot(ref.current!, 50), [i]);
+  return <div class="video-slot lpm-video" ref={ref} />;
+}
+
+/** One game in League Pass's Multiview. Sound follows the tile you are on. */
+function LpTile({ i, tile, label, active, onOpen }: { i: number; tile: MvTile | null; label?: string; active: boolean; onOpen: () => void }) {
+  const ctl = tilePlayer(i);
+  const [st, setSt] = useState(ctl.status);
+  useEffect(() => ctl.subscribe(setSt), [ctl]);
+  const busy = st.state === 'loading' || st.state === 'buffering' || st.state === 'retrying';
+  return (
+    <div class="lpm-cell" data-tile={i}>
+      <button
+        type="button"
+        class={`f lpm-tile ${tile ? '' : 'empty'} ${active ? 'sound' : ''}`}
+        data-autofocus={i === 0 ? '' : undefined}
+        onFocus={() => tile && setActiveTile(i)}
+        onClick={() => (tile && st.state === 'error' ? restartTile(i) : onOpen())}
+        aria-label={tile ? `${tile.title}${active ? ', sound on' : ''}` : 'Add a game'}
+      >
+        {tile ? <TileVideo i={i} /> : <span class="lpm-add"><Icon name="add" size="2.6rem" />Add a game</span>}
+        {tile && busy && <span class="spinner lpm-spin" />}
+        {tile && st.state === 'error' && <span class="lpm-err">This broadcast didn’t play. Press OK to try again, or pick another broadcast.</span>}
+        {tile && (
+          <span class="lpm-label">
+            {active && <Icon name="volume" size="1.1em" />}
+            <b>{tile.title}</b>
+            {label && <small>{label}</small>}
+            {st.drops ? <small>· reconnected {st.drops}×</small> : null}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
 /** A way to watch a game: one team's own broadcast, or another channel carrying it. */
 interface Feed { key: string; label: string; sub: string }
 
@@ -125,6 +184,9 @@ export function LeaguePass() {
   // Coming back from full screen in Multiview: stay in League Pass, on that game, full screen.
   const [full, setFull] = useState(() => getState().fullscreen && !!getState().currentKey);
   const [boxOpen, setBoxOpen] = useState(false);
+  const mv = useApp((s) => s.multiview);
+  /** Multiview: the tile whose options are open, and whether its game list is showing. */
+  const [sheet, setSheet] = useState<{ i: number; games: boolean } | null>(null);
   const [bar, setBar] = useState(true);
   const game = games.find((g) => g.id === selected) ?? games.find((g) => feedsOf(g).some((f) => f.key === playing)) ?? games[0];
   const gameFeeds = feedsOf(game);
@@ -137,10 +199,15 @@ export function LeaguePass() {
     requestAnimationFrame(() => focusFirst(ref.current));
   }, []);
   useEffect(() => onBack(() => {
-    if (full) setFull(false);
+    if (mv) closeMultiview(-1); // Multiview → back to League Pass
+    else if (full) setFull(false);
     else setState({ leaguePass: false });
     return true;
-  }), [full]);
+  }), [full, !!mv]);
+  useLayoutEffect(() => {
+    setSheet(null);
+    requestAnimationFrame(() => focusFirst(ref.current));
+  }, [!!mv]);
   // Full screen: the video fills the screen; focus moves to (or back from) the broadcast controls.
   useLayoutEffect(() => {
     player.updateRect();
@@ -180,18 +247,19 @@ export function LeaguePass() {
     const next = withStream[(i + d + withStream.length) % withStream.length];
     if (next) watch(next);
   };
-  const tileFor = (g: Game): MvTile | null => {
-    const f = feedsOf(g)[0];
-    return f ? { key: f.key, title: `${g.away.short} @ ${g.home.short}`, sub: f.sub } : null;
-  };
+  const tileOf = (g: Game, f: Feed): MvTile => ({ key: f.key, title: `${g.away.abbr} @ ${g.home.abbr}`, sub: f.label });
   const togglePick = (g: Game) => setPicks((p) => (p.includes(g.id) ? p.filter((x) => x !== g.id) : p.length >= MAX_PICKS ? p : [...p, g.id]));
   const startMultiview = () => {
-    const tiles = picks.map((id) => games.find((g) => g.id === id)).filter((g): g is Game => !!g).map(tileFor).filter((t): t is MvTile => !!t);
+    const tiles = picks.map((id) => games.find((g) => g.id === id)).filter((g): g is Game => !!g && feedsOf(g).length > 0).map((g) => tileOf(g, feedsOf(g)[0]));
     if (!tiles.length) return;
-    // League Pass stays open underneath: leaving Multiview comes back here, not to LTTV.
+    setFull(false);
     openMultiview(tiles[0]);
-    tiles.slice(1).forEach((t, i) => setTimeout(() => setTile(i + 1, t), 1500 * (i + 1)));
+    setLayout(Math.min(4, Math.max(2, tiles.length)) as MvLayout);
+    tiles.slice(1).forEach((t, i) => setTile(i + 1, t)); // they start one after another (the engine spaces them)
   };
+  /** The game and broadcast a Multiview tile is showing. */
+  const tileGame = (t: MvTile | null | undefined) => (t ? games.find((g) => feedsOf(g).some((f) => f.key === t.key)) : undefined);
+  const tileFeed = (t: MvTile | null | undefined) => feedsOf(tileGame(t)).find((f) => f.key === t?.key);
   const feedButtons = (cls: string) => gameFeeds.map((f) => (
     <button type="button" class={`f ${cls} ${f.key === playing ? 'on' : ''}`} key={f.key} onClick={() => game && watch(game, f.key)} title={f.sub}>
       <b>{f.label}</b>
@@ -206,11 +274,76 @@ export function LeaguePass() {
     </div>
   );
 
+  if (mv) {
+    const sheetTile = sheet ? mv.tiles[sheet.i] : null;
+    const sheetGame = tileGame(sheetTile);
+    const inOther = (g: Game) => mv.tiles.some((t, i) => i !== sheet?.i && tileGame(t)?.id === g.id);
+    const choose = (g: Game, f: Feed) => {
+      if (sheet) setTile(sheet.i, tileOf(g, f));
+      setSheet(null);
+    };
+    const active = mv.tiles[mv.active];
+    return (
+      <section class={`league-pass lpm lpm-${mv.layout}`} data-scope ref={ref} aria-label="LTTV League Pass Multiview">
+        <div class="lp-bg" />
+        <div class="lpm-grid" data-group="lpm-grid">
+          {Array.from({ length: mv.layout }, (_, i) => (
+            <LpTile key={i} i={i} tile={mv.tiles[i]} label={tileFeed(mv.tiles[i])?.label} active={mv.active === i && !!mv.tiles[i]} onOpen={() => setSheet({ i, games: !mv.tiles[i] })} />
+          ))}
+        </div>
+        <footer class="lpm-bar">
+          <span class="lpm-brand"><LpLogo size="1.8rem" /> League Pass</span>
+          <span class="lpm-now">{active ? <span><Icon name="volume" size="1.1em" /> {active.title}</span> : 'Pick a game'}</span>
+          <span class="lpm-hint">OK: broadcast and options · Back: League Pass</span>
+        </footer>
+        {sheet && (
+          <Modal title={sheet.games || !sheetGame ? 'Tonight’s games' : `${sheetGame.away.name} at ${sheetGame.home.name}`} onClose={() => setSheet(null)} class="lpm-sheet">
+            {sheet.games || !sheetGame ? (
+              <div class="lpm-games">
+                {games.filter((g) => feedsOf(g).length > 0 && !inOther(g)).map((g) => (
+                  <button type="button" class="f lpm-game" key={g.id} onClick={() => choose(g, feedsOf(g)[0])}>
+                    <TeamLogo team={g.away} size="sm" /><b>{g.away.abbr}</b><span>{g.away.score ?? ''}</span>
+                    <span class="lp-clock">{gameLine(g, now)}</span>
+                    <span>{g.home.score ?? ''}</span><b>{g.home.abbr}</b><TeamLogo team={g.home} size="sm" />
+                  </button>
+                ))}
+                {!games.some((g) => feedsOf(g).length > 0 && !inOther(g)) && <p class="muted">No other NBA game with a stream right now.</p>}
+              </div>
+            ) : (
+              <div class="lpm-opts">
+                <div class="lpm-sub">Broadcast</div>
+                <div class="lp-feeds">
+                  {feedsOf(sheetGame).map((f) => (
+                    <button type="button" class={`f lp-feed ${f.key === sheetTile?.key ? 'on' : ''}`} key={f.key} onClick={() => choose(sheetGame, f)}>
+                      <b>{f.label}</b>
+                      <small>{f.sub}</small>
+                    </button>
+                  ))}
+                </div>
+                <div class="lpm-actions">
+                  <Button icon="fullscreen" onClick={() => {
+                    const k = sheetTile!.key;
+                    closeMultiview(-1);
+                    setSelected(sheetGame.id);
+                    void tune(k, { fullscreen: false });
+                    setFull(true);
+                  }}>Full screen</Button>
+                  <Button onClick={() => setSheet({ i: sheet.i, games: true })}>Switch game</Button>
+                  <Button variant="ghost" icon="close" onClick={() => { setTile(sheet.i, null); setSheet(null); }}>Remove</Button>
+                </div>
+              </div>
+            )}
+          </Modal>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''}`} data-scope ref={ref} aria-label="LTTV League Pass">
       <div class="lp-bg" />
       <header class="lp-top">
-        <h1><span class="lp-mark">LTTV</span> League Pass</h1>
+        <h1><LpLogo /> <span class="lp-mark">LTTV</span> League Pass</h1>
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span class="lp-spacer" />
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
@@ -225,7 +358,7 @@ export function LeaguePass() {
             {full && (
               <div class="lp-bc" data-group="lp-bc">
                 <div class="lp-bc-top">
-                  <button type="button" class="f lp-bc-btn" onClick={() => setFull(false)}><Icon name="chevronLeft" size="1.2em" /> League Pass</button>
+                  <button type="button" class="f lp-bc-btn" onClick={() => setFull(false)}><Icon name="chevronLeft" size="1.2em" /> <LpLogo size="1.5rem" /> League Pass</button>
                   {scoreBug}
                   <span class="lp-bc-live">{game?.state === 'in' ? 'LIVE' : ''}</span>
                 </div>
