@@ -5,6 +5,7 @@ import { h, Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { native, openRemote, proxiedUrl } from '../app/platform';
 import { getState, updateSettings } from '../app/state';
+import { TIMEOUT_ART, startBeat } from './timeoutart';
 
 export interface TimeoutMedia {
   images: string[];
@@ -155,7 +156,9 @@ function useMusic(tracks: string[]) {
     return () => window.removeEventListener('lttv-timeout-music', f);
   }, []);
   useEffect(() => {
-    if (!on || !tracks.length) return;
+    if (!on) return;
+    // No songs of your own: LTTV's built-in beat.
+    if (!tracks.length) return startBeat();
     const a = new Audio();
     let k = Math.floor(Math.random() * tracks.length);
     let fade = 0;
@@ -198,7 +201,9 @@ function useMusic(tracks: string[]) {
 export function TimeoutShow({ media, children }: { media: TimeoutMedia; children: ComponentChildren }) {
   const [i, setI] = useState(0);
   const prev = useRef(-1);
-  const n = media.images.length;
+  // Your own pictures when you've added some; otherwise LTTV's built-in scenes.
+  const images = media.images.length ? media.images : TIMEOUT_ART;
+  const n = images.length;
   useEffect(() => {
     if (n < 2) return;
     const t = window.setInterval(() => setI((x) => {
@@ -208,7 +213,7 @@ export function TimeoutShow({ media, children }: { media: TimeoutMedia; children
     return () => window.clearInterval(t);
   }, [n]);
   useMusic(media.audio);
-  const img = (k: number, cls: string) => <div class={`lp-slide ${cls}`} key={media.images[k]} style={{ backgroundImage: `url("${media.images[k]}")` }} />;
+  const img = (k: number, cls: string) => <div class={`lp-slide ${cls}`} key={k} style={{ backgroundImage: `url("${images[k]}")` }} />;
   return (
     <div class="lp-timeout">
       {n > 0 && prev.current >= 0 && prev.current !== i && img(prev.current, 'out')}
@@ -242,6 +247,7 @@ export function TimeoutSettings() {
   return (
     <div class="card settings-section" data-group="set-timeout">
       <h3>League Pass timeout pictures and music</h3>
+      <p class="muted">The timeout screen has its own pictures and music built in. This part is only for using your own instead.</p>
       {native ? (
         <>
           <p class="muted">Your own pictures and songs live in a “timeout” folder beside LTTV on your computer. This TV copies them from the computer over your Wi-Fi and keeps them. Type the address the computer shows in its LTTV Settings (it looks like http://192.168.1.20:8788).</p>

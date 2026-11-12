@@ -528,7 +528,7 @@ export function LeaguePass() {
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span class="lp-spacer" />
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
-        {timeoutUp && tmedia.audio.length > 0 && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
+        {timeoutUp && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
         <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
         {onThisGame && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
         <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>Close</Button>
@@ -553,8 +553,7 @@ export function LeaguePass() {
                   ) : next ? <div class="lp-off-count">Next: {next.away.abbr} at {next.home.abbr} · {gameLine(next, now)}</div> : null}
                 </>
               );
-              if (tmedia.images.length || tmedia.audio.length) return <TimeoutShow media={tmedia}>{lines}</TimeoutShow>;
-              return <div class="lp-off" style={{ '--t': team?.color ? `#${team.color}` : '#26262b' }}>{team && <div class="lp-off-logo"><TeamLogo team={team} size="lg" /></div>}{lines}</div>;
+              return <TimeoutShow media={tmedia}>{lines}</TimeoutShow>;
             })()}
             {!onThisGame && !full && !timeoutUp && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
             {full && (
