@@ -1,6 +1,8 @@
 // A game's box score from the schedule source's game summary: each team's players with PTS / REB / AST / BLK,
 // starters first. Used by LTTV League Pass.
 export interface BoxPlayer {
+  /** The player's id at the schedule source (opens his page). */
+  id?: string;
   name: string;
   jersey?: string;
   headshot?: string;
@@ -38,6 +40,7 @@ export function parseBoxScore(json: unknown): BoxTeam[] {
       const stats = arr(a.stats).map(str);
       const at = (n: string) => (col(n) >= 0 ? stats[col(n)] ?? '' : '');
       return {
+        id: str(ath.id) || undefined,
         name: str(ath.shortName) || str(ath.displayName),
         jersey: str(ath.jersey) || undefined,
         headshot: str(obj(ath.headshot).href) || undefined,

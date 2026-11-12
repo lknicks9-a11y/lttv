@@ -153,3 +153,53 @@ export function useArt(kind: Kind, name: string, year: string | undefined, enabl
   }, [k, enabled]);
   return art;
 }
+
+// ---------------- People: a cast member's photo and short biography (Wikipedia) ----------------
+export interface PersonInfo {
+  name: string;
+  photo?: string;
+  /** "English actor (born 1996)" */
+  about?: string;
+  bio?: string;
+}
+const people = new Map<string, PersonInfo | null>();
+const peopleLoading = new Map<string, Promise<PersonInfo | null>>();
+const PERSON = /\b(actor|actress|director|filmmaker|comedian|producer|screenwriter|writer|singer|musician|rapper|model|presenter|host|performer|entertainer|wrestler|athlete|player)\b/i;
+export function loadPerson(name: string): Promise<PersonInfo | null> {
+  const k = name.trim().toLowerCase();
+  if (people.has(k)) return Promise.resolve(people.get(k)!);
+  let job = peopleLoading.get(k);
+  if (!job) {
+    job = (async () => {
+      // The plain name first; "Name (actor)" when the plain page is someone or something else.
+      for (const t of [name, `${name} (actor)`, `${name} (actress)`]) {
+        try {
+          const p = (await getJson(WIKI() + encodeURIComponent(t.trim().replace(/\s/g, '_')))) as { type?: string; extract?: string; description?: string; thumbnail?: { source?: string }; originalimage?: { source?: string } };
+          if (p?.type !== 'disambiguation' && p?.extract && PERSON.test(`${p.description ?? ''} ${p.extract.slice(0, 200)}`)) {
+            return { name, photo: p.thumbnail?.source ?? p.originalimage?.source, about: p.description, bio: p.extract };
+          }
+        } catch {
+          /* try the next form */
+        }
+      }
+      return null;
+    })().then((v) => {
+      people.set(k, v);
+      peopleLoading.delete(k);
+      return v;
+    });
+    peopleLoading.set(k, job);
+  }
+  return job;
+}
+export function usePerson(name: string): PersonInfo | null | undefined {
+  const [v, setV] = useState<PersonInfo | null | undefined>(() => people.get(name.trim().toLowerCase()));
+  useEffect(() => {
+    let alive = true;
+    void loadPerson(name).then((p) => alive && setV(p));
+    return () => {
+      alive = false;
+    };
+  }, [name]);
+  return v;
+}

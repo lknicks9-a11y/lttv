@@ -1,12 +1,13 @@
 // Movies and Shows screens (only offered when the user's playlists have them),
 // their detail pop-ups and the full-screen movie / episode player.
 import { h, Fragment, type ComponentChildren } from 'preact';
+import { CastRow } from './VodPeople';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { player, setState, toast, useApp } from '../app/state';
 import { native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
-  continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadHome, loadMovieDetails, loadSeriesDetails,
+  continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadCategories, loadHome, loadMovieDetails, loadSeriesDetails,
   moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching, movieResume, showEntries, providerPresent, findMovieByName,
   type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
@@ -135,7 +136,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
           <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
         ) : (
           <>
-            {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 5)} onOpen={setOpen} />}
+            {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 5)} top={home.rows[0].id === 'trending'} onOpen={setOpen} />}
             {cont.length > 0 && (
               <section class="vod-row">
                 <h2 class="vod-row-title">Continue watching</h2>
@@ -173,10 +174,10 @@ export function VodScreen({ kind }: { kind: VodKind }) {
               </section>
             )}
             {home?.rows.map((r, ri) => (
-              <section class="vod-row" key={r.id}>
+              <section class={`vod-row ${r.id === 'trending' ? 'vod-ranked' : ''}`} key={r.id}>
                 <h2 class="vod-row-title">{r.title}{r.note && <small class="muted"> · {r.note}</small>}</h2>
                 <LazyStrip id={r.id} count={r.items.length}>
-                  {(n) => r.items.slice(0, n).map((it, i) => <ItemCard it={it} autofocus={!cont.length && ri === 0 && i === 0} onOpen={setOpen} />)}
+                  {(n) => r.items.slice(0, n).map((it, i) => <ItemCard it={it} rank={r.id === 'trending' && i < 10 ? i + 1 : undefined} autofocus={!cont.length && ri === 0 && i === 0} onOpen={setOpen} />)}
                 </LazyStrip>
               </section>
             ))}
@@ -192,14 +193,14 @@ export function VodScreen({ kind }: { kind: VodKind }) {
           </>
         )}
       </div>
-      {open?.kind === 'movie' && <MovieDetail playlistId={open.playlistId} m={open.m} onClose={() => setOpen(null)} />}
-      {open?.kind === 'series' && <SeriesDetail playlistId={open.playlistId} s={open.s} onClose={() => setOpen(null)} />}
+      {open?.kind === 'movie' && <MovieDetail key={`m${open.playlistId}:${open.m.id}`} playlistId={open.playlistId} m={open.m} onClose={() => setOpen(null)} onOpen={setOpen} />}
+      {open?.kind === 'series' && <SeriesDetail key={`s${open.playlistId}:${open.s.id}`} playlistId={open.playlistId} s={open.s} onClose={() => setOpen(null)} onOpen={setOpen} />}
     </section>
   );
 }
 
 /** Featured titles at the top (Hulu-style): big artwork, description, Play and Details. Rotates while you're not on it. */
-function Hero({ items, onOpen }: { items: VodItem[]; onOpen: (it: VodItem) => void }) {
+function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) => void; top?: boolean }) {
   const [i, setI] = useState(0);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -234,7 +235,7 @@ function Hero({ items, onOpen }: { items: VodItem[]; onOpen: (it: VodItem) => vo
       {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${backdrop ?? poster}")` }} />}
       <div class="vod-hero-shade" />
       <div class="vod-hero-text">
-        <div class="vod-hero-kicker">{it.kind === 'movie' ? 'Featured movie' : 'Featured series'}</div>
+        <div class="vod-hero-kicker">{top ? `#${(i % items.length) + 1} Trending` : it.kind === 'movie' ? 'Featured movie' : 'Featured series'}</div>
         <h2 class="vod-hero-title">{cleanTitle(name) || name}</h2>
         <div class="vod-facts muted">{[year ?? art?.year, rating ? `★ ${rating.toFixed(1)}` : '', art?.genre].filter(Boolean).join(' · ')}</div>
         {plot && <p class="vod-hero-plot">{plot}</p>}
@@ -249,13 +250,14 @@ function Hero({ items, onOpen }: { items: VodItem[]; onOpen: (it: VodItem) => vo
   );
 }
 
-function ItemCard({ it, onOpen, autofocus }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean }) {
+function ItemCard({ it, onOpen, autofocus, rank }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean; rank?: number }) {
   const poster = it.kind === 'movie' ? it.m.poster : it.s.poster;
   const year = it.kind === 'movie' ? it.m.year : it.s.year;
   const rating = it.kind === 'movie' ? it.m.rating : it.s.rating;
   const name = itemName(it);
   return (
     <button type="button" class="f vod-card" key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(it)}>
+      {rank && <span class="vod-rank" aria-hidden="true">{rank}</span>}
       <ArtPoster kind={it.kind} name={name} year={year} src={poster} />
       <div class="vod-name">{name}</div>
       <div class="vod-meta muted">{[year, rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ')}</div>
@@ -378,7 +380,34 @@ async function refineVersions(vs: VodVersion[]): Promise<VodVersion[]> {
 
 const goodText = (t?: string) => (t && !isForeignScript(t) ? t : undefined);
 
-function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMovie; onClose: () => void }) {
+/** Other titles from the same category of your provider's library. */
+function MoreLike({ kind, playlistId, categoryId, selfName, onOpen }: { kind: VodKind; playlistId: string; categoryId: string; selfName: string; onOpen: (it: VodItem) => void }) {
+  const [items, setItems] = useState<VodItem[]>([]);
+  useEffect(() => {
+    let alive = true;
+    if (!categoryId) return;
+    void (async () => {
+      const cat = (await loadCategories(kind)).find((c) => c.playlistId === playlistId && c.id === categoryId);
+      if (!cat) return;
+      const list = dedupe(await loadCategoryItems(kind, cat)).filter((it) => itemName(it) !== selfName).slice(0, 18);
+      if (alive) setItems(list);
+    })().catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [playlistId, categoryId]);
+  if (!items.length) return null;
+  return (
+    <section class="vod-row">
+      <h2 class="vod-row-title">More like this</h2>
+      <div class="vod-strip" data-group="vod-more-like" data-hlock>
+        {items.map((it) => <ItemCard it={it} onOpen={onOpen} />)}
+      </div>
+    </section>
+  );
+}
+
+function MovieDetail({ playlistId, m, onClose, onOpen }: { playlistId: string; m: VodMovie; onClose: () => void; onOpen: (it: VodItem) => void }) {
   const first: VodVersion = { item: { kind: 'movie', playlistId, m }, quality: qualityOf(m.name) };
   const [versions, setVersions] = useState<VodVersion[]>([first]);
   const [sel, setSel] = useState(0);
@@ -420,14 +449,13 @@ function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMov
   const plot = goodText(d?.plot) ?? art?.plot;
   return (
     <Modal title={m.name} onClose={onClose} wide class="vod-detail">
+      {(d?.backdrop || art?.poster || m.poster) && <div class={`vod-detail-bg ${d?.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${d?.backdrop ?? art?.poster ?? m.poster}")` }} />}
       <div class="vod-detail-body">
         <Poster src={art?.poster ?? d?.poster ?? m.poster} name={m.name} />
         <div class="vod-detail-text">
           <Facts d={{ ...(d ?? {}), genre: d?.genre ?? art?.genre }} year={m.year ?? art?.year} rating={m.rating} quality={quality} />
           <VersionChips versions={versions} sel={sel} onSel={setSel} />
           {d === null && art === undefined ? <p class="muted row gap"><span class="spinner" /> Loading details…</p> : plot ? <p class="vod-plot">{plot}</p> : null}
-          {d?.cast && <p class="muted vod-cast">Starring {d.cast}</p>}
-          {d?.director && <p class="muted vod-cast">Directed by {d.director}</p>}
           <div class="row gap modal-actions">
             {resume ? (
               <>
@@ -441,6 +469,8 @@ function MovieDetail({ playlistId, m, onClose }: { playlistId: string; m: VodMov
           </div>
         </div>
       </div>
+      <CastRow cast={d?.cast} director={d?.director} />
+      <MoreLike kind="movies" playlistId={cur.playlistId} categoryId={cur.m.categoryId} selfName={m.name} onOpen={onOpen} />
     </Modal>
   );
 }
@@ -482,7 +512,7 @@ function targetEpisode(info: SeriesInfo | null, r: ResumeEntry | undefined): Vod
   return r.done && flat[i + 1] ? flat[i + 1] : flat[i];
 }
 
-function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSeries; onClose: () => void }) {
+function SeriesDetail({ playlistId, s, onClose, onOpen }: { playlistId: string; s: VodSeries; onClose: () => void; onOpen: (it: VodItem) => void }) {
   const first: VodVersion = { item: { kind: 'series', playlistId, s }, quality: qualityOf(s.name) };
   const [versions, setVersions] = useState<VodVersion[]>([first]);
   const [sel, setSel] = useState(0);
@@ -574,13 +604,13 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
 
   return (
     <Modal title={s.name} onClose={onClose} wide class="vod-detail">
+      {(s.backdrop || art?.poster || s.poster) && <div class={`vod-detail-bg ${s.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${s.backdrop ?? art?.poster ?? s.poster}")` }} />}
       <div class="vod-detail-body">
         <Poster src={art?.poster ?? d.poster ?? s.poster} name={s.name} />
         <div class="vod-detail-text">
           <Facts d={{ ...d, genre: d.genre ?? art?.genre }} year={s.year ?? art?.year} rating={s.rating ?? art?.rating} quality={versions[sel]?.quality.label} />
           <VersionChips versions={versions} sel={sel} onSel={(i) => { setSel(i); setSeason(null); }} />
           {plot && <p class="vod-plot">{plot}</p>}
-          {(d.cast ?? s.cast) && <p class="muted vod-cast">Starring {d.cast ?? s.cast}</p>}
           {!info ? (
             <p class="muted row gap"><span class="spinner" /> Loading episodes…</p>
           ) : info.seasons.length === 0 ? (
@@ -632,6 +662,8 @@ function SeriesDetail({ playlistId, s, onClose }: { playlistId: string; s: VodSe
           </div>
         </div>
       </div>
+      <CastRow cast={d.cast ?? s.cast} director={d.director} />
+      <MoreLike kind="shows" playlistId={playlistId} categoryId={s.categoryId} selfName={s.name} onOpen={onOpen} />
     </Modal>
   );
 }

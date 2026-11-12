@@ -13,6 +13,7 @@ import { MULTI, closeMultiview, openMultiview, restartTile, setActiveTile, setLa
 import { Button, Icon, Modal } from './common';
 import { TeamLogo } from './Games';
 import { VideoSlot } from './VideoSlot';
+import { PlayerProfile } from './PlayerProfile';
 import { clock } from './fmt';
 
 const MAX_PICKS = MULTI ? 4 : 2;
@@ -45,6 +46,7 @@ function useBox(game: Game | undefined): BoxTeam[] | null {
 
 function BoxScore({ game, box }: { game: Game; box: BoxTeam[] | null }) {
   const [side, setSide] = useState(0);
+  const [who, setWho] = useState<{ id: string; name: string; headshot?: string } | null>(null);
   if (game.state === 'pre') return <div class="lp-box"><p class="muted">Box score starts at tip-off ({clock(game.start)}).</p></div>;
   if (!box) return <div class="lp-box"><p class="muted">Loading the box score…</p></div>;
   const team = box[side] ?? box[0];
@@ -58,15 +60,18 @@ function BoxScore({ game, box }: { game: Game; box: BoxTeam[] | null }) {
       <div class="lp-box-head"><span>{team?.players.some((p) => p.starter) ? 'STARTERS' : 'PLAYERS'}</span><span>PTS</span><span>REB</span><span>AST</span><span>BLK</span></div>
       <div class="lp-box-rows">
         {team?.players.map((p, i) => (
-          <div class={`lp-row ${p.dnp ? 'dnp' : ''}`} key={p.name + i}>
+          <Fragment key={p.name + i}>
             {i > 0 && p.starter !== team.players[i - 1].starter && <div class="lp-sub">BENCH</div>}
-            <span class="lp-num">{p.jersey}</span>
-            {p.headshot ? <img class="lp-face" src={p.headshot} alt="" loading="lazy" /> : <span class="lp-face" />}
-            <span class="lp-name">{p.name}</span>
-            <span>{p.pts}</span><span>{p.reb}</span><span>{p.ast}</span><span>{p.blk}</span>
-          </div>
+            <button type="button" class={`f lp-row ${p.dnp ? 'dnp' : ''}`} disabled={!p.id} onClick={() => p.id && setWho({ id: p.id, name: p.name, headshot: p.headshot })} aria-label={`${p.name}: stats and recent games`}>
+              <span class="lp-num">{p.jersey}</span>
+              {p.headshot ? <img class="lp-face" src={p.headshot} alt="" loading="lazy" /> : <span class="lp-face" />}
+              <span class="lp-name">{p.name}</span>
+              <span>{p.pts}</span><span>{p.reb}</span><span>{p.ast}</span><span>{p.blk}</span>
+            </button>
+          </Fragment>
         ))}
       </div>
+      {who && <PlayerProfile id={who.id} name={who.name} headshot={who.headshot} onClose={() => setWho(null)} />}
     </div>
   );
 }

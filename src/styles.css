@@ -1660,3 +1660,69 @@ body { font-optical-sizing: auto; font-feature-settings: 'cv11', 'ss03', 'calt';
 :root.tv .lp-card { width: 15rem; height: 7.2rem; }
 :root.tv .lp-pick { padding: 0.5rem; font-size: 1.05rem; }
 :root.tv .lp-main { grid-template-columns: minmax(0, 1fr) 24rem; }
+
+/* ---------- League Pass: players are buttons, and each has a page ---------- */
+button.lp-row { width: 100%; border: 0; border-bottom: 1px solid #141a24; background: transparent; color: inherit; font: inherit; font-size: 1.02rem; cursor: pointer; border-radius: 0.4rem; }
+button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
+.league-pass button.lp-row:focus { background: #fff; color: #0b0b0d; }
+.league-pass button.lp-row:focus .lp-num { color: #44444a; }
+.lp-box-rows { padding: 0.3rem; }
+.pp { width: min(78rem, 96vw); }
+.pp-head { display: flex; gap: 1.6rem; align-items: center; }
+.pp-face { width: 11rem; height: 8rem; flex: none; object-fit: cover; object-position: top; border-radius: 1rem; background: rgba(255, 255, 255, 0.07); }
+.pp-id { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+.pp-role { font-size: 1.25rem; font-weight: 650; color: var(--text-2); }
+.pp-facts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.8rem; }
+.pp-facts div { display: flex; flex-direction: column; }
+.pp-facts small, .pp-sub { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.pp-awards { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pp-award { padding: 0.2rem 0.65rem; border-radius: 999px; background: rgba(255, 160, 77, 0.16); color: #ffb877; font-size: 0.9rem; font-weight: 650; }
+.pp-tabs { display: flex; gap: 0.4rem; max-width: 34rem; }
+.pp .lp-tab:focus { background: #fff; color: #0b0b0d; }
+.pp-line { display: flex; flex-direction: column; gap: 0.45rem; }
+.pp-tiles { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 0.5rem; }
+.pp-tile { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.7rem 0.3rem; border-radius: 0.8rem; background: rgba(255, 255, 255, 0.06); }
+.pp-tile b { font-size: 1.6rem; font-weight: 750; letter-spacing: -0.02em; font-feature-settings: 'tnum'; }
+.pp-tile small { color: var(--muted); font-weight: 650; }
+.pp-table { display: flex; flex-direction: column; max-height: 46vh; overflow: auto; padding: 0.3rem; font-feature-settings: 'tnum'; }
+.pp-tr { display: grid; gap: 0.3rem; align-items: center; padding: 0.45rem 0.5rem; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07); background: transparent; color: inherit; font: inherit; font-size: 0.98rem; text-align: right; border-radius: 0.4rem; }
+.pp-tr span:nth-child(-n + 2) { text-align: left; }
+.pp-th { position: sticky; top: 0; z-index: 1; background: #1c1c20; color: var(--muted); font-size: 0.82rem; font-weight: 700; }
+.pp-tr.f:focus { background: rgba(255, 255, 255, 0.16); }
+.pp-tr.win span:nth-child(3) { color: #5fd38a; }
+.pp-tr.loss span:nth-child(3) { color: #ff7b86; }
+.pp-tr.career { font-weight: 750; }
+@media (max-width: 1000px) { .pp-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+/* ---------- League Pass pop-ups are solid (the page behind showed through the glass) ---------- */
+.league-pass .modal { background: #17171b; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.pp-tr span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Movies & Shows: a title's page with its artwork, cast and similar titles; ranked top row ---------- */
+.vod-detail { position: relative; width: min(96rem, 100%); }
+.vod-detail > * { position: relative; }
+.vod-detail > .vod-detail-bg { position: absolute; inset: 0 0 auto 0; height: 30rem; background: center 20% / cover no-repeat; opacity: 0.38; border-radius: inherit; -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent); mask-image: linear-gradient(180deg, #000 30%, transparent); pointer-events: none; }
+.vod-detail > .vod-detail-bg.is-poster { background-size: cover; background-position: center 15%; filter: blur(22px); opacity: 0.3; }
+:root.tv .vod-detail > .vod-detail-bg.is-poster { filter: none; opacity: 0.16; }
+.vod-detail .modal-title { font-size: 2.6rem; letter-spacing: -0.025em; }
+.vod-detail .vod-plot { font-size: 1.15rem; line-height: 1.5; max-width: 60rem; }
+.vod-people .vod-strip { gap: 0.4rem; }
+.person { flex: none; width: 9.2rem; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.6rem 0.3rem; border: 0; border-radius: 1rem; background: transparent; color: var(--text); cursor: pointer; text-align: center; }
+.person-face { width: 6.6rem; height: 6.6rem; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, 0.1); font-size: 1.7rem; font-weight: 700; color: var(--text-2); }
+.person-face img, .person-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; display: block; }
+.person-name { font-size: 0.98rem; font-weight: 600; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+:root .person.f:focus { box-shadow: none !important; background: transparent; }
+.person:focus .person-face { box-shadow: 0 0 0 0.22rem #f5f5f7, 0 0.8rem 2rem rgba(0, 0, 0, 0.6); }
+.person-card { width: min(60rem, 100%); }
+.person-card-body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.8rem; align-items: start; }
+.person-photo { aspect-ratio: 2 / 3; border-radius: 1rem; overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, 0.08); font-size: 3rem; font-weight: 700; color: var(--text-2); }
+.person-card-text { display: flex; flex-direction: column; gap: 0.6rem; }
+.person-about { font-size: 1.2rem; font-weight: 600; }
+.person-about::first-letter { text-transform: uppercase; }
+.person-bio { color: var(--text-2); line-height: 1.5; margin: 0; display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; overflow: hidden; }
+/* top row: big outlined rank numbers beside each poster */
+.vod-ranked .vod-strip .vod-card { width: 17rem; padding-left: 5.8rem; position: relative; }
+.vod-rank { position: absolute; left: 0.2rem; bottom: 3.4rem; width: 6rem; text-align: center; font-size: 9rem; font-weight: 800; line-height: 1; letter-spacing: -0.06em; color: transparent; -webkit-text-stroke: 0.14rem rgba(255, 255, 255, 0.34); pointer-events: none; }
+.vod-card:focus .vod-rank { -webkit-text-stroke-color: #f5f5f7; }
+/* Without real blur (Fire TV) a see-through pop-up just shows clutter: keep pop-ups nearly solid there. */
+:root.tv[data-theme='glass'] .modal { background: var(--glass), rgba(26, 26, 30, 0.97); }
