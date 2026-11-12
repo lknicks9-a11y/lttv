@@ -267,9 +267,16 @@ export class WebBackend implements Backend {
     if (!info || !sp || !sp.live) return;
     if (this.shifted) {
       if (info.behind < 1.5) this.shifted = false; // caught up (fast forward reached live)
+      if (v.playbackRate !== 1) v.playbackRate = 1;
       return;
     }
     const target = this.hls?.targetLatency;
+    // Every little stall leaves the picture a bit further behind live, and it adds up over an evening. Rather than
+    // jumping (which empties the buffer), play slightly fast until it is back where it should be; you can't tell
+    // by eye or ear.
+    if (info.behind > 6) {
+      if (v.playbackRate === 1) v.playbackRate = 1.08;
+    } else if (info.behind < 1.5 && v.playbackRate !== 1) v.playbackRate = 1;
     // Multiview tiles: only catch up when far behind. With several streams sharing the connection a tile often
     // falls a few seconds back; jumping to the live edge each time emptied its buffer, so it buffered, fell behind
     // and jumped again every few seconds.

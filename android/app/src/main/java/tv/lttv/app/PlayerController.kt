@@ -110,6 +110,8 @@ class PlayerController(
     /** How far behind live playback runs when "at live" (the player's own buffer); measured once playing. */
     private var liveLagMs = -1L
     private var errorRestarts = 0
+    /** You rewound or paused: stay where you put it (no catching up) until you go back to live. */
+    private var userShifted = false
     private var lastErrorRestartAt = 0L
     private var playerRestarts = 0
     private var hlsGapMs = -1L
@@ -209,6 +211,7 @@ class PlayerController(
 
     private val liveTicker = object : Runnable {
         override fun run() {
+            chaseLive()
             emitLive()
             // Position updates only matter while the picture is on screen.
             main.postDelayed(this, if (!audioFocus || videoOff || view.visibility != View.VISIBLE) 5000 else 1000)
@@ -441,6 +444,9 @@ class PlayerController(
             hlsGapMs = -1L
             playerRestarts = 0
             errorRestarts = 0
+            userShifted = false
+            playingHls = false
+            exo?.setPlaybackSpeed(1f)
             if (currentUrlBefore != null) tsFilterAt = System.currentTimeMillis()
             // Close the previous stream first: many providers allow only one connection.
             exo?.stop()
@@ -471,7 +477,8 @@ class PlayerController(
             .setReadTimeoutMs(timeoutSec * 1000)
             .setDefaultRequestProperties(headers.filterKeys { !it.equals("User-Agent", true) })
         val dataSource = DefaultDataSource.Factory(activity, http)
-        val item = MediaItem.Builder().setUri(Uri.parse(url)).apply { if (mime != null) setMimeType(mime) }.build()
+        val item = MediaItem.Builder().setUri(Uri.parse(url)).apply { if (mime != null) setMimeType(mime) }
+            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(1f).setMaxPlaybackSpeed(1.1f).build()).build()
         // IPTV MPEG-TS often starts without an IDR frame or lacks access-unit markers;
         // these flags let ExoPlayer start such streams instead of failing or showing black.
         val tsFlags = DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
@@ -590,6 +597,7 @@ class PlayerController(
                 goLiveNow()
                 return@post
             }
+            userShifted = true
             reopenAt(buf.offsetForTime(maxOf(target, buf.earliestTime + 1000)))
             emitLive()
             return@post
@@ -612,6 +620,7 @@ class PlayerController(
     private fun goLiveNow() {
         val p = exo ?: return
         if (currentUrl == null) return
+        userShifted = false
         val buf = tsBuffer
         if (buf != null) {
             val lag = if (liveLagMs >= 0) liveLagMs else bufferSec * 1000L
@@ -625,6 +634,32 @@ class PlayerController(
     }
 
     /** Tell the page where playback is inside the rewind window. */
+    /**
+     * Every little stall leaves a live channel a bit further behind, and over an evening it adds up. When it has
+     * slipped (and you didn't rewind or pause it yourself), play slightly fast until it is back; far behind, jump.
+     */
+    private fun chaseLive() {
+        val p = exo ?: return
+        if (vod || currentUrl == null || playingHls) return // live HLS: the player keeps its own distance (see start)
+        var speed = p.playbackParameters.speed
+        val buf = tsBuffer
+        if (userShifted || !p.isPlaying) speed = 1f
+        else if (buf != null) {
+            if (liveLagMs < 0) return
+            val behind = System.currentTimeMillis() - playingAt() - liveLagMs
+            if (behind > 45_000) {
+                goLiveNow()
+                return
+            }
+            if (behind > 6000) speed = 1.1f else if (behind < 1500) speed = 1f
+        } else {
+            // A plain live stream arrives in real time, so what is waiting in the buffer is how far behind it is.
+            val waiting = p.totalBufferedDuration
+            if (waiting > 14_000) speed = 1.1f else if (waiting < 7000) speed = 1f
+        }
+        if (p.playbackParameters.speed != speed) p.setPlaybackSpeed(speed)
+    }
+
     private fun emitLive() {
         val p = exo
         val o = JSONObject().put("type", "live")
@@ -693,6 +728,7 @@ class PlayerController(
     }
 
     fun pause() = main.post {
+        if (tsBuffer != null) userShifted = true
         exo?.playWhenReady = false
     }
 
