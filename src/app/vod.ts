@@ -10,6 +10,7 @@ import {
   episodeUrl, m3uVod, movieUrl, parseCategories, parseMovieInfo, parseMovies, parseSeriesInfo, parseSeriesList,
   type VodCategory, type VodDetails, type VodEpisode, type VodMovie, type VodSeries,
 } from '../core/vod';
+import { freeRows } from './freelists';
 import { openRemote } from './platform';
 import { parseVodList } from './importer';
 import { continueList, type ResumeEntry, type SeriesRef, type VodGenre } from '../core/vod';
@@ -522,6 +523,13 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
       console.warn('Watchmode rows unavailable, using charts:', (e as Error).message);
     }
   }
+  // No Watchmode key: the same kind of rows from free US lists (Apple's charts, TVmaze's US schedule), so only
+  // titles popular in the US show up — not whatever the provider files under "new" or "top".
+  try {
+    return await loadWatchmodeHome(kind, english, onUpdate, (onRow) => freeRows(kind, onRow));
+  } catch (e) {
+    console.warn('Free US lists unavailable, using the provider\'s categories:', (e as Error).message);
+  }
   // Which categories feed which row; trending and genre lists first, then the rest (for Recently added / Top rated).
   const trendingCats = english.filter((c) => isTrendingCategory(c.name));
   const genreCats = english.filter((c) => !isTrendingCategory(c.name) && genreOf(c.name));
@@ -618,7 +626,7 @@ export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): P
  * Popular on Netflix / Hulu / Max…, then genres — showing the titles your provider has (best copy:
  * English, 1080p first). Rows with fewer than 4 of your titles are left out.
  */
-async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h: VodHome) => void): Promise<VodHome> {
+async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h: VodHome) => void, source: (onRow: (rows: WmRow[]) => void) => Promise<WmRow[]> = (onRow) => watchmodeRows(kind, onRow)): Promise<VodHome> {
   const lib: VodItem[] = kind === 'movies'
     ? (await loadAllMovies()).map((m): VodItem => ({ kind: 'movie', playlistId: m.playlistId, m }))
     : (await loadAllSeries()).map((x): VodItem => ({ kind: 'series', playlistId: x.playlistId, s: x }));
@@ -645,13 +653,13 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
     const rows: VodRow[] = [];
     for (const r of wm) {
       const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
-      if (items.length >= 4) rows.push({ id: r.id, title: r.title, items });
+      if (items.length >= (r.id === "popular" ? 1 : 4)) rows.push({ id: r.id, title: r.title, items });
     }
     return { rows, categories: english, otherLanguages: [], loading };
   };
   // While lists arrive, the page is updated at most about once a second.
   let lastEmit = 0;
-  const wm = await watchmodeRows(kind, (partial) => {
+  const wm = await source((partial) => {
     if (Date.now() - lastEmit < 1000) return;
     lastEmit = Date.now();
     onUpdate(build(partial, true));
