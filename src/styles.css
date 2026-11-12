@@ -1784,3 +1784,8 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .lp-box-head.lp-nfl { grid-template-columns: minmax(0, 1fr) repeat(var(--n, 3), 3.6rem); margin-top: 0.7rem; }
 .lp-feed.extra, .lp-bc-feed.extra { border-color: color-mix(in srgb, var(--lp-accent, #ffa04d) 55%, #2a3240); }
 .screen-head .btn .lp-logo { display: inline-block; vertical-align: -0.3rem; margin-right: 0.3rem; }
+/* Blitz rows: no jersey column, so the name always has room beside four stat columns. */
+.lp-row.lp-nfl .lp-num { display: none; }
+.lp-row.lp-nfl { grid-template-columns: 2.4rem minmax(5rem, 1fr) repeat(var(--n, 3), 3.2rem); }
+.lp-box-head.lp-nfl { grid-template-columns: minmax(5rem, 1fr) repeat(var(--n, 3), 3.2rem); }
+.lp-row.lp-nfl span, .lp-box-head.lp-nfl span { white-space: nowrap; }
