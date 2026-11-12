@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 
 const API = process.env.LTTV_UPDATE_API || 'https://api.github.com/repos/lknicks9-a11y/lttv/releases/latest';
 const ASSET = 'lttv-desktop.zip';
+const DOWNLOAD = process.env.LTTV_UPDATE_DOWNLOAD || 'https://github.com/lknicks9-a11y/lttv/releases/latest/download';
 
 export function localBuild(root) {
   try {
@@ -23,11 +24,21 @@ export async function selfUpdate(root, log = console.log) {
   const have = localBuild(root);
   let work = '';
   try {
-    const res = await fetch(API, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'LTTV-desktop' }, signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return 0;
-    const rel = await res.json();
-    const build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
-    const url = rel.assets?.find((a) => a.name === ASSET)?.browser_download_url;
+    // The small build.json next to the release first (a plain download); GitHub's API (60 an hour per address,
+    // often used up on a VPN) only if that isn't there.
+    let build = 0;
+    let url = '';
+    const plain = await fetch(`${DOWNLOAD}/build.json`, { headers: { 'user-agent': 'LTTV-desktop' }, signal: AbortSignal.timeout(6000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (plain && Number(plain.build) > 0) {
+      build = Number(plain.build);
+      url = `${DOWNLOAD}/${ASSET}`;
+    } else {
+      const res = await fetch(API, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'LTTV-desktop' }, signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return 0;
+      const rel = await res.json();
+      build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
+      url = rel.assets?.find((a) => a.name === ASSET)?.browser_download_url;
+    }
     if (!url || !build || build <= have) return 0;
     log(`Updating LTTV to build ${build} (this copy is ${have || 'older'})...`);
     const zip = await fetch(url, { headers: { 'user-agent': 'LTTV-desktop' }, signal: AbortSignal.timeout(120_000) });

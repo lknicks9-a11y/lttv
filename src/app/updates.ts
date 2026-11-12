@@ -91,17 +91,35 @@ export function currentBuild(): number {
   }
 }
 
+const DOWNLOAD = `https://github.com/${UPDATE_REPO}/releases/latest/download`;
+/**
+ * The newest build. First from a small file published next to the app (a plain download, which always answers);
+ * GitHub's API is only the fallback: it allows 60 questions an hour per internet address, and on a VPN that
+ * address is shared with thousands of people, so the API often refuses and the update was never noticed.
+ */
+async function newestRelease(): Promise<{ build: number; url: string; publishedAt?: string; body?: string; notes?: string[] }> {
+  try {
+    const { stream } = await openRemote(`${DOWNLOAD}/build.json`, AbortSignal.timeout?.(20_000));
+    const j = JSON.parse(await new Response(stream).text()) as { build?: number; notes?: string[]; at?: string };
+    if (Number(j.build) > 0) return { build: Number(j.build), url: `${DOWNLOAD}/lttv.apk`, publishedAt: j.at, notes: Array.isArray(j.notes) ? j.notes.map(String) : [] };
+  } catch {
+    /* fall back to the API */
+  }
+  const { stream } = await openRemote(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, AbortSignal.timeout?.(20_000), { Accept: 'application/vnd.github+json' });
+  const rel = JSON.parse(await new Response(stream).text()) as { name?: string; body?: string; message?: string; published_at?: string; assets?: { name?: string; browser_download_url?: string }[] };
+  const build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
+  if (!build) throw new Error(/rate limit/i.test(rel.message ?? '') ? 'GitHub is refusing requests from this internet address right now (common on a VPN). Try again later, or with the VPN off.' : rel.message || 'no build found');
+  return { build, url: rel.assets?.find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `${DOWNLOAD}/lttv.apk`, publishedAt: rel.published_at, body: rel.body };
+}
+
 /** Ask GitHub for the latest build; resolves to the update if it is newer than this app. */
 export async function checkForUpdate(opts: { quiet?: boolean } = {}): Promise<UpdateInfo | null> {
   if (!canUpdateInApp()) return null;
   try {
-    const { stream } = await openRemote(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, AbortSignal.timeout?.(20_000), { Accept: 'application/vnd.github+json' });
-    const rel = JSON.parse(await new Response(stream).text()) as { name?: string; body?: string; published_at?: string; assets?: { name?: string; browser_download_url?: string }[] };
-    const build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
-    const url = rel.assets?.find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `https://github.com/${UPDATE_REPO}/releases/latest/download/lttv.apk`;
+    const { build, url, publishedAt, body, notes: given } = await newestRelease();
     const current = currentBuild();
-    const notes = latest?.build === build && latest.notes.length ? latest.notes : await releaseNotes(rel.body ?? '');
-    latest = { build, url, publishedAt: rel.published_at, notes, checkedAt: Date.now() };
+    const notes = given?.length ? given : latest?.build === build && latest.notes.length ? latest.notes : await releaseNotes(body ?? '');
+    latest = { build, url, publishedAt, notes, checkedAt: Date.now() };
     changed();
     if (build > current) {
       const isNew = available?.build !== build;

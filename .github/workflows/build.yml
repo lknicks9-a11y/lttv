@@ -72,14 +72,16 @@ jobs:
           cp android/app/build/outputs/apk/debug/*.apk lttv.apk
           # The computer version, ready to run: it updates itself from this file (server/update.mjs).
           mkdir -p desk/LTTV && cp -r dist server windows package.json desk/LTTV/
-          echo "{\"build\": ${GITHUB_RUN_NUMBER}}" > desk/LTTV/build.json
+          # build.json: the build number and what changed, as a plain download (the apps read this, not the API).
+          node -e 'require("fs").writeFileSync("build.json", JSON.stringify({ build: +process.env.GITHUB_RUN_NUMBER, sha: process.env.GITHUB_SHA.slice(0, 7), at: new Date().toISOString(), notes: [require("child_process").execSync("git log -1 --pretty=%s").toString().trim()] }))'
+          cp build.json desk/LTTV/build.json
           (cd desk && zip -qr ../lttv-desktop.zip LTTV)
           gh release delete tv --yes --cleanup-tag || true
           N=$((GITHUB_RUN_NUMBER - 61))
           if [ "$N" -lt 0 ]; then VER="1.0.$((GITHUB_RUN_NUMBER - 34))"; else VER="1.$((1 + N / 10)).$((N % 10))"; fi
           # Beta mode from build 87: every build is "1.0.0 Beta" until numbering goes up again.
           if [ "$GITHUB_RUN_NUMBER" -ge 87 ]; then VER="1.0.0 Beta"; fi
-          gh release create tv lttv.apk lttv-desktop.zip --title "LTTV for Fire TV — ${VER} (build ${GITHUB_RUN_NUMBER})" --notes "LTTV ${VER} (build ${GITHUB_RUN_NUMBER}) of main (${GITHUB_SHA::7}). The app offers this update itself (Settings → Check for updates). Downloader: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/lttv.apk" --latest
+          gh release create tv lttv.apk lttv-desktop.zip build.json --title "LTTV for Fire TV — ${VER} (build ${GITHUB_RUN_NUMBER})" --notes "LTTV ${VER} (build ${GITHUB_RUN_NUMBER}) of main (${GITHUB_SHA::7}). The app offers this update itself (Settings → Check for updates). Downloader: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/lttv.apk" --latest
       - name: Build signed release APK
         if: ${{ env.KEYSTORE_BASE64 != '' }}
         env:
