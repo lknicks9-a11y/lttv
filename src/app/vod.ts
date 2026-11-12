@@ -509,7 +509,9 @@ export async function findSeriesByName(playlistId: string, name: string): Promis
  */
 /** Saved Movies / Shows pages: shown right away next time, and rebuilt quietly when older than 6 hours. */
 const SAVED_TTL = 6 * 3600_000;
-const savedKey = (kind: VodKind) => `vodHome2:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
+/** Tags that mark a copy in another language (dubbed or subtitled). */
+const FOREIGN_TAG = /\b(vostfr|vost|vf|vff|truefrench|french|latino|castellano|español|espanol|dublado|legendado|deutsch|german|ita|italiano|türkçe|turkce|arabic|hindi|dubbed)\b/i;
+const savedKey = (kind: VodKind) => `vodHome3:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
 
 export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise<VodHome> {
   const hit = homeCache.get(kind);
@@ -646,9 +648,17 @@ async function buildHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise
  * English, 1080p first). Rows with fewer than 4 of your titles are left out.
  */
 async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h: VodHome) => void, source: (onRow: (rows: WmRow[]) => void) => Promise<WmRow[]> = (onRow) => watchmodeRows(kind, onRow)): Promise<VodHome> {
-  const lib: VodItem[] = kind === 'movies'
+  // English copies only: titles from the provider's English categories, without a foreign language tag
+  // ("FR - The Bear", "The Bear (VOSTFR)"), so a French or Spanish copy never stands in for the show.
+  const englishCats = new Set(english.map((c) => c.key));
+  const isEnglish = (it: VodItem) => {
+    const cat = it.kind === 'movie' ? it.m.categoryId : it.s.categoryId;
+    const n = itemName(it);
+    return (!cat || englishCats.has(`${it.playlistId}:${cat}`)) && isEnglishCategory(n) && !FOREIGN_TAG.test(n);
+  };
+  const lib: VodItem[] = (kind === 'movies'
     ? (await loadAllMovies()).map((m): VodItem => ({ kind: 'movie', playlistId: m.playlistId, m }))
-    : (await loadAllSeries()).map((x): VodItem => ({ kind: 'series', playlistId: x.playlistId, s: x }));
+    : (await loadAllSeries()).map((x): VodItem => ({ kind: 'series', playlistId: x.playlistId, s: x }))).filter(isEnglish);
   const byTitle = new Map<string, VodItem[]>();
   for (const it of lib) {
     // tk: worked out by the background worker while it read the list (falls back for M3U libraries).
