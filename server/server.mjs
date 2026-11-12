@@ -29,6 +29,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const dist = join(root, 'dist');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+/** The build this running helper was started from (the files on disk can be newer after an update). */
+const STARTED_BUILD = localBuild(root);
+let updating = null;
 
 const args = process.argv.slice(2);
 const arg = (name, def) => {
@@ -564,7 +567,14 @@ export function createServer() {
     try {
       if (u.pathname.startsWith('/api/')) {
         if (!sameOriginOnly(req)) return sendJson(res, 403, { error: 'Cross-site requests are not allowed.' });
-        if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpegNow(), version: pkg.version, platform: `desktop (${process.platform})`, remote: REMOTE });
+        if (u.pathname === '/api/caps') return sendJson(res, 200, { proxy: true, ffmpeg: hasFfmpegNow(), version: pkg.version, platform: `desktop (${process.platform})`, remote: REMOTE, build: STARTED_BUILD });
+        // The launcher asks this each time LTTV is opened while the helper is already running: fetch a newer build
+        // if there is one. The launcher then restarts the helper so the new files are actually used.
+        if (u.pathname === '/api/self-update') {
+          updating ??= selfUpdate(root, () => undefined).finally(() => (updating = null));
+          const updated = await updating;
+          return sendJson(res, 200, { updated, running: STARTED_BUILD, onDisk: localBuild(root) });
+        }
         if (u.pathname === '/api/timeout') {
           const l = timeoutList();
           const ip = lanAddresses()[0];

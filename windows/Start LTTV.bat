@@ -13,10 +13,20 @@ cd /d "%~dp0.."
 where node >nul 2>nul || (echo Node.js is not installed. Get it from https://nodejs.org and try again. & pause & exit /b 1)
 rem Already running? Just open it.
 powershell -NoProfile -Command "try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://127.0.0.1:8787/api/caps) | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
-if %errorlevel%==0 (
-  if defined OPEN powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0open-app.ps1"
-  exit /b
-)
+if not %errorlevel%==0 goto fresh
+rem It is running. A helper that was started before an update keeps using its old code, so ask it to fetch any
+rem newer build, and restart it when the files on disk are newer than what it is running (or it is too old to say).
+if not exist "build.json" goto justopen
+powershell -NoProfile -Command "try { $r = Invoke-RestMethod -TimeoutSec 150 http://127.0.0.1:8787/api/self-update; if ($r.updated -gt 0 -or $r.running -ne $r.onDisk) { exit 2 } else { exit 0 } } catch { exit 3 }" >nul 2>nul
+if errorlevel 2 goto restart
+:justopen
+if defined OPEN powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0open-app.ps1"
+exit /b
+:restart
+echo Updating LTTV...
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8787,8788 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>nul
+timeout /t 2 /nobreak >nul
+:fresh
 rem Get the latest version (skipped if git isn't installed or there's no internet).
 where git >nul 2>nul && (
   git checkout -- dist >nul 2>nul
