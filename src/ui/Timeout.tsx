@@ -23,12 +23,12 @@ async function load(): Promise<TimeoutMedia> {
       // On the computer: straight from the helper.
       const r = await fetch('api/timeout');
       if (!r.ok) return NONE;
-      const j = (await r.json()) as { images?: string[]; audio?: string[]; lan?: string };
+      const j = (await r.json()) as { images?: string[]; audio?: string[]; lan?: string; v?: Record<string, string> };
       const has = (j.images?.length ?? 0) + (j.audio?.length ?? 0) > 0;
       // Remember where this computer is on the home network: the setting travels with your account, and the Fire TV
       // uses it to find the same folder.
       if (has && j.lan && getState().settings.timeoutMedia !== j.lan) void updateSettings({ timeoutMedia: j.lan });
-      const url = (n: string) => `timeout/${encodeURIComponent(n)}`;
+      const url = (n: string) => `timeout/${encodeURIComponent(n)}${j.v?.[n] ? `?v=${encodeURIComponent(j.v[n])}` : ''}`;
       return { images: (j.images ?? []).map(url), names: j.images ?? [], audio: (j.audio ?? []).map(url) };
     }
     return await loadOnTv();
@@ -39,7 +39,7 @@ async function load(): Promise<TimeoutMedia> {
 // ---- Fire TV: copy the files from the computer once and keep them on the stick, so the timeout screen also works
 // with the computer off. They are refreshed whenever the computer can be reached.
 const LIST_KEY = 'lttvTimeoutList';
-type Listing = { images: string[]; audio: string[] };
+type Listing = { images: string[]; audio: string[]; v?: Record<string, string> };
 let lastTvStatus = '';
 /** What happened the last time the Fire TV looked for the files (shown in Settings). */
 export const timeoutTvStatus = () => lastTvStatus;
@@ -51,7 +51,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
     try {
       const { stream } = await openRemote(`${base}/timeout.json`, AbortSignal.timeout?.(6000));
       const j = JSON.parse(await new Response(stream).text()) as Partial<Listing>;
-      list = { images: j.images ?? [], audio: j.audio ?? [] };
+      list = { images: j.images ?? [], audio: j.audio ?? [], v: j.v ?? {} };
       reached = true;
     } catch {
       /* computer off or asleep: use what was kept */
@@ -76,7 +76,8 @@ async function loadOnTv(): Promise<TimeoutMedia> {
     return reached ? { images: list.images.map(url), names: list.images, audio: list.audio.map(url) } : NONE;
   }
   const cache = await caches.open('lttv-timeout');
-  const key = (n: string) => `/timeout-kept/${encodeURIComponent(n)}`;
+  // The version is part of the key: a picture replaced under the same name is fetched again, not the old copy.
+  const key = (n: string) => `/timeout-kept/${encodeURIComponent(n)}${list!.v?.[n] ? `?v=${encodeURIComponent(list!.v[n])}` : ''}`;
   const urls = new Map<string, string>();
   for (const n of names) {
     let hit = await cache.match(key(n));

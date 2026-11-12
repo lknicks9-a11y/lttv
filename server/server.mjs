@@ -521,25 +521,30 @@ function timeoutFiles(dirs = TIMEOUT_DIRS) {
     for (const n of names) {
       const file = join(dir, n);
       let size = 0;
+      let mtime = 0;
       try {
         const st = statSync(file);
         if (!st.isFile()) continue;
         size = st.size;
+        mtime = Math.round(st.mtimeMs);
       } catch {
         continue;
       }
       const same = `${size}|${extOf(n)}`;
       if (files.has(n) || seen.has(same)) continue;
       seen.add(same);
-      files.set(n, { file, size });
+      files.set(n, { file, size, mtime });
     }
   }
   return files;
 }
 export function timeoutList(dirs = TIMEOUT_DIRS) {
-  const names = [...timeoutFiles(dirs).keys()];
+  const files = timeoutFiles(dirs);
+  const names = [...files.keys()];
   const kind = (n) => TIMEOUT_TYPES[extOf(n)].split('/')[0];
-  return { images: names.filter((n) => kind(n) === 'image'), audio: names.filter((n) => kind(n) === 'audio') };
+  // A version per file: a picture replaced under the same name is copied to the TV again.
+  const v = Object.fromEntries(names.map((n) => [n, `${files.get(n).size}-${files.get(n).mtime}`]));
+  return { images: names.filter((n) => kind(n) === 'image'), audio: names.filter((n) => kind(n) === 'audio'), v };
 }
 /** One of those files, by its plain name only (no paths). */
 export function serveTimeout(res, name, dirs = TIMEOUT_DIRS) {
@@ -570,7 +575,7 @@ export function createRemoteServer() {
       }
       if (req.method === 'GET' && u.pathname === '/timeout.json') {
         const l = timeoutList();
-        return sendJson(res, 200, { images: l.images, audio: l.audio });
+        return sendJson(res, 200, { images: l.images, audio: l.audio, v: l.v });
       }
       if (req.method === 'GET' && u.pathname.startsWith('/timeout/')) return serveTimeout(res, decodeURIComponent(u.pathname.slice('/timeout/'.length)));
       if (u.pathname === '/rapi/pair' && req.method === 'POST') {
@@ -613,7 +618,7 @@ export function createServer() {
         if (u.pathname === '/api/timeout') {
           const l = timeoutList();
           const ip = lanAddresses()[0];
-          return sendJson(res, 200, { images: l.images, audio: l.audio, lan: REMOTE && ip ? `http://${ip}:${REMOTE_PORT}` : '' });
+          return sendJson(res, 200, { images: l.images, audio: l.audio, v: l.v, lan: REMOTE && ip ? `http://${ip}:${REMOTE_PORT}` : '' });
         }
         if (u.pathname.startsWith('/api/remote/')) return await handleRemotePage(req, res, u);
         if (u.pathname === '/api/fetch') return await handleFetch(req, res, u.searchParams);

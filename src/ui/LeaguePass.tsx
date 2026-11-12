@@ -413,18 +413,9 @@ export function LeaguePass() {
   const offFeed = offGame && feedsOf(offGame).find((f) => f.key === off!.key);
   // Is any game on the air right now (live, or inside its broadcast window)?
   const anyOnAir = games.some((g) => !offAir(g, now));
-  // The timeout screen: a team broadcast picked while it's off the air, or nothing playing and nothing on.
-  const timeoutUp = !playing && !mv && ((!!offGame && !!offFeed) || (!loading && index !== null && !anyOnAir) || (!loading && !games.length));
-  // Waiting on the timeout screen with nothing picked: when a game comes on the air, go to it.
-  const idleTimeout = timeoutUp && !off;
-  const wasIdle = useRef(false);
-  useEffect(() => {
-    const was = wasIdle.current;
-    wasIdle.current = idleTimeout;
-    if (!was || idleTimeout || playing || off || mv) return;
-    const g = games.find((x) => !offAir(x, now) && feedsOf(x).length > 0);
-    if (g) watch(g);
-  }, [idleTimeout, now]);
+  // The timeout screen only comes up once you pick a broadcast that's off the air (never by itself on the League Pass
+  // page, where it kept showing pictures from earlier).
+  const timeoutUp = !playing && !mv && !!offGame && !!offFeed;
   // The broadcast opens (an hour before tip-off): go to it without being asked.
   useEffect(() => {
     if (!off || !offGame || offAir(offGame, now)) return;
@@ -570,7 +561,7 @@ export function LeaguePass() {
               );
               return <TimeoutShow media={tmedia} team={team}>{lines}</TimeoutShow>;
             })()}
-            {!onThisGame && !full && !timeoutUp && <div class="lp-hint">{game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
+            {!onThisGame && !full && !timeoutUp && <div class="lp-hint">{!loading && games.length && !anyOnAir ? 'No games on at this time · pick a game below to see when it comes on' : game ? (gameFeeds.length ? 'Pick a game or a channel below to watch it here' : index ? 'No stream found for this game in your playlist' : 'Finding streams…') : loading ? 'Loading the games…' : cfg.league === 'nfl' ? 'No NFL games in the next few days' : 'No NBA games today'}</div>}
             {full && (
               <div class="lp-bc" data-group="lp-bc">
                 <div class="lp-bc-top">
