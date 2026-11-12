@@ -246,9 +246,10 @@ export function LeaguePass() {
   const guideVersion = useApp((s) => s.guideVersion);
   const playing = useApp((s) => s.currentKey);
   const cfg = PASSES[useApp((s) => s.passLeague) ?? 'nba'];
-  const today = scheduleDay(now, tz);
+  // The day's games stay up until 7:00 the next morning: late games run past midnight.
+  const today = scheduleDay(now - 7 * 3600_000, tz);
   // The NFL's games come by the week (Thursday to Monday), so Blitz lists the next days too.
-  const day = cfg.days > 1 ? `${today}-${scheduleDay(now + cfg.days * 86400_000, tz)}` : today;
+  const day = cfg.days > 1 ? `${today}-${scheduleDay(now - 7 * 3600_000 + cfg.days * 86400_000, tz)}` : today;
   const { games: raw, loading } = useGames(cfg.league as ScheduleLeagueId, day, today);
   const extras = useMemo(() => cfg.extras.flatMap((x) => extraChannels(lineup, x.re).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: ch.name }))), [lineup, cfg]);
   const games = useMemo(() => {
