@@ -36,7 +36,6 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'shows', label: 'Shows', icon: 'shows' },
   { id: 'channels', label: 'Channels', icon: 'channels' },
   { id: 'search', label: 'Search', icon: 'search' },
-  { id: 'sources', label: 'Sources', icon: 'sources' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
@@ -46,7 +45,7 @@ function TopBar() {
   const now = useApp((s) => s.now);
   const vod = useVodNav();
   const items = NAV.filter((n) => (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true));
-  const active = screen === 'matches' || screen === 'wizard' ? 'sources' : screen === 'guide' ? 'home' : screen;
+  const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen === 'guide' ? 'home' : screen;
   return (
     <header class="topbar" data-group="topbar" data-zone="h">
       <div class="brand" aria-label="LTTV">

@@ -8,7 +8,7 @@ import { h, Fragment } from 'preact';
 import { currentBuild, versionOf } from '../app/updates';
 import { UpdateCenter } from './UpdateCenter';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { useApp, updateSettings, repo, reloadAll, toast, pruneExpired, getState, loadGuide, stopPlayback, player } from '../app/state';
+import { navigate, useApp, updateSettings, repo, reloadAll, toast, pruneExpired, getState, loadGuide, stopPlayback, player } from '../app/state';
 import type { Settings } from '../core/types';
 import { Choice, Toggle, Button, Modal } from './common';
 import { SORT_OPTIONS } from './Channels';
@@ -29,6 +29,8 @@ function zoneOptions(current: string) {
 
 export function SettingsScreen() {
   const s = useApp((st) => st.settings);
+  const playlists = useApp((st) => st.playlists);
+  const epg = useApp((st) => st.epgSources);
   const set = (p: Partial<Settings>) => void updateSettings(p);
   const [diag, setDiag] = useState<string>('');
   const [confirmReset, setConfirmReset] = useState(false);
@@ -106,6 +108,11 @@ export function SettingsScreen() {
       <header class="screen-head"><h1>Settings</h1></header>
       <div class="settings-grid">
         <ProfilesSection />
+        <div class="card settings-section" data-group="set-sources">
+          <h3>Playlists &amp; guides</h3>
+          <p class="hint">{playlists.length ? `${playlists.length} playlist${playlists.length === 1 ? '' : 's'} · ${epg.length} guide${epg.length === 1 ? '' : 's'}` : 'No playlist yet.'} Add, update or remove your provider’s playlists and TV guides.</p>
+          <div class="row gap"><Button icon="sources" onClick={() => navigate('sources')}>Open Sources</Button></div>
+        </div>
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />

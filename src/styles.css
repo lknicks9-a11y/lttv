@@ -338,7 +338,7 @@ small, .small { font-size: 1.15rem; }
 
 /* ---------- modal ---------- */
 .modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(3, 6, 10, 0.72); padding: var(--safe-y) var(--safe-x); }
-.modal { width: min(64rem, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: calc(var(--radius) * 1.5); padding: 2rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.6); }
+.modal { width: min(64rem, 100%); max-height: calc(100vh - 2 * var(--safe-y)); max-height: calc(100dvh - 2 * var(--safe-y)); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: calc(var(--radius) * 1.5); padding: 2rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.6); }
 .modal-wide { width: min(90rem, 100%); }
 .modal-title { font-size: 2rem; }
 .modal-actions { flex-wrap: wrap; margin-top: 0.6rem; }
@@ -1875,12 +1875,12 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .portal { display: contents; }
 
 /* ---------- Movies & Shows: full-width hero, Top 25 with big numbers, poster grid ---------- */
-:root { --vod-cta: #c9f24a; --vod-cta-ink: #10140a; }
+:root { --vod-cta: var(--accent); --vod-cta-ink: var(--accent-ink); }
 .vod .vod-hero, [data-theme] .vod .vod-hero { margin: -0.5rem -0.6rem 0; min-height: min(36rem, 62vh); border-radius: 0; border: 0; box-shadow: none; background: var(--bg); align-items: flex-end; }
-.vod .vod-hero-bg { inset: 0 0 0 18%; background-position: center 20%; -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 35%); mask-image: linear-gradient(90deg, transparent 0%, #000 35%); }
-.vod .vod-hero-bg.is-poster { inset: 0; -webkit-mask-image: none; mask-image: none; }
+.vod .vod-hero-bg { inset: 0; background-position: center center; background-size: cover; -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 35%); mask-image: linear-gradient(90deg, transparent 0%, #000 35%); }
+.vod .vod-hero-bg.is-poster, :root.tv .vod .vod-hero-bg.is-poster { inset: 0 0 0 30%; background-position: center 22%; filter: none; transform: none; opacity: 1; }
 .vod .vod-hero-shade { background: linear-gradient(90deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 70%, transparent) 38%, transparent 70%), linear-gradient(0deg, var(--bg) 0%, transparent 38%); }
-.vod .vod-hero-poster { right: 6%; height: 78%; z-index: 0; }
+.vod .vod-hero-poster { display: none; }
 .vod .vod-hero-text { padding: 2rem 2.6rem 1.8rem; max-width: min(46rem, 52%); gap: 0.6rem; }
 .vod-hero-badge { align-self: flex-start; background: var(--vod-cta); color: var(--vod-cta-ink); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.12rem 0.5rem; border-radius: 0.3rem; }
 .vod .vod-hero-title { font-size: 3.6rem; font-weight: 800; line-height: 1; letter-spacing: -0.03em; text-shadow: 0 0.2rem 1.2rem rgba(0, 0, 0, 0.5); }

@@ -19,8 +19,8 @@ const ITUNES = () => override('lttvItunesBase', 'https://itunes.apple.com');
 const WIKI = () => override('lttvWikiBase', 'https://en.wikipedia.org/api/rest_v1/page/summary/');
 
 type Kind = 'movie' | 'series';
-// v2: episodes carry their air date.
-const KV = 'vodArt2';
+// v2: episodes carry their air date. v3: shows carry a wide background picture.
+const KV = 'vodArt3';
 const cache = new Map<string, ArtInfo | null>();
 const inflight = new Map<string, Promise<ArtInfo | null>>();
 const listeners = new Map<string, Set<(a: ArtInfo | null) => void>>();
@@ -83,7 +83,7 @@ async function lookup(kind: Kind, name: string, year: string | undefined, urgent
   if (!title) return null;
   try {
     if (kind === 'series') {
-      const json = await paced('tvmaze', () => getJson(`${TVMAZE()}/singlesearch/shows?q=${encodeURIComponent(title)}&embed=episodes`), urgent);
+      const json = await paced('tvmaze', () => getJson(`${TVMAZE()}/singlesearch/shows?q=${encodeURIComponent(title)}&embed[]=episodes&embed[]=images`), urgent);
       return parseTvmazeShow(json, name, year) ?? null;
     }
     const json = await paced('itunes', () => getJson(`${ITUNES()}/search?term=${encodeURIComponent(title)}&media=movie&entity=movie&limit=8&country=us`), urgent);

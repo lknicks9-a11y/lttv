@@ -364,6 +364,8 @@ export function titleYear(name: string): string | undefined {
 
 export interface ArtInfo {
   poster?: string;
+  /** A wide background picture (TVmaze shows). */
+  backdrop?: string;
   plot?: string;
   year?: string;
   genre?: string;
@@ -389,8 +391,11 @@ export function parseTvmazeShow(json: unknown, name: string, year?: string): Art
     const k = `${str(e.season)}:${str(e.number)}`;
     episodes[k] = { title: str(e.name) || undefined, plot: strip(str(e.summary)) || undefined, image: url(obj(e.image).original) ?? url(obj(e.image).medium), runtime: num(e.runtime), airDate: str(e.airdate) || undefined };
   }
+  const bgs = arr(obj(s._embedded).images).map(obj).filter((i) => str(i.type) === 'background');
+  const bg = bgs.find((i) => i.main === true) ?? bgs[0];
   return {
     poster: url(obj(s.image).original) ?? url(obj(s.image).medium),
+    backdrop: bg ? url(obj(obj(bg.resolutions).original).url) : undefined,
     plot: strip(str(s.summary)) || undefined,
     year: premiered,
     genre: arr(s.genres).map(str).filter(Boolean).join(', ') || undefined,

@@ -22,6 +22,8 @@ import { usePlayerStatus, PlayerBadge } from './Home';
 
 
 const PAGE = 48;
+/** A title as shown: no "EN -" / "|NF|" prefixes or quality tags ("EN - The Batman 4K" -> "The Batman"). */
+const tt = (n: string) => cleanTitle(n) || n;
 
 function Poster({ src, name }: { src?: string; name: string }) {
   const [bad, setBad] = useState(false);
@@ -167,7 +169,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                     >
                       <ArtPoster kind={e.key.startsWith('e:') ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? (e.key.startsWith('e:') ? undefined : e.poster)} />
                       <div class="vod-progress"><div style={{ width: `${e.done ? 100 : Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
-                      <div class="vod-name">{e.series?.name ?? e.title}</div>
+                      <div class="vod-name">{tt(e.series?.name ?? e.title)}</div>
                       <div class="vod-meta muted">{!e.series && e.key.startsWith('e:') ? `${(e.subtitle ?? '').split(' · ')[0]} · ${fmtClock(Math.max(0, e.dur - e.pos))} left` : e.series ? (e.done ? `Up next after S${e.series.season} E${e.series.episode}` : `S${e.series.season} E${e.series.episode} · ${fmtClock(Math.max(0, e.dur - e.pos))} left`) : `${fmtClock(Math.max(0, e.dur - e.pos))} left`}</div>
                     </button>
                   ))}
@@ -222,7 +224,7 @@ function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) 
     setD(null);
     if (it.kind === 'movie') void loadMovieDetails(it.playlistId, it.m).then(setD);
   }, [id]);
-  const backdrop = it.kind === 'series' ? it.s.backdrop : d?.backdrop;
+  const backdrop = (it.kind === 'series' ? it.s.backdrop : d?.backdrop) ?? art?.backdrop;
   const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
   const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
   const genre = firstGenre((it.kind === 'series' ? it.s.genre : d?.genre) ?? art?.genre);
@@ -264,7 +266,7 @@ function ItemCard({ it, onOpen, autofocus, rank }: { it: VodItem; onOpen: (it: V
     <button type="button" class="f vod-card" key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(it)}>
       {rank && <span class="vod-rank" aria-hidden="true">{rank}</span>}
       <ArtPoster kind={it.kind} name={name} year={year} src={poster} />
-      <div class="vod-name">{name}</div>
+      <div class="vod-name">{tt(name)}</div>
       <div class="vod-meta muted">{[year, rating ? `★ ${rating.toFixed(1)}` : ''].filter(Boolean).join(' · ')}</div>
     </button>
   );
@@ -298,7 +300,7 @@ function TopCard({ it, rank, wide, autofocus, onFocus, onOpen }: { it: VodItem; 
     const t = setTimeout(() => void loadMovieDetails(it.playlistId, it.m).then(setD).catch(() => undefined), 250);
     return () => clearTimeout(t);
   }, [wide]);
-  const backdrop = it.kind === 'series' ? it.s.backdrop : d?.backdrop;
+  const backdrop = (it.kind === 'series' ? it.s.backdrop : d?.backdrop) ?? art?.backdrop;
   const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
   const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
   const genre = firstGenre((it.kind === 'series' ? it.s.genre : d?.genre) ?? art?.genre);
@@ -579,7 +581,7 @@ function MovieDetail({ playlistId, m, onClose, onOpen }: { playlistId: string; m
   const quality = qualityOf(cur.m.name, d?.height).label;
   const plot = goodText(d?.plot) ?? art?.plot;
   return (
-    <Modal title={m.name} onClose={onClose} wide class="vod-detail">
+    <Modal title={tt(m.name)} onClose={onClose} wide class="vod-detail">
       {(d?.backdrop || art?.poster || m.poster) && <div class={`vod-detail-bg ${d?.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${d?.backdrop ?? art?.poster ?? m.poster}")` }} />}
       <div class="vod-detail-body">
         <Poster src={art?.poster ?? d?.poster ?? m.poster} name={m.name} />
@@ -736,7 +738,7 @@ function SeriesDetail({ playlistId, s, onClose, onOpen }: { playlistId: string; 
   const plot = goodText(d.plot) ?? goodText(s.plot) ?? art?.plot;
 
   return (
-    <Modal title={s.name} onClose={onClose} wide class="vod-detail">
+    <Modal title={tt(s.name)} onClose={onClose} wide class="vod-detail">
       {(s.backdrop || art?.poster || s.poster) && <div class={`vod-detail-bg ${s.backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${s.backdrop ?? art?.poster ?? s.poster}")` }} />}
       <div class="vod-detail-body">
         <Poster src={art?.poster ?? d.poster ?? s.poster} name={s.name} />
@@ -1004,7 +1006,7 @@ export function VodPlayer() {
           {v.kicker && <span>{v.kicker}</span>}
           {captions && status.textTracks === 0 ? <span>No captions in this video</span> : null}
         </div>
-        <div class="osd-title">{v.title}</div>
+        <div class="osd-title">{tt(v.title)}</div>
         {(v.subtitle || v.meta) && <div class="osd-meta">{(v.kicker === 'Shows' || !v.meta ? [v.subtitle, v.meta] : [v.meta]).filter(Boolean).join(' · ')}</div>}
         <div class="osd-bar vod-controls" data-group="vod-controls" data-nav-skip={controls ? undefined : ''} onFocusIn={(e) => setHint((e.target as HTMLElement).getAttribute('aria-label') ?? '')}>
           <button type="button" class="f osd-play" data-autofocus onClick={() => { player.togglePause(); poke(); }} aria-label={paused ? 'Play' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} size="1.6rem" /></button>
