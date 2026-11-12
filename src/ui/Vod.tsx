@@ -86,6 +86,15 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat }>({ mode: 'home' });
   const [open, setOpen] = useState<VodItem | null>(null);
   const rootRef = useRef<HTMLElement>(null);
+  // The page appears right away with its first rows; the others are added a few at a time just after
+  // (drawing every row at once kept a Fire TV Stick busy for seconds before anything showed).
+  const [rowsShown, setRowsShown] = useState(3);
+  const rowCount = home?.rows.length ?? 0;
+  useEffect(() => {
+    if (rowsShown >= rowCount) return;
+    const t = setTimeout(() => setRowsShown((n) => n + 3), 150);
+    return () => clearTimeout(t);
+  }, [rowsShown, rowCount]);
 
   useEffect(() => {
     let alive = true;
@@ -178,7 +187,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                 </div>
               </section>
             )}
-            {home?.rows.map((r, ri) => (r.id === 'trending' || r.id === 'popular') ? <TopRow key={r.id} kind={kind} items={r.items} onOpen={setOpen} autofocus={!cont.length && ri === 0} /> : (
+            {home?.rows.slice(0, rowsShown).map((r, ri) => (r.id === 'trending' || r.id === 'popular') ? <TopRow key={r.id} kind={kind} items={r.items} onOpen={setOpen} autofocus={!cont.length && ri === 0} /> : (
               <section class={`vod-row ${r.id === 'trending' ? 'vod-ranked' : ''}`} key={r.id}>
                 <h2 class="vod-row-title">{r.title}{r.note && <small class="muted"> · {r.note}</small>}</h2>
                 <LazyStrip id={r.id} count={r.items.length}>
@@ -193,7 +202,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                 <p>Your provider’s other categories are below.</p>
               </Empty>
             )}
-            {home && !home.loading && home.categories.length > 0 && <CategoryRow id="cats" title="Browse categories" cats={home.categories} onPick={(cat) => setView({ mode: 'category', cat })} autofocus={!cont.length && !home.rows.length} />}
+            {home && !home.loading && rowsShown >= rowCount && home.categories.length > 0 && <CategoryRow id="cats" title="Browse categories" cats={home.categories} onPick={(cat) => setView({ mode: 'category', cat })} autofocus={!cont.length && !home.rows.length} />}
             {/* US / English only: other-language categories aren't shown. */}
           </>
         )}

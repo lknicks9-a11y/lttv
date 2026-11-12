@@ -122,6 +122,12 @@ function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
   if (dir === 'up' || dir === 'down') {
     const gap = (r: DOMRect) => (dir === 'down' ? r.top - fr.bottom : fr.top - r.bottom);
     let inDir = pool.filter((el) => el !== active && !el.contains(active) && score(fr, rectOf(el), dir) < Infinity);
+    // Up inside a screen goes to what's above on the page first (even when it has scrolled out of view); the
+    // top menu only once there is nothing left above.
+    if (dir === 'up' && !horiz) {
+      const onPage = inDir.filter((el) => !el.closest('[data-zone="h"]'));
+      if (onPage.length) inDir = onPage;
+    }
     // Multi-column layouts (Settings cards): stay in the same column — something in the next column that
     // happens to sit a little lower must not win over the next row of this card or the card below it.
     const col = active.closest<HTMLElement>('[data-col], .settings-section');
@@ -155,6 +161,8 @@ function moveFocusInner(dir: Dir, from?: HTMLElement): boolean {
   if (!best && dir === 'up' && !horiz && !hlock) {
     const bar = [...scope.querySelectorAll<HTMLElement>('[data-zone="h"]')].find((b) => isVisible(b));
     best = bar ? list.find((el) => bar.contains(el) && el.hasAttribute('data-default-focus')) ?? list.find((el) => bar.contains(el)) ?? null : null;
+    // Leaving the page for the menu: show the page from its top (headings and pictures above the first button).
+    if (best) for (let p = active.parentElement; p && p !== document.body; p = p.parentElement) if (p.scrollTop > 0) p.scrollTop = 0;
   }
   if (!best) return !!hlock;
   // Restore the remembered element when entering a group from outside.
