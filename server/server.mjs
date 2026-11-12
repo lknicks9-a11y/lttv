@@ -491,30 +491,54 @@ const SLOW_COMMANDS = new Set(['games']);
 // "Timeout" pictures and music: the user's own files, shown by League Pass when no game is on. They live in a
 // folder on this computer (never in the app itself): "timeout" next to LTTV, or Documents/LTTV Timeout. The app on
 // this computer reads them from here; the Fire TV app reads the same folder over the home network.
-const TIMEOUT_DIRS = [join(root, 'timeout'), join(homedir(), 'Documents', 'LTTV Timeout')];
-const TIMEOUT_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.wav': 'audio/wav' };
+// Wherever the folder ended up: beside LTTV, beside "Start LTTV.bat" (the windows folder), a "timeout" folder
+// inside either (unzipping often nests one), or Documents/LTTV Timeout. All of them count, together.
+const TIMEOUT_DIRS = [join(root, 'timeout'), join(root, 'windows', 'timeout'), join(homedir(), 'Documents', 'LTTV Timeout')].flatMap((d) => [d, join(d, 'timeout')]);
+const TIMEOUT_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.avif': 'image/avif', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.wav': 'audio/wav' };
 const extOf = (n) => n.slice(n.lastIndexOf('.')).toLowerCase();
-export function timeoutList(dirs = TIMEOUT_DIRS) {
+/** Every picture and song in those folders: name -> file. The same file copied twice (same name or same size and type) counts once. */
+function timeoutFiles(dirs = TIMEOUT_DIRS) {
+  const files = new Map();
+  const seen = new Set();
   for (const dir of dirs) {
+    let names = [];
     try {
-      const names = readdirSync(dir).filter((n) => TIMEOUT_TYPES[extOf(n)]).sort();
-      if (names.length) return { dir, images: names.filter((n) => TIMEOUT_TYPES[extOf(n)].startsWith('image/')), audio: names.filter((n) => TIMEOUT_TYPES[extOf(n)].startsWith('audio/')) };
+      names = readdirSync(dir).filter((n) => TIMEOUT_TYPES[extOf(n)]).sort();
     } catch {
-      /* no such folder */
+      continue; // no such folder
+    }
+    for (const n of names) {
+      const file = join(dir, n);
+      let size = 0;
+      try {
+        const st = statSync(file);
+        if (!st.isFile()) continue;
+        size = st.size;
+      } catch {
+        continue;
+      }
+      const same = `${size}|${extOf(n)}`;
+      if (files.has(n) || seen.has(same)) continue;
+      seen.add(same);
+      files.set(n, { file, size });
     }
   }
-  return { dir: '', images: [], audio: [] };
+  return files;
 }
-/** One file of that folder, by its plain name only (no paths). */
+export function timeoutList(dirs = TIMEOUT_DIRS) {
+  const names = [...timeoutFiles(dirs).keys()];
+  const kind = (n) => TIMEOUT_TYPES[extOf(n)].split('/')[0];
+  return { images: names.filter((n) => kind(n) === 'image'), audio: names.filter((n) => kind(n) === 'audio') };
+}
+/** One of those files, by its plain name only (no paths). */
 export function serveTimeout(res, name, dirs = TIMEOUT_DIRS) {
-  const list = timeoutList(dirs);
-  if (!list.dir || !(list.images.includes(name) || list.audio.includes(name))) {
+  const hit = timeoutFiles(dirs).get(name);
+  if (!hit) {
     res.writeHead(404);
     return res.end();
   }
-  const file = join(list.dir, name);
-  res.writeHead(200, { 'content-type': TIMEOUT_TYPES[extOf(name)], 'content-length': statSync(file).size, 'cache-control': 'max-age=3600', 'x-content-type-options': 'nosniff' });
-  createReadStream(file).pipe(res);
+  res.writeHead(200, { 'content-type': TIMEOUT_TYPES[extOf(name)], 'content-length': hit.size, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
+  createReadStream(hit.file).pipe(res);
 }
 
 /** The phone-facing server: only the remote page, its commands and the timeout pictures and music. */

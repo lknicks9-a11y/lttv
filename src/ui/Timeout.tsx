@@ -80,7 +80,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
     if (!hit && reached) {
       try {
         const { stream } = await openRemote(`${base}/timeout/${encodeURIComponent(n)}`, AbortSignal.timeout?.(120_000));
-        const blob = await new Response(stream).blob();
+        const blob = await tvSized(n, await new Response(stream).blob());
         if (blob.size > 0) {
           await cache.put(key(n), new Response(blob));
           hit = await cache.match(key(n));
@@ -90,7 +90,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
       }
     }
     if (hit) {
-      const type = /\.(mp3)$/i.test(n) ? 'audio/mpeg' : /\.(m4a|aac)$/i.test(n) ? 'audio/mp4' : /\.png$/i.test(n) ? 'image/png' : /\.webp$/i.test(n) ? 'image/webp' : /\.(ogg)$/i.test(n) ? 'audio/ogg' : /\.wav$/i.test(n) ? 'audio/wav' : 'image/jpeg';
+      const type = /\.(mp3)$/i.test(n) ? 'audio/mpeg' : /\.(m4a|aac)$/i.test(n) ? 'audio/mp4' : /\.png$/i.test(n) ? 'image/png' : /\.webp$/i.test(n) ? 'image/webp' : /\.avif$/i.test(n) ? 'image/avif' : /\.gif$/i.test(n) ? 'image/gif' : /\.(ogg)$/i.test(n) ? 'audio/ogg' : /\.wav$/i.test(n) ? 'audio/wav' : 'image/jpeg';
       urls.set(n, URL.createObjectURL(new Blob([await hit.blob()], { type })));
     }
   }
@@ -106,6 +106,24 @@ async function loadOnTv(): Promise<TimeoutMedia> {
   const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), audio: list.audio.flatMap((n) => urls.get(n) ?? []) };
   lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.`;
   return got;
+}
+/** A big photo is shrunk to TV size before it is kept (a 10 MB picture would choke a Fire TV Stick). */
+async function tvSized(name: string, blob: Blob): Promise<Blob> {
+  if (/\.(mp3|m4a|aac|ogg|wav|gif)$/i.test(name) || blob.size < 500_000 || typeof createImageBitmap !== 'function') return blob;
+  try {
+    const full = await createImageBitmap(blob);
+    const k = Math.min(1, 1920 / full.width);
+    if (k >= 1 && blob.size < 1_500_000) return blob;
+    const c = document.createElement('canvas');
+    c.width = Math.round(full.width * k);
+    c.height = Math.round(full.height * k);
+    c.getContext('2d')!.drawImage(full, 0, 0, c.width, c.height);
+    full.close();
+    const out = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.86));
+    return out && out.size > 0 && out.size < blob.size ? out : blob;
+  } catch {
+    return blob;
+  }
 }
 /** Look again now (after changing the address or the folder). */
 export function refreshTimeoutMedia(): Promise<TimeoutMedia> {
@@ -259,7 +277,7 @@ export function TimeoutSettings() {
         </>
       ) : (
         <>
-          <p class="muted">Put your own pictures (JPG, PNG) and songs (MP3) in a folder named “timeout” beside “Start LTTV.bat”. They stay on your devices and are never part of the app.</p>
+          <p class="muted">Put your own pictures (JPG, PNG, WEBP) and songs (MP3) in a folder named “timeout” beside “Start LTTV.bat”. They stay on your devices and are never part of the app.</p>
           {status && <p>{status}</p>}
           {lan ? <p>On the Fire TV, in Settings, type this address: <b>{lan}</b></p> : <p class="muted">The Fire TV can’t reach this computer (the phone-remote part of the helper is off).</p>}
         </>
