@@ -233,7 +233,7 @@ export function App() {
   const [, bumpProfiles] = useState(0);
   useEffect(() => onProfilesChanged(() => bumpProfiles((n) => n + 1)), []);
   const picker = pickerOpen || (ready && !onboarding && needsProfilePick());
-  const covered = fullscreen || vodPlaying || multiview || signIn || onboarding || picker;
+  const covered = fullscreen || vodPlaying || multiview || signIn || onboarding || picker || leaguePass;
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -279,7 +279,7 @@ export function App() {
       {leaguePass && !multiview && <div class="lp-overlay"><LeaguePass /></div>}
       {picker && !onboarding && !signIn && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ profilePicker: false })} /></div>}
       {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn && <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div>}
-      {onboarding || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && <PlayerOverlay />}
+      {onboarding || signIn ? null : multiview ? <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && !leaguePass && <PlayerOverlay />}
       <LiveNotices />
       <UpdatePrompt />
       {detail && <ProgrammeDetail />}
