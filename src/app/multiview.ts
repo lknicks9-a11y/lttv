@@ -87,6 +87,9 @@ function apply(mv: MultiviewState) {
   mv.tiles.forEach((t, i) => tilePlayer(i).setMuted(!t || i !== mv.active));
 }
 
+/** Which playlist each tile is playing from. */
+const tileSource = new Map<number, string>();
+
 // Streams start one after another (1.5 s apart): opening several provider connections at the same
 // instant is what IPTV servers most often refuse or throttle.
 let nextStartAt = 0;
@@ -103,7 +106,16 @@ function start(i: number, t: MvTile | null) {
   window.setTimeout(() => {
     // Still the same game in this tile?
     if (getState().multiview?.tiles[i]?.key !== t.key) return;
-    p.play({ ...playRequest(ch), key: `mv${i}:${ch.key}:${Date.now()}` });
+    // Spread the tiles over your subscriptions: each tile takes the copy from the provider with the most free
+    // connections, so four games can play even when one login allows only one or two streams.
+    const inUse = new Map<string, number>();
+    getState().multiview?.tiles.forEach((o, j) => {
+      const pl = j !== i && o ? tileSource.get(j) : undefined;
+      if (pl) inUse.set(pl, (inUse.get(pl) ?? 0) + 1);
+    });
+    const req = playRequest(ch, { inUse });
+    tileSource.set(i, req.playlistId ?? ch.playlistId);
+    p.play({ ...req, key: `mv${i}:${ch.key}:${Date.now()}` });
   }, wait);
 }
 

@@ -112,6 +112,7 @@ export function SettingsScreen() {
           <h3>Playlists &amp; guides</h3>
           <p class="hint">{playlists.length ? `${playlists.length} playlist${playlists.length === 1 ? '' : 's'} · ${epg.length} guide${epg.length === 1 ? '' : 's'}` : 'No playlist yet.'} Add, update or remove your provider’s playlists and TV guides.</p>
           <div class="row gap"><Button icon="sources" onClick={() => navigate('sources')}>Open Sources</Button></div>
+          {playlists.length > 1 && <Toggle label="Back up channels with my other playlists" hint="When a channel fails or a login is at its stream limit, LTTV plays the same channel from your next playlist. Multiview spreads its games over your playlists." checked={s.providerFailover !== false} onChange={(v) => set({ providerFailover: v })} />}
         </div>
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>

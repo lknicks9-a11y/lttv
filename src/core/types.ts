@@ -201,6 +201,8 @@ export interface Settings {
   /** Playback */
   autoplayLastChannel: boolean;
   playbackRetries: number;
+  /** When a channel fails, play the same channel from your other playlists (other subscriptions). */
+  providerFailover?: boolean;
   stallTimeoutSec: number;
   bufferSec: number;
   /** Desktop only: 'auto' tries direct then falls back to local proxy. */

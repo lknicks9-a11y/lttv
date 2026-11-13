@@ -13,7 +13,7 @@ import { buildLineup, setProviderOrder, sortLineup } from '../core/organize';
 import { GuideIndex } from '../core/guide';
 import { isUsableMatch } from '../core/match';
 import { importEpg, importPlaylist, pruneGuide, rematch, matchMissingChannels, type InputSource, type JobProgress } from './importer';
-import { PlayerController } from './player';
+import { PlayerController, type PlayRequest } from './player';
 import { redactUrl, uid } from '../core/util';
 import { CLIENT_IDENTITIES, isClientRejection, xtreamUrls, type XtreamLogin } from '../core/xtream';
 import { loadXtreamPlaylist } from './xtream-login';
@@ -711,7 +711,51 @@ const extOf = (u: string) => /\.(m3u8|ts)(?:$|\?)/i.exec(u.split('#')[0])?.[1]?.
  * format (.m3u8 / .ts), tried automatically when one doesn't play. Browsers can't play
  * raw .ts, so desktop starts with HLS; the format that worked on a server is remembered.
  */
-export function playRequest(ch: LineupChannel) {
+export function playRequest(ch: LineupChannel, opts: { inUse?: Map<string, number> } = {}): PlayRequest {
+  // The same channel from your other playlists (other subscriptions): tried in turn when this one fails.
+  // Multiview: a copy from the provider with free connections plays first.
+  let copies = [ch, ...backupChannels(ch)];
+  if (opts.inUse) {
+    const free = (c: LineupChannel) => {
+      const used = opts.inUse!.get(c.playlistId) ?? 0;
+      const max = state.playlists.find((p) => p.id === c.playlistId)?.maxConnections;
+      return max ? max - used : 1000 - used;
+    };
+    const best = copies.reduce((a, b) => (free(b) > free(a) ? b : a), copies[0]);
+    copies = [best, ...copies.filter((c) => c !== best)];
+  }
+  const [first, ...rest] = copies;
+  return { ...oneRequest(first), key: ch.key, backups: rest.slice(0, 4).map((c) => ({ ...oneRequest(c), key: ch.key, source: playlistName(c.playlistId) })), source: playlistName(first.playlistId) };
+}
+
+const playlistName = (id: string) => state.playlists.find((p) => p.id === id)?.name ?? 'Provider';
+
+/** Normalised channel name without the provider's quality tag, for finding the same channel elsewhere. */
+const sameKey = (c: LineupChannel) => normalizeForMatch(c.name).replace(/\b(fhd|uhd|hd|sd|4k|hevc|h265|1080p?|720p?|50fps|60fps)\b/g, '').replace(/\s+/g, ' ').trim();
+
+/** The same channel in your other playlists (not the same provider), best match first: one per playlist. */
+export function backupChannels(ch: LineupChannel): LineupChannel[] {
+  if (state.settings.providerFailover === false || state.playlists.length < 2) return [];
+  const epg = isUsableMatch(state.matches.get(ch.key)) ? ch.epgChannelId : undefined;
+  const nk = sameKey(ch);
+  const tvg = ch.tvgId?.toLowerCase();
+  const best = new Map<string, { c: LineupChannel; score: number }>();
+  for (const c of state.lineup) {
+    if (c.playlistId === ch.playlistId || c.key === ch.key) continue;
+    let score = 0;
+    if (epg && c.epgChannelId === epg && isUsableMatch(state.matches.get(c.key))) score = 3;
+    else if (tvg && c.tvgId?.toLowerCase() === tvg) score = 2;
+    else if (nk && sameKey(c) === nk && (!ch.country || !c.country || ch.country === c.country)) score = 1;
+    if (!score) continue;
+    if (!c.hidden) score += 0.5;
+    const had = best.get(c.playlistId);
+    if (!had || score > had.score) best.set(c.playlistId, { c, score });
+  }
+  const order = (id: string) => state.playlists.findIndex((p) => p.id === id);
+  return [...best.values()].sort((a, b) => b.score - a.score || order(a.c.playlistId) - order(b.c.playlistId)).map((x) => x.c);
+}
+
+function oneRequest(ch: LineupChannel): PlayRequest {
   let urls = [ch.url, ...xtreamAlternates(ch.url, !native)];
   if (urls.length > 1) {
     const pref = preferredExt.get(hostOf(ch.url));
@@ -720,6 +764,7 @@ export function playRequest(ch: LineupChannel) {
   }
   return {
     key: ch.key,
+    playlistId: ch.playlistId,
     url: urls[0],
     headers: ch.headers,
     alternates: urls.slice(1),

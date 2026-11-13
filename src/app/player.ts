@@ -38,6 +38,9 @@ export interface PlayerStatus {
   replays?: number;
 }
 
+/** The provider turned the stream away for its connection limit. */
+const LIMIT_RE = /\b(429|458|509)\b|max(imum)?\s*connections?|too many (connections|streams|users)|connection limit|limit reached|already in use/i;
+
 export interface PlayRequest {
   key: string;
   url: string;
@@ -46,6 +49,11 @@ export interface PlayRequest {
   alternates?: string[];
   /** Called with the URL that actually played (to prefer that format next time). */
   onWorking?: (url: string) => void;
+  /** The same channel from your other playlists, tried in turn when this one keeps failing. */
+  backups?: PlayRequest[];
+  /** Which playlist this copy comes from (shown while switching). */
+  source?: string;
+  playlistId?: string;
   /** A movie or episode (not live): seekable, ends, no live rewind recording. */
   vod?: boolean;
   /** Start here (seconds) — resume where it was left. */
@@ -828,6 +836,21 @@ export class PlayerController {
         return;
       }
       const max = this.getSettings().playbackRetries;
+      // Another subscription has this channel: switch to it instead of waiting out every retry here — right away
+      // when refused or over the connection limit, otherwise after a second failed try.
+      if (req.backups?.length && (accessDenied(s.error) || LIMIT_RE.test(s.error ?? '') || s.noRetry || this.attempt >= 1)) {
+        const [next, ...rest] = req.backups;
+        const nreq: PlayRequest = { ...req, url: next.url, headers: next.headers, alternates: next.alternates, onWorking: next.onWorking, source: next.source, backups: rest };
+        this.req = nreq;
+        this.urlIndex = 0;
+        this.workingIndex = undefined;
+        this.uaIndex = 0;
+        this.attempt = 0;
+        this.set({ ...s, state: 'retrying', error: `Switching to ${next.source ?? 'your next provider'}…`, attempt: undefined });
+        window.clearTimeout(this.retryTimer);
+        this.retryTimer = window.setTimeout(() => this.req === nreq && this.backend.load(this.variant(nreq), 0), 300);
+        return;
+      }
       // Still refused with every player identity: stop. Retrying a refusal only keeps a provider's block going
       // (many temporarily ban a login or address that keeps knocking).
       const refused = accessDenied(s.error);
