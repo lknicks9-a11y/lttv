@@ -18,34 +18,6 @@ const TIMEOUT_MS = 7000;
 const refusedUntil = new Map<string, number>();
 const REFUSED_PAUSE_MS = 15 * 60_000;
 
-// The picture each channel really sends (providers call 720p streams "4K"): noted whenever it plays, kept 2 weeks.
-const REAL_KEY = 'lttvRealHeight';
-const real: Record<string, { h: number; at: number }> = (() => {
-  try {
-    const o = JSON.parse(localStorage.getItem(REAL_KEY) || '{}') as Record<string, { h: number; at: number }>;
-    for (const k of Object.keys(o)) if (Date.now() - o[k].at > 14 * 86400_000) delete o[k];
-    return o;
-  } catch {
-    return {};
-  }
-})();
-/** How many lines the channel's picture really has (720, 1080, 2160), if it has played lately. */
-export function realHeight(key: string): number | undefined {
-  return real[key]?.h;
-}
-player.subscribe((st) => {
-  const key = player.currentKey;
-  if (!key || st.state !== 'playing' || !st.videoHeight || real[key]?.h === st.videoHeight) return;
-  real[key] = { h: st.videoHeight, at: Date.now() };
-  try {
-    localStorage.setItem(REAL_KEY, JSON.stringify(real));
-  } catch {
-    /* fine */
-  }
-});
-/** "720p", "1080p", "4K". */
-export const heightLabel = (h: number) => (h >= 2000 ? '4K' : `${h}p`);
-
 export function cachedLiveness(key: string): Liveness | undefined {
   const e = cache.get(key);
   if (!e) return undefined;

@@ -8,7 +8,7 @@ import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
 import { clock } from './fmt';
 import { allTeams } from '../core/teams';
-import { canCheck, cachedLiveness, checkStream, heightLabel, realHeight, type Liveness } from '../app/streamcheck';
+import { canCheck, cachedLiveness, checkStream, type Liveness } from '../app/streamcheck';
 
 /** Team logo (transparent PNG from the schedule), falling back to the abbreviation. */
 export function TeamLogo({ team, size = 'md' }: { team: { name: string; abbr: string; logo?: string; color?: string }; size?: 'sm' | 'md' | 'lg' }) {
@@ -183,10 +183,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 
 /** The best streams for a game, best first (event channels, team channels, networks), from the user's lineup. */
 /** How many of a game's top streams are checked for being on the air. */
-const CHECK_TOP = 8;
-/** Keep checking past the first 8 until this many work (dead ones are skipped), up to CHECK_MAX. */
-const WANT_WORKING = 3;
-const CHECK_MAX = 30;
+const CHECK_TOP = 4;
 
 export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler; onWatch?: (g: Game) => void }) {
   const lineup = useApp((s) => s.lineup);
@@ -208,27 +205,16 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   const [showDead, setShowDead] = useState(false);
   useEffect(() => {
     const ctl = new AbortController();
-    // The first 8, and if they turn out dead, on down the list until a few working ones are found (up to 30).
-    const top = ranked.slice(0, CHECK_MAX);
+    const top = ranked.slice(0, CHECK_TOP);
     setLive(new Map(top.flatMap((p) => { const v = cachedLiveness(p.ch.key); return v ? [[p.ch.key, v] as const] : []; })));
     void (async () => {
-      let working = 0;
-      for (const [i, p] of top.entries()) {
+      for (const p of top) {
         if (ctl.signal.aborted) return;
-        if (i >= CHECK_TOP && working >= WANT_WORKING) break;
-        const known = cachedLiveness(p.ch.key);
-        if (known) {
-          if (known === 'live') working++;
-          continue;
-        }
-        if (!canCheck(p.ch)) continue;
+        if (cachedLiveness(p.ch.key) || !canCheck(p.ch)) continue;
         setChecking(p.ch.key);
         const v = await checkStream(p.ch, ctl.signal);
         if (ctl.signal.aborted) return;
-        if (v) {
-          if (v === 'live') working++;
-          setLive((m) => new Map(m).set(p.ch.key, v));
-        }
+        if (v) setLive((m) => new Map(m).set(p.ch.key, v));
       }
       setChecking(undefined);
     })();
@@ -238,15 +224,7 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   const dead = ranked.filter((p) => live.get(p.ch.key) === 'dead');
   const picks = showDead
     ? ranked
-    : ranked.filter((p) => p.main || live.get(p.ch.key) !== 'dead').sort((a, b) => Number(!!b.main) - Number(!!a.main) || Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live') || (realHeight(b.ch.key) ?? 0) - (realHeight(a.ch.key) ?? 0));
-  // What a channel's name promises vs. the picture it really sent last time ("says 4K" but 720p).
-  const realTag = (p: (typeof ranked)[number]) => {
-    const h = realHeight(p.ch.key);
-    if (!h) return '';
-    const claims = /\b(4k|uhd|2160p?)\b/i.test(p.ch.originalName) ? '4K' : /\b(fhd|1080p?)\b/i.test(p.ch.originalName) ? '1080p' : '';
-    const claimH = claims === '4K' ? 2160 : claims === '1080p' ? 1080 : 0;
-    return claimH && h < claimH - 100 ? `Really ${heightLabel(h)} (says ${claims}) · ` : `${heightLabel(h)} · `;
-  };
+    : ranked.filter((p) => p.main || live.get(p.ch.key) !== 'dead').sort((a, b) => Number(!!b.main) - Number(!!a.main) || Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live'));
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
@@ -274,7 +252,7 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
             <p class="muted row gap"><span class="spinner" /> Finding channels for this game…</p>
           ) : picks.length ? (
             <div class="stream-picks" data-group="picks">
-              {picks.slice(0, 12).map((p, i) => (
+              {picks.slice(0, 10).map((p, i) => (
                 <div class={`stream-pick ${i === 0 ? 'best' : ''}`} key={p.ch.key}>
                   <button type="button" class="f stream-pick-main" data-autofocus={i === 0 ? '' : undefined} onClick={() => watch(p.ch.key)}>
                     <span class="ch-num">{p.ch.number}</span>
@@ -284,7 +262,6 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
                       <small class="muted">
                         {i === 0 ? 'Best stream · ' : ''}
                         {live.get(p.ch.key) === 'live' ? 'Working · ' : live.get(p.ch.key) === 'dead' ? 'Not sending video · ' : checking === p.ch.key ? 'Checking… · ' : ''}
-                        {realTag(p)}
                         {p.reason}
                       </small>
                     </span>
