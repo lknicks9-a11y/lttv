@@ -225,15 +225,47 @@ interface Feed { key: string; label: string; sub: string; /** A team's own chann
 
 /**
  * A team's own channel only carries something around its game. League Pass shows its own timeout screen until
- * the game's listed start time (7:00 game: until 7:00), then goes to the broadcast by itself; it stays on the
- * air until about an hour and a half after the final (a game runs about two and a half hours).
+ * the game's listed start time (7:00 game: until 7:00), then goes to the broadcast by itself; 20 minutes after the
+ * final, the timeout screen comes back.
  */
 const ON_AIR_BEFORE = 0;
-const ON_AIR_AFTER_START = 4 * 3600_000;
+const OFF_AIR_AFTER_FINAL = 20 * 60_000;
+/** When each game was seen to end (kept for two days, so reopening League Pass knows too). */
+const ENDED_KEY = 'lttvLpEnded';
+const endedAt: Record<string, number> = (() => {
+  try {
+    const o = JSON.parse(localStorage.getItem(ENDED_KEY) || '{}') as Record<string, number>;
+    for (const k of Object.keys(o)) if (Date.now() - o[k] > 2 * 86400_000) delete o[k];
+    return o;
+  } catch {
+    return {};
+  }
+})();
+const seenLive = new Set<string>();
+/** Notes the moment a game we saw live goes final. */
+function noteGameStates(games: Game[]) {
+  let changed = false;
+  for (const g of games) {
+    if (g.state === 'in') seenLive.add(g.id);
+    else if (g.state === 'post' && seenLive.has(g.id) && !endedAt[g.id]) {
+      endedAt[g.id] = Date.now();
+      changed = true;
+    }
+  }
+  if (changed) {
+    try {
+      localStorage.setItem(ENDED_KEY, JSON.stringify(endedAt));
+    } catch {
+      /* fine */
+    }
+  }
+}
+/** When a game ended: as seen, otherwise a usual game length after tip-off / kickoff. */
+const endOf = (g: Game) => endedAt[g.id] ?? g.start + (g.league === 'nfl' ? 3.25 : 2.5) * 3600_000;
 function offAir(g: Game, now: number): boolean {
   if (g.state === 'in') return false;
   if (g.state === 'pre') return g.start - now > ON_AIR_BEFORE;
-  return now - g.start > ON_AIR_AFTER_START;
+  return now - endOf(g) > OFF_AIR_AFTER_FINAL;
 }
 function untilText(ms: number): string {
   const m = Math.max(1, Math.round(ms / 60000));
@@ -258,6 +290,7 @@ export function LeaguePass() {
   // The NFL's games come by the week (Thursday to Monday), so Blitz lists the next days too.
   const day = cfg.league === 'nfl' ? 'week' : today;
   const { games: raw, loading } = useGames(cfg.league as ScheduleLeagueId, day, today);
+  useEffect(() => noteGameStates(raw), [raw]);
   const extras = useMemo(() => cfg.extras.flatMap((x) => extraChannels(lineup, x.re).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: ch.name }))), [lineup, cfg]);
   const games = useMemo(() => {
     const rank = (g: Game) => (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
@@ -472,6 +505,20 @@ export function LeaguePass() {
     setOff(null);
     if (k && k !== playing) void tune(k, { fullscreen: false });
   };
+  // Still on a team's broadcast 20 minutes after its final: the timeout screen comes up by itself.
+  useEffect(() => {
+    if (!playing || mv) return;
+    for (const g of games) {
+      if (g.state !== 'post' || !offAir(g, now)) continue;
+      const f = feedsOf(g).find((x) => x.key === playing);
+      if (!f || !(f.team || cfg.league === 'nfl')) continue;
+      player.stop();
+      setState({ currentKey: undefined });
+      setSelected(g.id);
+      setOff({ gameId: g.id, key: f.key });
+      return;
+    }
+  }, [now, playing, games, !!mv]);
   const tmedia = useTimeoutMedia();
   const [music, setMusic] = useState(musicOn);
   const offGame = off ? games.find((g) => g.id === off.gameId) : undefined;
