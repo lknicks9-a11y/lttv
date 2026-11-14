@@ -5,8 +5,8 @@
 import type { LineupChannel } from './types';
 import { foldText, type Game, type GameTeam } from './schedule';
 
-type Pick = { name: string; group: string };
-const P = (name: string, group: string): Pick => ({ name, group });
+type Pick = { name: string; group: string; re?: RegExp; listAs?: string };
+const P = (name: string, group: string, more: Partial<Pick> = {}): Pick => ({ name, group, ...more });
 const TV_RAW = 'US| TV ᴿᴬᵂ ⁶⁰ᶠᵖˢ';
 const CITY = 'US| TV ᶜᶦᵗʸ ᴿᴬᵂ ⁶⁰ᶠᵖˢ';
 const SPORT = 'US| SPORT ᴴᴰ/ᴿᴬᵂ ⁶⁰ᶠᵖˢ';
@@ -35,7 +35,8 @@ export const NBA_TEAM_CHANNELS: Record<string, Pick[]> = {
   'Milwaukee Bucks': [P('NBA: MILWAUKEE BUCKS ᴴᴰ', PPV)],
   'Minnesota Timberwolves': [P('US: NBC 11 (KARE) MINNEAPOLIS (H) ᴿᴬᵂ', NBC), P('NBA: MINNESOTA TIMBERWOLVES ᴴᴰ', PPV)],
   'New Orleans Pelicans': [P('NBA: NEW ORLEANS PELICANS ᴴᴰ', PPV)],
-  'New York Knicks': [P('US: MSG HD', ENT)],
+  // MSG ALT-1 (shown as MSG HD) is the Knicks' MSG feed: first, and it counts as "MSG" on tonight's listing.
+  'New York Knicks': [P('MSG ALT-1 RAW', '', { re: /\bmsg\s*alt\W*1\b/i, listAs: 'MSG' }), P('US: MSG HD', ENT)],
   'Oklahoma City Thunder': [P('NBA: OKLAHOMA CITY THUNDER ᴴᴰ', PPV)],
   'Orlando Magic': [P('NBA: ORLANDO MAGIC ᴴᴰ', PPV)],
   'Philadelphia 76ers': [P('US: NBC SPORTS PHILADELPHIA (D) ᴿᴬᵂ', NBC)],
@@ -82,6 +83,7 @@ function isListedChannel(chName: string, listed: string[]): boolean {
 
 /** The playlist's channel for a pick: exact name first, then the same name ignoring case and symbols. */
 function findChannel(p: Pick, lineup: LineupChannel[]): LineupChannel | undefined {
+  if (p.re) return lineup.find((c) => !c.hidden && p.re!.test(c.originalName));
   const exact = lineup.find((c) => !c.hidden && c.originalName === p.name && (!p.group || !c.group || c.group === p.group));
   if (exact) return exact;
   const f = foldText(p.name);
@@ -148,7 +150,7 @@ export function nbaMainChannels(game: Game, tonight: NbaTonight | undefined, lin
       continue;
     }
     const listed = (side === 'home' ? tonight.home : tonight.away).flatMap(listingWords);
-    const onTonight = locals.filter((x) => isListedChannel(x.p.name, listed));
+    const onTonight = locals.filter((x) => isListedChannel(x.p.listAs ?? x.p.name, listed));
     // The local channel carrying it tonight first, then the team's own NBA channel (always offered).
     for (const x of onTonight) out.push({ side, team, ch: x.ch, why: 'tonight' });
     for (const x of passes) out.push({ side, team, ch: x.ch, why: 'pass' });

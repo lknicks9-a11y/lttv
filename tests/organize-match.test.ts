@@ -187,3 +187,13 @@ test('MSG ALT-1 RAW shows as MSG HD and counts as MSG for games', async () => {
   const { keys } = networkForBroadcast('MSG');
   assert.ok(channelKeys('US: MSG ALT-1 RAW').some((k) => keys.includes(k)));
 });
+
+test('League Pass: MSG ALT-1 is the Knicks channel when MSG has the game', async () => {
+  const { nbaMainChannels } = await import('../src/core/nbachannels');
+  const ch = (key: string, originalName: string) => ({ key, originalName, name: originalName, group: 'USA', hidden: false }) as unknown as import('../src/core/types').LineupChannel;
+  const lineup = [ch('alt', 'US: MSG ALT-1 RAW'), ch('msg', 'US: MSG HD')];
+  const team = (name: string, short: string) => ({ id: name, name, short, abbr: short.slice(0, 3).toUpperCase(), score: 0 });
+  const game = { home: team('New York Knicks', 'Knicks'), away: team('Boston Celtics', 'Celtics') } as unknown as import('../src/core/schedule').Game;
+  const mains = nbaMainChannels(game, { home: ['MSG'], away: [], national: [] }, lineup);
+  assert.equal(mains.find((m) => m.side === 'home')?.ch.key, 'alt');
+});
