@@ -61,7 +61,7 @@ test('ESPN scoreboard parsed into games with logos, scores and broadcasts', () =
 });
 
 test('league tabs and scoreboard URLs', () => {
-  assert.deepEqual(SCHEDULE_LEAGUES.map((l) => l.tab), ['NBA', 'NFL', 'MLB', 'NHL', 'UCL', 'EPL', 'Championship', 'Bundesliga', 'Serie A', 'Ligue 1', 'LaLiga', 'MLS', 'CBB', 'WCBB', 'CFB']);
+  assert.deepEqual(SCHEDULE_LEAGUES.map((l) => l.tab), ['NBA', 'NFL', 'MLB', 'NHL', 'UCL', 'EPL', 'Championship', 'Bundesliga', 'Serie A', 'Ligue 1', 'LaLiga', 'MLS', 'CBB', 'WCBB', 'UFC', 'CFB']);
   assert.equal(scoreboardUrl(scheduleLeague('cbb')!, '20261115'), 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?dates=20261115&groups=50&limit=400');
   // a conference replaces the everything-group; '' is ESPN's Top 25 slate
   assert.equal(scoreboardUrl(scheduleLeague('cbb')!, '20261115', undefined, '23'), 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?dates=20261115&groups=23&limit=400');
