@@ -301,9 +301,9 @@ export function gameText(text: string): GameText {
 }
 export function preparedMatchesGame(t: GameText, game: Game, sport: ScheduleLeague['sport']): boolean {
   if (t.other) return false;
-  // Women's college basketball (and the WNBA) take women's listings; every other league skips them, and the
+  // Women's college basketball takes women's listings; every other league skips them, and the
   // other way round for listings marked men's.
-  const womensGame = game.league === 'wcbb' || game.league === 'wnba';
+  const womensGame = game.league === 'wcbb';
   if (womensGame ? t.men : t.women) return false;
   const own = 1 << SPORT_KEYS.indexOf(sport);
   if (t.sports & ~own && !(t.sports & own)) return false;
