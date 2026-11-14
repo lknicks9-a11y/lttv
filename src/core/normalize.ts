@@ -58,6 +58,13 @@ function tidyNameRaw(name: string): string {
   return s;
 }
 
+/** Channels shown under a clearer name: "MSG ALT-1 RAW" is MSG's feed → "MSG HD". */
+const RENAMES: [RegExp, string][] = [[/^msg\s*alt\W*1\b.*$/i, 'MSG HD']];
+function renamed(name: string): string {
+  for (const [re, to] of RENAMES) if (re.test(name.trim())) return to;
+  return name;
+}
+
 /**
  * Produce cleaned display names for a whole playlist. Prefix tags (e.g. "US: ")
  * are removed only when they are redundant: shared by most channels in the
@@ -95,7 +102,7 @@ export function cleanChannelNames(channels: Pick<ParsedChannel, 'key' | 'origina
         if (rest.length >= 2) candidate = rest;
       }
     }
-    stripped.set(c.key, candidate);
+    stripped.set(c.key, renamed(candidate));
   }
   // Collision guard: if stripping made distinct originals identical, keep tidy originals.
   const byName = new Map<string, Set<string>>();
@@ -108,7 +115,8 @@ export function cleanChannelNames(channels: Pick<ParsedChannel, 'key' | 'origina
   for (const c of channels) {
     const cand = stripped.get(c.key)!;
     const originals = byName.get(cand.toLowerCase())!;
-    out.set(c.key, originals.size > 1 ? tidyName(c.originalName) || c.originalName : cand || c.originalName);
+    const wasRenamed = RENAMES.some(([re]) => re.test(tidyName(c.originalName.replace(PREFIX_TAG, '')).trim()) || re.test(tidyName(c.originalName).trim()));
+    out.set(c.key, originals.size > 1 && !wasRenamed ? tidyName(c.originalName) || c.originalName : cand || c.originalName);
   }
   return out;
 }

@@ -174,3 +174,16 @@ test('redactUrl hides credentials, tokens and query strings', () => {
   assert.equal(redactUrl('https://cdn.example/live/u123/p456/12345.ts'), 'https://cdn.example/…');
   assert.equal(redactUrl('https://epg.example/guide.xml.gz'), 'https://epg.example/guide.xml.gz');
 });
+
+test('MSG ALT-1 RAW shows as MSG HD and counts as MSG for games', async () => {
+  const { cleanChannelNames } = await import('../src/core/normalize');
+  const { networkForBroadcast, channelKeys } = await import('../src/core/networks');
+  const names = cleanChannelNames([
+    { key: 'a', originalName: 'US: MSG ALT-1 RAW', groupTitle: 'USA' },
+    { key: 'b', originalName: 'US: MSG HD', groupTitle: 'USA' },
+    { key: 'c', originalName: 'US: ESPN HD', groupTitle: 'USA' },
+  ]);
+  assert.equal(names.get('a'), 'MSG HD');
+  const { keys } = networkForBroadcast('MSG');
+  assert.ok(channelKeys('US: MSG ALT-1 RAW').some((k) => keys.includes(k)));
+});
