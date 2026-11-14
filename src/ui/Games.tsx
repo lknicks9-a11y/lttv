@@ -184,6 +184,9 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 /** The best streams for a game, best first (event channels, team channels, networks), from the user's lineup. */
 /** How many of a game's top streams are checked for being on the air. */
 const CHECK_TOP = 8;
+/** Keep checking past the first 8 until this many work (dead ones are skipped), up to CHECK_MAX. */
+const WANT_WORKING = 3;
+const CHECK_MAX = 30;
 
 export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Game; index: GameIndexEntry[] | null; onClose: () => void; onPick?: StreamPickHandler; onWatch?: (g: Game) => void }) {
   const lineup = useApp((s) => s.lineup);
@@ -205,16 +208,27 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   const [showDead, setShowDead] = useState(false);
   useEffect(() => {
     const ctl = new AbortController();
-    const top = ranked.slice(0, CHECK_TOP);
+    // The first 8, and if they turn out dead, on down the list until a few working ones are found (up to 30).
+    const top = ranked.slice(0, CHECK_MAX);
     setLive(new Map(top.flatMap((p) => { const v = cachedLiveness(p.ch.key); return v ? [[p.ch.key, v] as const] : []; })));
     void (async () => {
-      for (const p of top) {
+      let working = 0;
+      for (const [i, p] of top.entries()) {
         if (ctl.signal.aborted) return;
-        if (cachedLiveness(p.ch.key) || !canCheck(p.ch)) continue;
+        if (i >= CHECK_TOP && working >= WANT_WORKING) break;
+        const known = cachedLiveness(p.ch.key);
+        if (known) {
+          if (known === 'live') working++;
+          continue;
+        }
+        if (!canCheck(p.ch)) continue;
         setChecking(p.ch.key);
         const v = await checkStream(p.ch, ctl.signal);
         if (ctl.signal.aborted) return;
-        if (v) setLive((m) => new Map(m).set(p.ch.key, v));
+        if (v) {
+          if (v === 'live') working++;
+          setLive((m) => new Map(m).set(p.ch.key, v));
+        }
       }
       setChecking(undefined);
     })();
@@ -260,7 +274,7 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
             <p class="muted row gap"><span class="spinner" /> Finding channels for this game…</p>
           ) : picks.length ? (
             <div class="stream-picks" data-group="picks">
-              {picks.slice(0, 10).map((p, i) => (
+              {picks.slice(0, 12).map((p, i) => (
                 <div class={`stream-pick ${i === 0 ? 'best' : ''}`} key={p.ch.key}>
                   <button type="button" class="f stream-pick-main" data-autofocus={i === 0 ? '' : undefined} onClick={() => watch(p.ch.key)}>
                     <span class="ch-num">{p.ch.number}</span>
