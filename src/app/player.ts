@@ -500,6 +500,21 @@ export class WebBackend implements Backend {
         });
         let recoveredAt = 0;
         this.hls = hls;
+        // The main player takes the stream's best quality and stays there (like the Fire TV): left to choose,
+        // hls.js starts low and only climbs slowly, so wide, fast shots of a game looked blocky.
+        if (!this.tile) {
+          hls.on(H.Events.MANIFEST_PARSED, (_e, data) => {
+            const levels = (data as { levels?: { height?: number; bitrate?: number }[] }).levels ?? [];
+            if (this.hls !== hls || levels.length < 2) return;
+            let top = 0;
+            levels.forEach((l, i) => {
+              const t = levels[top];
+              if ((l.height ?? 0) > (t.height ?? 0) || ((l.height ?? 0) === (t.height ?? 0) && (l.bitrate ?? 0) > (t.bitrate ?? 0))) top = i;
+            });
+            hls.startLevel = top;
+            hls.currentLevel = top;
+          });
+        }
         hls.on(H.Events.ERROR, (_e, data) => {
           if (this.hls !== hls) return;
           if (/bufferAddCodecError|bufferIncompatibleCodecsError|manifestIncompatibleCodecsError/.test(data.details)) {
