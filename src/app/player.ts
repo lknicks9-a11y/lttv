@@ -511,8 +511,9 @@ export class WebBackend implements Backend {
               const t = levels[top];
               if ((l.height ?? 0) > (t.height ?? 0) || ((l.height ?? 0) === (t.height ?? 0) && (l.bitrate ?? 0) > (t.bitrate ?? 0))) top = i;
             });
-            hls.startLevel = top;
-            hls.currentLevel = top;
+            const lv = hls as unknown as { startLevel: number; currentLevel: number };
+            lv.startLevel = top;
+            lv.currentLevel = top;
           });
         }
         hls.on(H.Events.ERROR, (_e, data) => {
