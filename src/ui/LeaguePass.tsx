@@ -376,6 +376,47 @@ export function LeaguePass() {
     el.addEventListener('keydown', up, true);
     return () => el.removeEventListener('keydown', up, true);
   }, [full, !!mv]);
+  // Watching on the League Pass page: after 10 seconds without a press, the games and broadcasts tuck away and
+  // the picture grows. Any button (Up, OK, Back…) brings them back; that press does nothing else.
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || full || mv || !playing) {
+      setTucked(false);
+      return;
+    }
+    let t = window.setTimeout(() => setTucked(true), 10_000);
+    const poke = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => setTucked(true), 10_000);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (tuckedRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        setTucked(false);
+      }
+      poke();
+    };
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('pointermove', poke, true);
+    window.addEventListener('pointerdown', poke, true);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('keydown', key, true);
+      window.removeEventListener('pointermove', poke, true);
+      window.removeEventListener('pointerdown', poke, true);
+    };
+  }, [full, !!mv, !!playing]);
+  const tuckedRef = useRef(false);
+  tuckedRef.current = tucked;
+  useLayoutEffect(() => {
+    player.updateRect();
+    if (!tucked && ref.current && !full) requestAnimationFrame(() => {
+      const row = ref.current?.querySelector<HTMLElement>('.lp-feeds') ?? ref.current?.querySelector<HTMLElement>('.lp-strip');
+      if (row && !row.contains(document.activeElement)) (row.querySelector<HTMLElement>('.lp-feed.on, .lp-card.current') ?? row.querySelector<HTMLElement>('.f'))?.focus();
+    });
+  }, [tucked]);
   // Full screen: the video fills the screen; focus moves to (or back from) the broadcast controls.
   useLayoutEffect(() => {
     player.updateRect();
@@ -552,7 +593,7 @@ export function LeaguePass() {
   }
 
   return (
-    <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name}`} style={{ '--lp-accent': cfg.accent }}>
+    <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''} ${tucked ? 'lp-tucked' : ''}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name}`} style={{ '--lp-accent': cfg.accent }}>
       <div class="lp-bg"><i /><i /><i /><i /></div>
       <header class="lp-top">
         <h1><LpLogo kind={cfg.league} /> <span class="lp-mark">LTTV</span> {cfg.name}</h1>
