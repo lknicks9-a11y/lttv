@@ -13,8 +13,13 @@ export interface TimeoutMedia {
   /** The file name of each picture ("knicks/1.jpg"), to find a team's own. */
   names: string[];
   audio: string[];
+  /** How many songs at the start of `audio` always play first (files named "First - …"); the rest are shuffled. */
+  firstSongs?: number;
 }
 const NONE: TimeoutMedia = { images: [], names: [], audio: [] };
+/** A song whose file name starts with "First" ("First - Off the Map.mp3") opens every timeout. */
+const isFirstSong = (n: string) => /^first\b/i.test(decodeURIComponent(n.split('/').pop() ?? n).trim());
+const firstSongsFirst = (names: string[]) => [...names.filter(isFirstSong), ...names.filter((n) => !isFirstSong(n))];
 let cached: { at: number; job: Promise<TimeoutMedia> } | null = null;
 
 async function load(): Promise<TimeoutMedia> {
@@ -29,7 +34,8 @@ async function load(): Promise<TimeoutMedia> {
       // uses it to find the same folder.
       if (has && j.lan && getState().settings.timeoutMedia !== j.lan) void updateSettings({ timeoutMedia: j.lan });
       const url = (n: string) => `timeout/${encodeURIComponent(n)}${j.v?.[n] ? `?v=${encodeURIComponent(j.v[n])}` : ''}`;
-      return { images: (j.images ?? []).map(url), names: j.images ?? [], audio: (j.audio ?? []).map(url) };
+      const songs = firstSongsFirst(j.audio ?? []);
+      return { images: (j.images ?? []).map(url), names: j.images ?? [], audio: songs.map(url), firstSongs: songs.filter(isFirstSong).length };
     }
     return await loadOnTv();
   } catch {
@@ -73,7 +79,8 @@ async function loadOnTv(): Promise<TimeoutMedia> {
     // No storage for them here: play straight from the computer.
     const url = (n: string) => proxiedUrl(`${base}/timeout/${encodeURIComponent(n)}`);
     lastTvStatus = reached ? `Found ${list.images.length} pictures and ${list.audio.length} songs on the computer.` : 'The computer isn’t reachable.';
-    return reached ? { images: list.images.map(url), names: list.images, audio: list.audio.map(url) } : NONE;
+    const songs = firstSongsFirst(list.audio);
+    return reached ? { images: list.images.map(url), names: list.images, audio: songs.map(url), firstSongs: songs.filter(isFirstSong).length } : NONE;
   }
   const cache = await caches.open('lttv-timeout');
   // The version is part of the key: a picture replaced under the same name is fetched again, not the old copy.
@@ -107,7 +114,8 @@ async function loadOnTv(): Promise<TimeoutMedia> {
       /* not critical */
     }
   }
-  const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), names: list.images.filter((n) => urls.has(n)), audio: list.audio.flatMap((n) => urls.get(n) ?? []) };
+  const songs = firstSongsFirst(list.audio.filter((n) => urls.has(n)));
+  const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), names: list.images.filter((n) => urls.has(n)), audio: songs.flatMap((n) => urls.get(n) ?? []), firstSongs: songs.filter(isFirstSong).length };
   lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.`;
   return got;
 }
@@ -170,7 +178,7 @@ export function setMusicOn(on: boolean) {
 }
 
 /** Your songs, one after another, on a loop, fading in and out with the screen. */
-function useMusic(tracks: string[], silent = false) {
+function useMusic(tracks: string[], silent = false, firstSongs = 0) {
   const [on, setOn] = useState(musicOn);
   useEffect(() => {
     const f = () => setOn(musicOn());
@@ -182,7 +190,20 @@ function useMusic(tracks: string[], silent = false) {
     // No songs of your own: LTTV's built-in beat.
     if (!tracks.length) return startBeat();
     const a = new Audio();
-    let k = Math.floor(Math.random() * tracks.length);
+    // The "First" song(s) open the timeout every time; after that the others play in a shuffled order,
+    // reshuffled each time round (the first song doesn't come back until the next timeout).
+    const shuffle = (l: string[]) => {
+      const r = [...l];
+      for (let i = r.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [r[i], r[j]] = [r[j], r[i]];
+      }
+      return r;
+    };
+    const opening = tracks.slice(0, firstSongs);
+    const rest = tracks.slice(firstSongs);
+    let order = [...opening, ...shuffle(rest.length ? rest : opening)];
+    let k = 0;
     let fade = 0;
     const LOUD = 0.7;
     const ramp = (to: number, done?: () => void) => {
@@ -197,7 +218,11 @@ function useMusic(tracks: string[], silent = false) {
       }, 100);
     };
     const play = () => {
-      a.src = tracks[k % tracks.length];
+      if (k >= order.length) {
+        order = shuffle(rest.length ? rest : opening);
+        k = 0;
+      }
+      a.src = order[k];
       a.volume = 0;
       void a.play().then(() => ramp(LOUD)).catch(() => undefined);
     };
@@ -216,7 +241,7 @@ function useMusic(tracks: string[], silent = false) {
         a.removeAttribute('src');
       });
     };
-  }, [on, silent, tracks.join('|')]);
+  }, [on, silent, firstSongs, tracks.join('|')]);
 }
 
 /** The pictures cross-fading behind `children` (the words). Only two pictures are ever on screen at once. */
@@ -262,7 +287,7 @@ export function TimeoutShow({ media, team, plain, children }: { media: TimeoutMe
     }), 9000);
     return () => window.clearInterval(t);
   }, [n]);
-  useMusic(media.audio, plain);
+  useMusic(media.audio, plain, media.firstSongs ?? 0);
   const img = (k: number, cls: string) => <div class={`lp-slide ${cls}`} key={k} style={{ backgroundImage: `url("${images[k]}"), linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("${images[k]}")` }} />;
   return (
     <div class={`lp-timeout ${plain ? 'is-plain' : ''}`}>
