@@ -267,7 +267,10 @@ const SPORT_WORDS: Record<string, RegExp> = {
   soccer: /\b(soccer|futbol|football club|mls|premier league)\b/i,
 };
 /** Other sports a listing can name ("Volleyball (W): Penn State at Michigan" isn't the football game). */
-const OTHER_SPORTS = /\b(volleyball|softball|wrestling|lacrosse|field hockey|swimming|gymnastics|tennis|golf|rugby|cricket|track|cross country|rowing|bowling|water polo)\b|\((w|women'?s?)\)/i;
+const OTHER_SPORTS = /\b(volleyball|softball|wrestling|lacrosse|field hockey|swimming|gymnastics|tennis|golf|rugby|cricket|track|cross country|rowing|bowling|water polo)\b/i;
+/** A women's game ("(W)", "Women's Basketball", "NCAAW"), or a men's one: kept apart, not treated as another sport. */
+const WOMENS = /\((w|women'?s?)\)|\bwomen'?s\b|\bncaaw\b|\bwcbb\b|\bwnba\b/i;
+const MENS = /\((m|men'?s?)\)|\bmen'?s\b|\bncaam\b/i;
 
 /** Does this text (channel name, programme title/subtitle) describe this game? Needs both teams, and no other sport. */
 export function textMatchesGame(text: string, game: Game, sport: ScheduleLeague['sport']): boolean {
@@ -281,8 +284,11 @@ const SPORT_KEYS = Object.keys(SPORT_WORDS);
 export interface GameText {
   /** Folded, padded with spaces. */
   f: string;
-  /** Names another sport (volleyball, women's…). */
+  /** Names another sport (volleyball, golf…). */
   other: boolean;
+  /** Says it's a women's game / a men's game. */
+  women: boolean;
+  men: boolean;
   /** Bit per SPORT_WORDS entry the text names. */
   sports: number;
 }
@@ -291,10 +297,14 @@ export function gameText(text: string): GameText {
   SPORT_KEYS.forEach((k, i) => {
     if (SPORT_WORDS[k].test(text)) sports |= 1 << i;
   });
-  return { f: ` ${fold(text)} `, other: OTHER_SPORTS.test(text), sports };
+  return { f: ` ${fold(text)} `, other: OTHER_SPORTS.test(text), women: WOMENS.test(text), men: MENS.test(text), sports };
 }
 export function preparedMatchesGame(t: GameText, game: Game, sport: ScheduleLeague['sport']): boolean {
   if (t.other) return false;
+  // Women's college basketball (and the WNBA) take women's listings; every other league skips them, and the
+  // other way round for listings marked men's.
+  const womensGame = game.league === 'wcbb' || game.league === 'wnba';
+  if (womensGame ? t.men : t.women) return false;
   const own = 1 << SPORT_KEYS.indexOf(sport);
   if (t.sports & ~own && !(t.sports & own)) return false;
   return mentionsFolded(t.f, teamNames(game.home, sport)) && mentionsFolded(t.f, teamNames(game.away, sport));
@@ -363,7 +373,7 @@ export function parseStandingsTeams(json: unknown, league?: string): DirTeam[] {
 
 /** ESPN's logo by team id when a feed leaves it out. */
 export function fallbackTeamLogo(league: string | undefined, id: string, abbr?: string): string | undefined {
-  if (league === 'cfb' || league === 'cbb') return `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
+  if (league === 'cfb' || league === 'cbb' || league === 'wcbb') return `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
   if (league && ['nfl', 'nba', 'mlb', 'nhl', 'wnba'].includes(league) && abbr) return `https://a.espncdn.com/i/teamlogos/${league}/500/${abbr.toLowerCase()}.png`;
   if (league && ['epl', 'bundesliga', 'seriea', 'ligue1', 'laliga', 'ucl', 'mls'].includes(league)) return `https://a.espncdn.com/i/teamlogos/soccer/500/${id}.png`;
   return undefined;

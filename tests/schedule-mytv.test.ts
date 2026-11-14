@@ -77,6 +77,18 @@ test('a game is recognised in event names and guide titles only when both teams 
   assert.ok(!textMatchesGame('Yankees Classics', g, 'baseball'));
 });
 
+test("women's listings go with women's games, not men's", () => {
+  const [g] = parseScoreboard(scoreboard(), 'mlb');
+  const w = { ...g, league: 'wcbb' as const, home: { ...g.home, name: 'Vanderbilt Commodores', short: 'Vanderbilt', abbr: 'VAN' }, away: { ...g.away, name: 'Morehead State Eagles', short: 'Morehead State', abbr: 'MORE' } };
+  const m = { ...w, league: 'cbb' as const };
+  assert.ok(textMatchesGame("NCAA Women's Basketball: Morehead State at Vanderbilt", w, 'basketball'));
+  assert.ok(textMatchesGame('ESPN+ 012 (W): Morehead State vs Vanderbilt', w, 'basketball'));
+  assert.ok(textMatchesGame('SECN+ 04: Morehead State @ Vanderbilt', w, 'basketball'));
+  assert.ok(!textMatchesGame("NCAA Men's Basketball: Morehead State at Vanderbilt", w, 'basketball'));
+  assert.ok(!textMatchesGame("NCAA Women's Basketball: Morehead State at Vanderbilt", m, 'basketball'));
+  assert.ok(textMatchesGame('College Basketball: Morehead State at Vanderbilt', m, 'basketball'));
+});
+
 test('schedule network names resolve to playlist channels', () => {
   assert.equal(networkForBroadcast('NBC Sports Phil').network?.id, 'nbcsphilly');
   assert.equal(networkForBroadcast('USA Net').network?.id, 'usa');
