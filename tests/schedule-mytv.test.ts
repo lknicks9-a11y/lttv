@@ -218,3 +218,21 @@ test('country tabs: every country from name prefixes and groups', async () => {
   assert.equal(countryFlag('ar'), '');
 });
 
+
+test('UFC: one entry per card, main event names, card start time, its streaming channel', () => {
+  const fight = (date: string, a: string, b: string, state = 'pre') => ({
+    date, status: { type: { state } },
+    broadcasts: [{ market: 'national', names: ['Paramount+'] }],
+    geoBroadcasts: [{ type: { shortName: 'Streaming' }, market: { type: 'National' }, media: { shortName: 'Paramount+' } }],
+    competitors: [{ id: a, order: 1, athlete: { displayName: a, shortName: a } }, { id: b, order: 2, athlete: { displayName: b, shortName: b } }],
+  });
+  const json = { events: [{ id: '1', name: 'UFC 334: Gane vs. Hokit', date: '2026-11-14T22:00Z', status: { type: { state: 'pre' } },
+    competitions: [fight('2026-11-15T02:00Z', 'Ciryl Gane', 'Josh Hokit'), fight('2026-11-14T22:00Z', 'Evan Elder', 'Samuel Sanches')] }] };
+  const [g] = parseScoreboard(json, 'ufc');
+  assert.equal(g.name, 'UFC 334: Gane vs. Hokit');
+  assert.equal(g.away.name, 'Ciryl Gane');
+  assert.equal(g.home.short, 'Hokit');
+  assert.equal(g.start, Date.parse('2026-11-14T22:00Z'));
+  assert.ok(g.broadcasts.some((b) => b.name === 'Paramount+'));
+  assert.ok(textMatchesGame('UFC 334: Gane vs. Hokit', g, 'mma'));
+});

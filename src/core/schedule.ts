@@ -4,7 +4,7 @@
 // home and away local broadcasts (RSNs). LTTV only uses it as a schedule; the
 // streams always come from the user's own playlist.
 
-export type ScheduleLeagueId = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ucl' | 'epl' | 'bundesliga' | 'seriea' | 'ligue1' | 'laliga' | 'mls' | 'cbb' | 'cfb' | 'wcbb' | 'championship';
+export type ScheduleLeagueId = 'nba' | 'nfl' | 'mlb' | 'nhl' | 'ucl' | 'epl' | 'bundesliga' | 'seriea' | 'ligue1' | 'laliga' | 'mls' | 'cbb' | 'cfb' | 'wcbb' | 'championship' | 'ufc';
 
 export interface ScheduleLeague {
   id: ScheduleLeagueId;
@@ -15,7 +15,7 @@ export interface ScheduleLeague {
   query?: string;
   /** College: conferences to narrow the day's games to (ESPN group ids). */
   conferences?: { id: string; name: string }[];
-  sport: 'basketball' | 'football' | 'baseball' | 'hockey' | 'soccer';
+  sport: 'basketball' | 'football' | 'baseball' | 'hockey' | 'soccer' | 'mma';
   /** Words that identify the league in channel names / guide text. */
   words: RegExp;
 }
@@ -40,6 +40,7 @@ export const SCHEDULE_LEAGUES: ScheduleLeague[] = [
   { id: 'mls', tab: 'MLS', name: 'MLS', path: 'soccer/usa.1', sport: 'soccer', words: /\bmls\b/i },
   { id: 'cbb', tab: 'CBB', name: 'College Basketball', path: 'basketball/mens-college-basketball', query: 'groups=50&limit=400', conferences: HOOPS('49'), sport: 'basketball', words: /\b(ncaa|college basketball|cbb)\b/i },
   { id: 'wcbb', tab: 'WCBB', name: 'Women’s College Basketball', path: 'basketball/womens-college-basketball', query: 'groups=50&limit=400', conferences: HOOPS('47'), sport: 'basketball', words: /\b(ncaaw|wcbb|women'?s (college )?basketball)\b/i },
+  { id: 'ufc', tab: 'UFC', name: 'UFC', path: 'mma/ufc', sport: 'mma', words: /\bufc\b|\bmma\b|fight night/i },
   { id: 'cfb', tab: 'CFB', name: 'College Football', path: 'football/college-football', query: 'groups=80&limit=400', conferences: CFB_CONFS, sport: 'football', words: /\b(ncaa|college football|cfb)\b/i },
 ];
 
@@ -165,6 +166,7 @@ export function parseLeagueLogo(json: unknown): string | undefined {
 
 /** Parse an ESPN scoreboard response. Unknown or partial events are skipped, never thrown on. */
 export function parseScoreboard(json: unknown, league: ScheduleLeagueId): Game[] {
+  if (league === 'ufc') return parseFightCards(json);
   const games: Game[] = [];
   for (const ev of arr(obj(json).events).map(obj)) {
     const comp = obj(arr(ev.competitions)[0]);
@@ -190,6 +192,64 @@ export function parseScoreboard(json: unknown, league: ScheduleLeagueId): Game[]
       venue: str(venue.fullName) || undefined,
       note: str(notes[0]?.headline) || undefined,
       neutral: comp.neutralSite === true || undefined,
+    });
+  }
+  games.sort((a, b) => a.start - b.start || a.name.localeCompare(b.name));
+  return games;
+}
+
+/**
+ * UFC: one entry per fight card. The main event (the card's last fight) gives the two names, the first fight the
+ * start time (prelims); the main event's broadcast is the card's channel. Fighters stand in for teams.
+ */
+function parseFightCards(json: unknown): Game[] {
+  const games: Game[] = [];
+  for (const ev of arr(obj(json).events).map(obj)) {
+    const fights = arr(ev.competitions).map(obj).sort((a, b) => Date.parse(str(a.date)) - Date.parse(str(b.date)));
+    const main = fights[fights.length - 1];
+    if (!main) continue;
+    const fighter = (c: J, side: 'home' | 'away'): GameTeam | undefined => {
+      const a = obj(c.athlete);
+      const name = str(a.displayName) || str(a.fullName);
+      if (!name) return undefined;
+      const last = name.split(/\s+/).slice(-1)[0];
+      const rec = arr(c.records).map(obj).find((r) => str(r.type) === 'total' || str(r.name) === 'overall') ?? obj(arr(c.records)[0]);
+      return {
+        id: str(c.id) || str(a.id) || name,
+        name,
+        short: last,
+        location: name.split(/\s+/).slice(0, -1).join(' '),
+        abbr: last.slice(0, 3).toUpperCase(),
+        logo: str(obj(a.flag).href) || undefined,
+        record: str(rec.summary) || undefined,
+        side,
+        winner: c.winner === true || undefined,
+      };
+    };
+    const cs = arr(main.competitors).map(obj).sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
+    const away = cs[0] && fighter(cs[0], 'away');
+    const home = cs[1] && fighter(cs[1], 'home');
+    const start = Date.parse(str(fights[0].date) || str(ev.date));
+    if (!home || !away || !Number.isFinite(start)) continue;
+    const evState = str(obj(obj(ev.status).type).state) || 'pre';
+    const live = fights.find((f) => str(obj(obj(f.status).type).state) === 'in');
+    const done = fights.filter((f) => str(obj(obj(f.status).type).state) === 'post').length;
+    const state: Game['state'] = live || (done > 0 && done < fights.length) ? 'in' : evState === 'post' || done === fights.length ? 'post' : 'pre';
+    const liveNames = live ? arr(live.competitors).map((c) => str(obj(obj(c).athlete).shortName) || str(obj(obj(c).athlete).displayName)).join(' vs ') : '';
+    const venue = obj(main.venue ?? obj(arr(ev.venues)[0]));
+    games.push({
+      id: str(ev.id) || `ufc-${start}`,
+      league: 'ufc',
+      start,
+      state,
+      detail: state === 'in' ? (liveNames ? `Now: ${liveNames}` : `Fight ${done + 1} of ${fights.length}`) : state === 'post' ? 'Final' : str(obj(obj(ev.status).type).shortDetail) || '',
+      name: str(ev.name) || `${away.name} vs ${home.name}`,
+      home,
+      away,
+      broadcasts: parseBroadcasts(main),
+      venue: str(venue.fullName) || undefined,
+      note: str(ev.name) || undefined,
+      neutral: true,
     });
   }
   games.sort((a, b) => a.start - b.start || a.name.localeCompare(b.name));

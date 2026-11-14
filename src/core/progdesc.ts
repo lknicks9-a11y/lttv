@@ -82,7 +82,7 @@ export function shorten(text: string, max = 420): string {
 }
 
 const START_WORD: Record<ScheduleLeague['sport'], string> = {
-  baseball: 'First pitch', football: 'Kickoff', soccer: 'Kickoff', basketball: 'Tip-off', hockey: 'Puck drop',
+  baseball: 'First pitch', football: 'Kickoff', soccer: 'Kickoff', basketball: 'Tip-off', hockey: 'Puck drop', mma: 'First fight',
 };
 
 /** A description of a game from the schedule: matchup, records, stakes, venue, score, TV. */
