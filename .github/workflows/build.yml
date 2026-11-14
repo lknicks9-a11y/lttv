@@ -82,6 +82,8 @@ jobs:
           # Builds 87-154 were "1.0.0 Beta"; the official launch is build 155 = 1.0.0, then 1.0.1, 1.0.2...
           if [ "$GITHUB_RUN_NUMBER" -ge 87 ]; then VER="1.0.0 Beta"; fi
           if [ "$GITHUB_RUN_NUMBER" -ge 155 ]; then VER="1.0.$((GITHUB_RUN_NUMBER - 155))"; fi
+          # Official 1.0.0 launch: build 167, then 1.0.1, 1.0.2...
+          if [ "$GITHUB_RUN_NUMBER" -ge 167 ]; then VER="1.0.$((GITHUB_RUN_NUMBER - 167))"; fi
           gh release create tv lttv.apk lttv-desktop.zip build.json --title "LTTV for Fire TV — ${VER} (build ${GITHUB_RUN_NUMBER})" --notes "LTTV ${VER} (build ${GITHUB_RUN_NUMBER}) of main (${GITHUB_SHA::7}). The app offers this update itself (Settings → Check for updates). Downloader: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/lttv.apk" --latest
       - name: Build signed release APK
         if: ${{ env.KEYSTORE_BASE64 != '' }}

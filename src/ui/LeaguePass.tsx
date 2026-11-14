@@ -376,8 +376,8 @@ export function LeaguePass() {
     el.addEventListener('keydown', up, true);
     return () => el.removeEventListener('keydown', up, true);
   }, [full, !!mv]);
-  // Watching on the League Pass page: after 10 seconds without a press, the games and broadcasts tuck away and
-  // the picture grows. Any button (Up, OK, Back…) brings them back; that press does nothing else.
+  // Watching on the League Pass page: after 10 seconds without a press, the broadcast buttons under the picture
+  // tuck away (the rest of the page stays). Any button (Up, OK, Back…) brings them back; that press does nothing else.
   const [tucked, setTucked] = useState(false);
   useEffect(() => {
     const el = ref.current;

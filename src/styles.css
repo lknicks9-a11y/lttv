@@ -2041,7 +2041,5 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 :root.tv .vod-poster img, :root.tv .ch-tile-logo img, :root.tv .guide-ch-tile img { image-rendering: auto; }
 :root.tv *, :root.tv *::before, :root.tv *::after { transition: none !important; animation-duration: 0s !important; }
 :root.tv .spinner { animation-duration: 0.8s !important; }
-/* League Pass after 10 s of watching: games, broadcasts and box score tucked away, the picture takes the room. */
-.lp-tucked .lp-strip, .lp-tucked .lp-feeds, .lp-tucked .lp-box { display: none; }
-.lp-tucked .lp-main { grid-template-columns: minmax(0, 1fr); }
-:root.tv .lp-tucked .lp-main { grid-template-columns: minmax(0, 1fr); }
+/* League Pass after 10 s of watching: only the broadcast buttons tuck away (the page stays as it is). */
+.lp-tucked .lp-feeds { display: none; }

@@ -24,7 +24,7 @@ android {
         // 1.0.x counted from build 34; from build 61 it's 1.1.0, and every tenth build moves the middle number (1.1.9 -> 1.2.0).
         val run = (System.getenv("GITHUB_RUN_NUMBER") ?: "34").toInt()
         // Builds 87-154 were "1.0.0 Beta"; the official launch is build 155 = 1.0.0, then 1.0.1, 1.0.2...
-        versionName = if (run >= 155) "1.0.${run - 155}" else if (run >= 87) "1.0.0 Beta" else if (run < 61) "1.0.${(run - 34).coerceAtLeast(0)}" else "1.${1 + (run - 61) / 10}.${(run - 61) % 10}"
+        versionName = if (run >= 167) "1.0.${run - 167}" else if (run >= 155) "1.0.${run - 155}" else if (run >= 87) "1.0.0 Beta" else if (run < 61) "1.0.${(run - 34).coerceAtLeast(0)}" else "1.${1 + (run - 61) / 10}.${(run - 61) % 10}"
     }
 
     signingConfigs {
