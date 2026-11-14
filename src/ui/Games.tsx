@@ -36,7 +36,7 @@ function TeamLine({ t, g }: { t: GameTeam; g: Game }) {
   return (
     <span class={`game-team ${t.winner ? 'winner' : ''}`}>
       <TeamLogo team={t} size="sm" />
-      <span class="game-team-name">{t.name}</span>
+      <span class="game-team-name">{t.rank ? <b class="team-rank">#{t.rank} </b> : null}{t.name}</span>
       {t.record && g.state === 'pre' && <small class="muted">{t.record}</small>}
       {showScore && <span class="game-score">{t.score}</span>}
     </span>
@@ -61,7 +61,9 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   // College: one conference (or the Top 25) instead of every game in the country.
   const [conf, setConf] = useState<string | undefined>(undefined);
   useEffect(() => setConf(undefined), [leagueId]);
-  const { games: raw, loading, error, reload } = useGames(leagueId, day, today, league.conferences ? conf : undefined);
+  const { games: all, loading, error, reload } = useGames(leagueId, day, today, league.conferences ? conf : undefined);
+  // Top 25: every game today with a ranked team in it.
+  const raw = useMemo(() => (league.conferences && conf === '' ? all.filter((g) => g.home.rank || g.away.rank) : all), [all, conf, league.conferences]);
   // Leaving a game you were watching comes back to that game's streams, not the whole list.
   const fullscreen = useApp((s) => s.fullscreen);
   const watching = useRef<string | null>(null);
@@ -237,14 +239,14 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   return (
     <Modal title={`${game.away.short} at ${game.home.short}`} onClose={onClose} wide class="watch-game">
       <div class="watch-head">
-        <span class="watch-team"><TeamLogo team={game.away} size="lg" /><span>{game.away.name}</span>{game.state !== 'pre' && <b>{game.away.score}</b>}</span>
+        <span class="watch-team"><TeamLogo team={game.away} size="lg" /><span>{game.away.rank ? `#${game.away.rank} ` : ''}{game.away.name}</span>{game.state !== 'pre' && <b>{game.away.score}</b>}</span>
         <span class="watch-mid">
           {game.state === 'in' ? <span class="badge-live">LIVE</span> : null}
           <span>{game.state === 'pre' ? clock(game.start) : game.detail}</span>
           {game.note && <small class="muted">{game.note}</small>}
           {broadcastSummary(game) && <small class="muted watch-tv">TV: {broadcastSummary(game)}</small>}
         </span>
-        <span class="watch-team"><TeamLogo team={game.home} size="lg" /><span>{game.home.name}</span>{game.state !== 'pre' && <b>{game.home.score}</b>}</span>
+        <span class="watch-team"><TeamLogo team={game.home} size="lg" /><span>{game.home.rank ? `#${game.home.rank} ` : ''}{game.home.name}</span>{game.state !== 'pre' && <b>{game.home.score}</b>}</span>
       </div>
 
       <>

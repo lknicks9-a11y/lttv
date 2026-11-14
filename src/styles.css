@@ -2043,3 +2043,4 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 :root.tv .spinner { animation-duration: 0.8s !important; }
 /* League Pass after 10 s of watching: only the broadcast buttons tuck away (the page stays as it is). */
 .lp-tucked .lp-feeds { display: none; }
+.team-rank { color: var(--muted); font-weight: 700; font-size: 0.85em; }

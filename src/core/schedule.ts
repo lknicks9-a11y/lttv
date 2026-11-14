@@ -52,8 +52,9 @@ export const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
 /** Scoreboard URL for a league and a day ("20261015"), or "week" for the current week. */
 export function scoreboardUrl(league: ScheduleLeague, day: string, base = ESPN_BASE, group?: string): string {
-  // A conference replaces the league's "everything" group; '' drops it (ESPN then sends its Top 25 slate).
-  const query = group === undefined ? league.query : (league.query ?? '').replace(/groups=\d+&?/, group ? `groups=${group}&` : '');
+  // A conference replaces the league's "everything" group; '' (Top 25) keeps every game and the app keeps the
+  // ranked ones (ESPN's own Top 25 slate came back empty or partial).
+  const query = !group ? league.query : (league.query ?? '').replace(/groups=\d+&?/, `groups=${group}&`);
   // 'week': the league's current week (the NFL's scoreboard doesn't take a range of dates).
   const dates = day === 'week' ? '' : `dates=${day}`;
   const q = [dates, query].filter(Boolean).join('&');
@@ -70,6 +71,8 @@ export interface GameTeam {
   color?: string;
   score?: string;
   record?: string;
+  /** College poll ranking (1–25), when ranked. */
+  rank?: number;
   side: 'home' | 'away';
   winner?: boolean;
 }
@@ -124,6 +127,10 @@ function parseTeam(raw: unknown): GameTeam | null {
     color: str(t.color) || undefined,
     score: c.score !== undefined ? str(obj(c.score).displayValue ?? c.score) || str(c.score) : undefined,
     record: str(rec.summary) || undefined,
+    rank: (() => {
+      const r = Number(obj(c.curatedRank).current);
+      return r >= 1 && r <= 25 ? r : undefined;
+    })(),
     side: str(c.homeAway) === 'home' ? 'home' : 'away',
     winner: c.winner === true ? true : undefined,
   };
