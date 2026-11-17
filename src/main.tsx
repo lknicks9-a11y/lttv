@@ -5,7 +5,7 @@ import { pollLive, startLiveSports, addBet, addParlay, watchingSports } from './
 import { render } from 'preact';
 import { App } from './ui/App';
 import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/nav';
-import { addPlaylist, addEpgSource, reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings, rematchAndReload } from './app/state';
+import { addPlaylist, addEpgSource, reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings, rematchAndReload, navigate, type Screen } from './app/state';
 import { isTV, isNative } from './app/platform';
 import { describeProgramme } from './app/describe';
 import { cloudConfig, currentSession, markFreshDevice } from './app/cloud';
@@ -13,6 +13,9 @@ import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
 import { isOnboarded } from './ui/Onboarding';
 import './styles.css';
+
+/** Sections another app (LTTV Home, the "LTTV Movies" / "LTTV Shows" tiles) may open. */
+const OPENABLE: Screen[] = ['home', 'sports', 'movies', 'shows', 'channels', 'search'];
 
 async function boot() {
   document.documentElement.classList.toggle('tv', isTV);
@@ -28,6 +31,13 @@ async function boot() {
       return;
     }
     dispatchAppKey(key as AppKey);
+  };
+  // "LTTV Movies" / "LTTV Shows" / LTTV Home tiles open a section of the app.
+  window.lttvHost.openScreen = (name: string) => {
+    if (OPENABLE.includes(name as Screen) && !getState().onboarding) {
+      setState({ leaguePass: false });
+      navigate(name as Screen);
+    }
   };
 
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
@@ -46,6 +56,7 @@ async function boot() {
   }
   const s = getState().settings;
   applyTheme(s);
+  const startScreen = new URLSearchParams(location.search).get('screen');
   // First launch: mandatory onboarding (sign in → profile → playlist).
   // Returning users who already signed in just sync.
   markFreshDevice(!getState().playlists.length);
@@ -62,12 +73,14 @@ async function boot() {
   startUpdateChecks();
   startVodDetection();
   prefetchVodHomes();
-  const start = s.startupScreen;
-  if (start === 'guide' || start === 'channels') setState({ screen: start });
+  const opened = OPENABLE.includes(startScreen as Screen) && !getState().onboarding ? (startScreen as Screen) : null;
+  const start = opened ? undefined : s.startupScreen;
+  if (opened) setState({ screen: opened });
+  else if (start === 'guide' || start === 'channels') setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');
   if (last && getState().lineup.some((c) => c.key === last)) {
     if (start === 'last-channel') void tune(last, { fullscreen: true });
-    else if (s.autoplayLastChannel) void tune(last);
+    else if (s.autoplayLastChannel && !opened) void tune(last);
     else setState({ currentKey: undefined });
   }
   startClock();

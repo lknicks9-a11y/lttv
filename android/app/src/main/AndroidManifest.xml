@@ -11,18 +11,6 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
-    <!-- LTTV Home lists the apps installed on the TV so it can open them (Android 11+ needs this). -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-        </intent>
-    </queries>
-
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner"
@@ -48,29 +36,31 @@
             </intent-filter>
         </activity>
 
-        <!-- LTTV Home: an ad-free home screen with your apps. Pick it in Launcher Manager Mini,
-             or open "LTTV Home" from the app list / a remote app button. -->
-        <activity
-            android:name=".HomeActivity"
+        <!-- "LTTV Movies" and "LTTV Shows": their own tiles in the TV's app list, opening LTTV on that section. -->
+        <activity-alias
+            android:name=".MoviesAlias"
+            android:targetActivity=".MainActivity"
             android:exported="true"
-            android:label="@string/home_name"
-            android:launchMode="singleTask"
-            android:stateNotNeeded="true"
-            android:excludeFromRecents="true"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density"
-            android:theme="@style/Theme.LTTV.Home">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
+            android:label="@string/movies_name"
+            android:banner="@drawable/banner_movies">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".ShowsAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/shows_name"
+            android:banner="@drawable/banner_shows">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <provider
             android:name="androidx.core.content.FileProvider"

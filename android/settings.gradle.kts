@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "LTTV"
-include(":app")
+include(":app", ":home")

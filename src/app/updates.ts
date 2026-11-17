@@ -112,7 +112,7 @@ async function newestRelease(): Promise<{ build: number; url: string; publishedA
   const rel = JSON.parse(await new Response(stream).text()) as { name?: string; body?: string; message?: string; published_at?: string; assets?: { name?: string; browser_download_url?: string }[] };
   const build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
   if (!build) throw new Error(/rate limit/i.test(rel.message ?? '') ? 'GitHub is refusing requests from this internet address right now (common on a VPN). Try again later, or with the VPN off.' : rel.message || 'no build found');
-  return { build, url: rel.assets?.find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `${DOWNLOAD}/lttv.apk`, publishedAt: rel.published_at, body: rel.body };
+  return { build, url: rel.assets?.find((a) => /^lttv\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `${DOWNLOAD}/lttv.apk`, publishedAt: rel.published_at, body: rel.body };
 }
 
 /** Ask GitHub for the latest build; resolves to the update if it is newer than this app. */
