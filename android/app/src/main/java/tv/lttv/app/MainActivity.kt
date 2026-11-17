@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() = sendKey("back")
         })
 
-        if (savedInstanceState == null) webView.loadUrl("https://$HOST/index.html?tv" + (screenOf(intent)?.let { "&screen=$it" } ?: ""))
+        if (savedInstanceState == null) webView.loadUrl("https://$HOST/index.html?tv&app=${BuildConfig.APP_MODE}" + (screenOf(intent)?.let { "&screen=$it" } ?: ""))
         else webView.restoreState(savedInstanceState)
         webView.requestFocus()
     }

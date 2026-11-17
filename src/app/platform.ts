@@ -42,6 +42,10 @@ export interface NativeBridge {
   appBuild?(): number;
   installUpdate?(url: string): void;
   resumeUpdate?(): void;
+  /** Sharing your provider between the LTTV apps (optional: older builds lack them). */
+  shareSetup?(json: string): void;
+  sharedSetup?(): string;
+  exitApp?(): void;
 }
 
 declare global {

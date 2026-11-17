@@ -7,6 +7,16 @@
     <!-- In-app updates: download the new APK and hand it to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Sharing your provider between the LTTV apps: only apps signed with LTTV's key can read it. -->
+    <permission
+        android:name="tv.lttv.permission.SHARE_SETUP"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="tv.lttv.permission.SHARE_SETUP" />
+    <queries>
+        <package android:name="tv.lttv.app.debug" />
+        <package android:name="tv.lttv.app" />
+    </queries>
+
     <!-- TV first: no touchscreen required; leanback launcher supported but not required (phones/tablets can install too). -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -35,6 +45,12 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name=".ShareProvider"
+            android:authorities="${applicationId}.share"
+            android:exported="true"
+            android:readPermission="tv.lttv.permission.SHARE_SETUP" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

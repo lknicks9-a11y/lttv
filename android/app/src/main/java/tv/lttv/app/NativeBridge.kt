@@ -33,6 +33,39 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun appBuild(): Int = BuildConfig.VERSION_CODE
 
+    /** Which LTTV app this is: lttv, movies, leaguepass or blitz. */
+    @JavascriptInterface
+    fun appMode(): String = BuildConfig.APP_MODE
+
+    /** LTTV keeps your provider setup for the other LTTV apps (see ShareProvider). */
+    @JavascriptInterface
+    fun shareSetup(json: String) {
+        if (BuildConfig.APP_MODE != "lttv") return
+        try {
+            val f = java.io.File(activity.filesDir, ShareProvider.FILE)
+            val tmp = java.io.File(activity.filesDir, ShareProvider.FILE + ".tmp")
+            tmp.writeText(json)
+            tmp.renameTo(f)
+        } catch (_: Exception) { }
+    }
+
+    /** The other apps: LTTV's provider setup, or "" if LTTV isn't installed / set up yet. */
+    @JavascriptInterface
+    fun sharedSetup(): String {
+        for (pkg in listOf("tv.lttv.app.debug", "tv.lttv.app")) {
+            try {
+                activity.contentResolver.openInputStream(android.net.Uri.parse("content://$pkg.share/setup"))?.use {
+                    return it.readBytes().toString(Charsets.UTF_8)
+                }
+            } catch (_: Exception) { }
+        }
+        return ""
+    }
+
+    /** League Pass / Blitz: closing the pass closes the app. */
+    @JavascriptInterface
+    fun exitApp() = activity.runOnUiThread { activity.finish() }
+
     /** Download an update APK and open the system installer (progress via lttvHost.onUpdateEvent). */
     @JavascriptInterface
     fun installUpdate(url: String) = activity.updater.install(url)

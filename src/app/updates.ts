@@ -1,6 +1,7 @@
 // In-app updates for the Fire TV / Android app: checks the GitHub release the build pipeline
 // publishes ("LTTV for Fire TV — build N"), and when it is newer offers to install it. The app
 // downloads the APK itself and opens the system installer, so no Downloader and no uninstalling.
+import { APP_MODE, APK_NAME } from './appmode';
 import { useEffect, useState } from 'preact/hooks';
 import { native, openRemote } from './platform';
 import { toast } from './state';
@@ -109,7 +110,7 @@ async function newestRelease(): Promise<{ build: number; url: string; publishedA
   try {
     const { stream } = await openRemote(`${DOWNLOAD}/build.json`, AbortSignal.timeout?.(20_000));
     const j = JSON.parse(await new Response(stream).text()) as { build?: number; notes?: string[]; at?: string };
-    if (Number(j.build) > 0) return { build: Number(j.build), url: `${DOWNLOAD}/lttv.apk`, publishedAt: j.at, notes: Array.isArray(j.notes) ? j.notes.map(String) : [] };
+    if (Number(j.build) > 0) return { build: Number(j.build), url: `${DOWNLOAD}/${APK_NAME[APP_MODE]}`, publishedAt: j.at, notes: Array.isArray(j.notes) ? j.notes.map(String) : [] };
   } catch {
     /* fall back to the API */
   }
@@ -117,7 +118,7 @@ async function newestRelease(): Promise<{ build: number; url: string; publishedA
   const rel = JSON.parse(await new Response(stream).text()) as { name?: string; body?: string; message?: string; published_at?: string; assets?: { name?: string; browser_download_url?: string }[] };
   const build = Number(/build\s*(\d+)/i.exec(`${rel.name ?? ''} ${rel.body ?? ''}`)?.[1] ?? 0);
   if (!build) throw new Error(/rate limit/i.test(rel.message ?? '') ? 'GitHub is refusing requests from this internet address right now (common on a VPN). Try again later, or with the VPN off.' : rel.message || 'no build found');
-  return { build, url: rel.assets?.find((a) => /\.apk$/i.test(a.name ?? ''))?.browser_download_url ?? `${DOWNLOAD}/lttv.apk`, publishedAt: rel.published_at, body: rel.body };
+  return { build, url: rel.assets?.find((a) => a.name === APK_NAME[APP_MODE])?.browser_download_url ?? `${DOWNLOAD}/${APK_NAME[APP_MODE]}`, publishedAt: rel.published_at, body: rel.body };
 }
 
 /** Ask GitHub for the latest build; resolves to the update if it is newer than this app. */
@@ -157,7 +158,7 @@ export function reopenInstaller() {
 }
 
 /** The update's download page in a browser (always works, even if the installer won't open). */
-export function openDownloadPage(url = latest?.url ?? `https://github.com/${UPDATE_REPO}/releases/latest/download/lttv.apk`) {
+export function openDownloadPage(url = latest?.url ?? `https://github.com/${UPDATE_REPO}/releases/latest/download/${APK_NAME[APP_MODE]}`) {
   native?.openDownloadPage?.(url);
 }
 

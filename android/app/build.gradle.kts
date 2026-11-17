@@ -47,6 +47,30 @@ android {
         }
     }
 
+    // Four apps from one code base. Each opens only its part of LTTV (see src/app/appmode.ts).
+    flavorDimensions += "app"
+    productFlavors {
+        create("lttv") {
+            dimension = "app"
+            buildConfigField("String", "APP_MODE", "\"lttv\"")
+        }
+        create("movies") {
+            dimension = "app"
+            applicationId = "tv.lttv.movies"
+            buildConfigField("String", "APP_MODE", "\"movies\"")
+        }
+        create("leaguepass") {
+            dimension = "app"
+            applicationId = "tv.lttv.leaguepass"
+            buildConfigField("String", "APP_MODE", "\"leaguepass\"")
+        }
+        create("blitz") {
+            dimension = "app"
+            applicationId = "tv.lttv.blitz"
+            buildConfigField("String", "APP_MODE", "\"blitz\"")
+        }
+    }
+
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")

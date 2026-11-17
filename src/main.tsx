@@ -12,6 +12,9 @@ import { cloudConfig, currentSession, markFreshDevice } from './app/cloud';
 import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
 import { isOnboarded } from './ui/Onboarding';
+import { APP_MODE, isPassApp } from './app/appmode';
+import { pullFromLttv, startSharing } from './app/share';
+import { openPass } from './ui/LeaguePass';
 import './styles.css';
 
 const OPENABLE: Screen[] = ['home', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'];
@@ -52,6 +55,17 @@ async function boot() {
     toast('Could not open local storage: ' + (e as Error).message, 'error', 10000);
     return;
   }
+  // Movies & Shows / League Pass / Blitz: use the provider you set up in LTTV.
+  if (APP_MODE !== 'lttv') {
+    try {
+      if (await pullFromLttv()) {
+        await reloadAll();
+        setTimeout(() => void refreshAll(), 300);
+      }
+    } catch (e) {
+      console.warn('Couldn\'t take the provider from LTTV', e);
+    }
+  }
   const s = getState().settings;
   applyTheme(s);
   // First launch: mandatory onboarding (sign in → profile → playlist).
@@ -62,11 +76,12 @@ async function boot() {
     // Brand-new device / first time: the full onboarding flow.
     if (cloudConfig() && currentSession()) void startCloudSync();
     setState({ onboarding: true });
-  } else if (cloudConfig()) {
+  } else if (cloudConfig() && APP_MODE === 'lttv') {
     if (currentSession()) void startCloudSync();
     else if (!signInSkipped()) setState({ signIn: true });
   }
-  void startLiveSports();
+  startSharing();
+  if (APP_MODE !== 'movies') void startLiveSports();
   startUpdateChecks();
   startVodDetection();
   prefetchVodHomes();
@@ -74,10 +89,22 @@ async function boot() {
   const wanted = new URLSearchParams(location.search).get('screen');
   const opened = wanted && OPENABLE.includes(wanted as Screen) && !getState().onboarding ? (wanted as Screen) : null;
   if (opened) setState({ screen: opened });
-  const start = opened ? undefined : s.startupScreen;
+  // Each app opens on its own part.
+  if (!opened && APP_MODE === 'movies' && !getState().onboarding) setState({ screen: 'movies' });
+  if (isPassApp && !getState().onboarding) {
+    openPass(APP_MODE === 'leaguepass' ? 'nba' : 'nfl');
+    // Closing League Pass / Blitz closes the app (there's nothing behind it).
+    let wasOpen = true;
+    setInterval(() => {
+      const open = !!getState().leaguePass;
+      if (wasOpen && !open) window.LTTVNative?.exitApp?.();
+      wasOpen = open;
+    }, 400);
+  }
+  const start = opened || APP_MODE !== 'lttv' ? undefined : s.startupScreen;
   if (!opened && (start === 'guide' || start === 'channels')) setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');
-  if (last && getState().lineup.some((c) => c.key === last)) {
+  if (APP_MODE === 'lttv' && last && getState().lineup.some((c) => c.key === last)) {
     if (opened) setState({ currentKey: undefined });
     else if (start === 'last-channel') void tune(last, { fullscreen: true });
     else if (s.autoplayLastChannel) void tune(last);

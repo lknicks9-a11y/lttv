@@ -1,3 +1,4 @@
+import { APP_MODE } from '../app/appmode';
 import { LeaguePass, watchLeaguePassKeys } from './LeaguePass';
 import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
@@ -44,7 +45,12 @@ function TopBar() {
   const screen = useApp((s) => s.screen);
   const now = useApp((s) => s.now);
   const vod = useVodNav();
-  const items = NAV.filter((n) => (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true));
+  // Each LTTV app shows only its own part: LTTV = Live TV & Sports, Movies & Shows = movies and shows.
+  const items = NAV.filter((n) => {
+    if (APP_MODE === 'movies') return n.id === 'movies' || n.id === 'shows' || n.id === 'search' || n.id === 'settings';
+    if (n.id === 'movies' || n.id === 'shows') return APP_MODE === 'lttv' ? false : n.id === 'movies' ? vod.movies : vod.shows;
+    return true;
+  });
   const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen === 'guide' ? 'home' : screen;
   return (
     <header class="topbar" data-group="topbar" data-zone="h">
