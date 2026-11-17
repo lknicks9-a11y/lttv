@@ -170,25 +170,3 @@ async function fetchRows(kind: Kind, key: string, cacheKey: string, onRow?: (row
 export async function clearWatchmodeCache() {
   for (const k of ['watchmode:rows:movies', 'watchmode:rows:shows']) await repo.setKv(k, null).catch(() => undefined);
 }
-
-/**
- * Everything on one streaming service (US, English), most popular first: up to `pages` × 250 titles,
- * for the LTTV service apps. Cached 30 days per service (one credit per page).
- */
-export async function serviceTitles(kind: Kind, service: RegExp, pages = 40): Promise<WmTitle[]> {
-  const key = watchmodeKey();
-  if (!key) return [];
-  // The whole catalog (up to 10,000 titles), refreshed monthly: about 150-250 credits a month for all the apps.
-  return cached(`watchmode:svc2:${kind}:${service.source}:${key.slice(-6)}`, 30 * 86400_000, async () => {
-    const sources = await cached<Named[]>('watchmode:sources', META_TTL, async () => (await call('/sources/?regions=US&types=sub')) as Named[]);
-    const ids = sources.filter((x) => service.test(x.name)).map((x) => x.id);
-    if (!ids.length) return [];
-    const out: WmTitle[] = [];
-    for (let p = 1; p <= pages; p++) {
-      const got = await listTitles(kind, `&source_ids=${ids.join(',')}&page=${p}`);
-      out.push(...got);
-      if (got.length < 250) break;
-    }
-    return out;
-  });
-}

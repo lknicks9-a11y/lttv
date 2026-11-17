@@ -54,8 +54,6 @@ declare global {
       onKey(key: string): void;
       onUpdateEvent?(json: string): void;
       onSetupSubmit(json: string): void;
-      /** Open a section (home, sports, movies, shows, channels, search). */
-      openScreen?(name: string): void;
     };
   }
 }

@@ -19,7 +19,6 @@ import { useArt } from '../app/vodmeta';
 import { isForeignScript } from '../core/lang';
 import { updateSettings } from '../app/state';
 import { usePlayerStatus, PlayerBadge } from './Home';
-import { loadServiceHome, serviceApp, serviceHint } from '../app/services';
 
 
 const PAGE = 48;
@@ -79,13 +78,11 @@ function LazyStrip({ id, count, children }: { id: string; count: number; childre
   );
 }
 
-export function VodScreen({ kind, service }: { kind: VodKind; service?: string }) {
-  const app = serviceApp(service);
-  const title = app ? app.name : kind === 'movies' ? 'Movies' : 'Shows';
+export function VodScreen({ kind }: { kind: VodKind }) {
+  const title = kind === 'movies' ? 'Movies' : 'Shows';
   const [home, setHome] = useState<VodHome | null>(null);
   const [homeErr, setHomeErr] = useState('');
-  const allCont = continueList(useContinueWatching());
-  const cont = app ? [] : allCont.filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
+  const cont = continueList(useContinueWatching()).filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
   const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat }>({ mode: 'home' });
   const [open, setOpen] = useState<VodItem | null>(null);
   const rootRef = useRef<HTMLElement>(null);
@@ -102,12 +99,11 @@ export function VodScreen({ kind, service }: { kind: VodKind; service?: string }
   useEffect(() => {
     let alive = true;
     setHome(null);
-    setHomeErr('');
-    (app ? loadServiceHome(app.id, (h) => alive && setHome(h)) : loadHome(kind, (h) => alive && setHome(h))).catch((e) => alive && setHomeErr((e as Error).message));
+    loadHome(kind, (h) => alive && setHome(h)).catch((e) => alive && setHomeErr((e as Error).message));
     return () => {
       alive = false;
     };
-  }, [kind, service]);
+  }, [kind]);
 
   // Back leaves search / a category before leaving the screen; on the home rows it goes to the menu.
   useEffect(() => {
@@ -137,7 +133,7 @@ export function VodScreen({ kind, service }: { kind: VodKind; service?: string }
   }, [hasRows]);
 
   return (
-    <section class={`screen vod ${app ? 'vod-service' : ''}`} ref={rootRef} style={app ? `--svc:${app.color}` : undefined}>
+    <section class="screen vod" ref={rootRef}>
       <header class={`screen-head compact ${view.mode === 'home' ? 'vod-home-head' : ''}`}>
         {view.mode === 'home' ? null : (
           <div class="row gap">
@@ -145,7 +141,7 @@ export function VodScreen({ kind, service }: { kind: VodKind; service?: string }
             {view.mode === 'search' && <h1>Search</h1>}
           </div>
         )}
-        {view.mode !== 'search' && !app && <Button icon="search" class="vod-search-btn" onClick={() => setView({ mode: 'search' })}>Search</Button>}
+        {view.mode !== 'search' && <Button icon="search" class="vod-search-btn" onClick={() => setView({ mode: 'search' })}>Search</Button>}
       </header>
       <div class="vod-body">
         {view.mode === 'search' ? (
@@ -201,8 +197,7 @@ export function VodScreen({ kind, service }: { kind: VodKind; service?: string }
             ))}
             {(!home || home.loading) && !homeErr && <div class="muted row gap vod-loading"><span class="spinner" /> Loading {title.toLowerCase()}…</div>}
             {homeErr && <p class="error-text">Couldn’t load {title.toLowerCase()}: {homeErr}</p>}
-            {app && home && !home.loading && !home.rows.length && <Empty icon="shows" title={`${app.name} is getting ready`}><p>{serviceHint()}</p></Empty>}
-            {!app && home && !home.loading && !home.rows.length && !home.categories.length && !cont.length && (
+            {home && !home.loading && !home.rows.length && !home.categories.length && !cont.length && (
               <Empty icon={kind === 'movies' ? 'movie' : 'shows'} title={`No English ${title.toLowerCase()} found`}>
                 <p>Your provider’s other categories are below.</p>
               </Empty>

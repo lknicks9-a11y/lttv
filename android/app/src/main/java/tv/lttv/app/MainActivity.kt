@@ -142,30 +142,9 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() = sendKey("back")
         })
 
-        if (savedInstanceState == null) webView.loadUrl("https://$HOST/index.html?tv" + (screenFor(intent)?.let { "&screen=$it" } ?: ""))
+        if (savedInstanceState == null) webView.loadUrl("https://$HOST/index.html?tv")
         else webView.restoreState(savedInstanceState)
         webView.requestFocus()
-    }
-
-    /**
-     * Which LTTV app to show: League Pass, Blitz or a streaming app ("LTTV Fresh"…) from its tile in the
-     * app list, or a section from LTTV Home (extra "screen" = home, sports, channels, search, settings…).
-     */
-    private fun screenFor(i: Intent?): String? {
-        if (i == null) return null
-        val cls = i.component?.className.orEmpty()
-        if (cls.endsWith(".LeaguePassAlias")) return "leaguepass"
-        if (cls.endsWith(".BlitzAlias")) return "blitz"
-        for (svc in SERVICE_APPS) if (cls.endsWith(".${svc.replaceFirstChar { it.uppercase() }}Alias")) return "svc:$svc"
-        return i.getStringExtra("screen")?.takeIf { it in SCREENS || it.removePrefix("svc:") in SERVICE_APPS }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        // The plain LTTV tile: back to Live TV + Sports (if another LTTV app was showing).
-        val screen = screenFor(intent) ?: if (intent.component?.className?.endsWith(".MainActivity") == true) "tv" else return
-        sendToPage("window.lttvHost && window.lttvHost.openScreen && window.lttvHost.openScreen(${JSONObject.quote(screen)})")
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -350,9 +329,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val HOST = "appassets.androidplatform.net"
-        val SCREENS = setOf("home", "sports", "movies", "shows", "channels", "search", "settings", "leaguepass", "blitz", "tv", "movies", "shows")
-        /** The streaming apps: LTTV Fresh, Binge, Prestige, Peak, Family, Spark, Bright, Studio, Library (see src/app/services.ts). */
-        val SERVICE_APPS = listOf("fresh", "binge", "prestige", "peak", "family", "spark", "bright", "studio", "library")
     }
 }
 
