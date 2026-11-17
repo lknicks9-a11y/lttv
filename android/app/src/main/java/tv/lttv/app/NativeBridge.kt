@@ -62,9 +62,6 @@ class NativeBridge(private val activity: MainActivity) {
         return ""
     }
 
-    /** League Pass / Blitz: closing the pass closes the app. */
-    @JavascriptInterface
-    fun exitApp() = activity.runOnUiThread { activity.finish() }
 
     /** Download an update APK and open the system installer (progress via lttvHost.onUpdateEvent). */
     @JavascriptInterface
