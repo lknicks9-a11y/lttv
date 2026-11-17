@@ -39,9 +39,10 @@ import java.util.Date
  * laid out like a TV home screen — a menu bar across the top, a large featured banner, then
  * rows of apps:
  *
- *  - Menu: Home, Live, Sports, Movies, Shows (open LTTV on that section), Apps, Settings, time.
- *  - Featured: LTTV's Live TV / Sports / Movies / Shows, turning every few seconds (◀ ▶ to flip).
- *  - Your Apps: LTTV, LTTV Movies, LTTV Shows, LTTV League Pass, LTTV Blitz, then your streaming apps (Hulu, Netflix, Max,
+ *  - Menu: Home, Apps, Settings, time.
+ *  - Featured: the LTTV apps — Live TV, Sports, League Pass, Blitz and the streaming apps (Fresh, Binge…),
+ *    turning every few seconds (◀ ▶ to flip); each opens its own app.
+ *  - Your Apps: LTTV, League Pass, Blitz, the LTTV streaming apps, then your streaming apps (Hulu, Netflix, Max,
  *    Paramount+, Disney+, YouTube...) — the real apps installed on the TV.
  *  - All Apps: everything installed, A–Z.
  *
@@ -54,16 +55,26 @@ class HomeActivity : Activity() {
         val key get() = "$pkg/$cls"
     }
 
-    /** [cls]: the LTTV tile whose photo (if the user added one) is shown behind this slide. */
-    private data class Slide(val title: String, val sub: String, val screen: String, val top: String, val accent: String, val cls: String)
+    /**
+     * A featured LTTV app: [cls] is its tile in LTTV (opened directly, and its photo — if the user added one —
+     * shows behind the slide); [screen] opens a part of it (Sports).
+     */
+    private data class Slide(val title: String, val sub: String, val top: String, val accent: String, val cls: String, val screen: String? = null)
 
     private val slides = listOf(
-        Slide("Live TV", "Every channel from your playlists, with the guide", "home", "#0E3A5C", "#4CC2FF", "MainActivity"),
-        Slide("Sports", "Today's games, live scores and the channel they're on", "sports", "#0F4A2E", "#4ADE80", "MainActivity"),
-        Slide("Movies", "Your movie library, ready to play", "movies", "#5C1420", "#FF6B6B", "MoviesAlias"),
-        Slide("Shows", "Your shows, season by season", "shows", "#2E1A5C", "#B08CFF", "ShowsAlias"),
-        Slide("League Pass", "Every NBA game tonight, live", "leaguepass", "#5C2A0C", "#FF8A3D", "LeaguePassAlias"),
-        Slide("Blitz", "Every NFL game, live, in one place", "blitz", "#4A3A08", "#FFC83D", "BlitzAlias"),
+        Slide("Live TV", "Every channel from your playlists, with the guide", "#0E3A5C", "#4CC2FF", "MainActivity"),
+        Slide("Sports", "Today's games, live scores and the channel they're on", "#0F4A2E", "#4ADE80", "MainActivity", "sports"),
+        Slide("League Pass", "Every NBA game tonight, live", "#5C2A0C", "#FF8A3D", "LeaguePassAlias"),
+        Slide("Blitz", "Every NFL game, live, in one place", "#4A3A08", "#FFC83D", "BlitzAlias"),
+        Slide("Fresh", "Your shows and movies that stream on Hulu", "#47310A", "#FFB020", "FreshAlias"),
+        Slide("Binge", "Your shows and movies that stream on Netflix", "#47162D", "#FF4FA0", "BingeAlias"),
+        Slide("Prestige", "Your shows and movies that stream on Max", "#30363F", "#CBD5E1", "PrestigeAlias"),
+        Slide("Peak", "Your shows and movies that stream on Paramount+", "#3D1443", "#D946EF", "PeakAlias"),
+        Slide("Family", "Your shows and movies that stream on Disney+", "#463F26", "#FDE68A", "FamilyAlias"),
+        Slide("Spark", "Your shows and movies that stream on Prime Video", "#461F25", "#FB7185", "SparkAlias"),
+        Slide("Bright", "Your shows and movies that stream on Peacock", "#2E2746", "#A78BFA", "BrightAlias"),
+        Slide("Studio", "Your shows and movies that stream on Apple TV+", "#0C3B35", "#2DD4BF", "StudioAlias"),
+        Slide("Library", "Everything else in your playlists", "#28374A", "#93C5FD", "LibraryAlias"),
     )
 
     private val main = Handler(Looper.getMainLooper())
@@ -195,10 +206,6 @@ class HomeActivity : Activity() {
             setPadding(dp(4), 0, dp(22), 0)
         })
         bar.addView(navItem("Home") { goTop() })
-        bar.addView(navItem("Live") { openLttv("home") })
-        bar.addView(navItem("Sports") { openLttv("sports") })
-        bar.addView(navItem("Movies") { openLttv("movies") })
-        bar.addView(navItem("Shows") { openLttv("shows") })
         bar.addView(navItem("Apps") {
             allAppsTitle?.let { t -> scroll.smoothScrollTo(0, (t.parent as View).top + t.top - dp(10)) }
             firstGridTile?.requestFocus()
@@ -242,7 +249,7 @@ class HomeActivity : Activity() {
         hero = FrameLayout(this).apply {
             isFocusable = true; isClickable = true
             clipToOutline = true
-            setOnClickListener { openLttv(slides[slide].screen) }
+            setOnClickListener { slides[slide].let { openLttvApp(it.cls, it.screen) } }
             setOnKeyListener { _, code, ev ->
                 if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
                 when (code) {
@@ -306,7 +313,7 @@ class HomeActivity : Activity() {
         heroPhoto.setImageDrawable(photo)
         heroShade.visibility = if (photo != null) View.VISIBLE else View.GONE
         heroBadge.visibility = if (photo != null) View.GONE else View.VISIBLE
-        heroLabel.text = "LTTV"
+        heroLabel.text = if (s.cls == "MainActivity") "LTTV" else "LTTV ${s.title.uppercase()}"
         heroLabel.setTextColor(Color.parseColor(s.accent))
         heroTitle.text = s.title
         heroSub.text = s.sub
@@ -360,7 +367,7 @@ class HomeActivity : Activity() {
         val saved = prefs.getString("favs", null)
         if (saved != null) return saved.split('\n').mapNotNull { byKey[it] }.distinctBy { it.key }
         val lttv = lttvPkg()
-        val picks = apps.filter { it.pkg == lttv }.toMutableList()
+        val picks = apps.filter { it.pkg == lttv }.sortedBy { a -> LTTV_ORDER.indexOfFirst { a.cls.endsWith(".$it") }.let { if (it < 0) 99 else it } }.toMutableList()
         for (word in DEFAULT_PICKS) {
             val hit = apps.firstOrNull { a ->
                 val l = a.label.lowercase()
@@ -390,7 +397,17 @@ class HomeActivity : Activity() {
         }
     }
 
-    /** Opens LTTV on a section: home (Live TV), sports, movies or shows. */
+    /** Opens one of the LTTV apps by its tile ("FreshAlias"…; "MainActivity" is LTTV), optionally on a section. */
+    private fun openLttvApp(cls: String, screen: String? = null) {
+        val pkg = lttvPkg() ?: return toast("Install LTTV first")
+        val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            .setComponent(ComponentName(pkg, "tv.lttv.app.$cls"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (screen != null) i.putExtra("screen", screen)
+        try { startActivity(i) } catch (_: Exception) { toast("Update LTTV to open this") }
+    }
+
+    /** Opens LTTV (Live TV + Sports) on a section: home, sports, settings. */
     private fun openLttv(screen: String) {
         val pkg = lttvPkg() ?: return toast("Install LTTV first")
         try {
@@ -765,6 +782,11 @@ class HomeActivity : Activity() {
 
     private companion object {
         val LTTV_PACKAGES = listOf("tv.lttv.app.debug", "tv.lttv.app")
+        /** LTTV's apps in Your Apps: LTTV, League Pass, Blitz, then the streaming apps. */
+        val LTTV_ORDER = listOf(
+            "MainActivity", "LeaguePassAlias", "BlitzAlias", "FreshAlias", "BingeAlias", "PrestigeAlias", "PeakAlias",
+            "FamilyAlias", "SparkAlias", "BrightAlias", "StudioAlias", "LibraryAlias",
+        )
         /** First-run apps after LTTV, in this order, when installed (matched by name). */
         val DEFAULT_PICKS = listOf(
             "hulu", "netflix", "max", "paramount", "disney", "youtube",

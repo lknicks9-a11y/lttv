@@ -20,32 +20,32 @@ import './styles.css';
 const OPENABLE: Screen[] = ['home', 'sports', 'channels', 'search', 'settings'];
 
 /**
- * Open one of the LTTV apps: "tv" (LTTV itself), "movies", "shows", "svc:<id>" (a service app),
- * "leaguepass", "blitz", or a section of LTTV ("home", "sports"...). Returns whether it opened something.
+ * Open one of the LTTV apps on the Fire TV — they're all this one app:
+ *  "tv" / "home" / "sports"… LTTV (Live TV + Sports) · "leaguepass" / "blitz" · "svc:<id>" a streaming
+ *  service app ("LTTV Fresh"…). On the computer every section stays in one app. Returns whether it opened something.
  */
 function openSection(name: string): boolean {
   const st = getState();
   if (st.onboarding) return false;
-  if (name === 'movies' || name === 'shows') {
-    setState({ appMode: isNative ? name : 'all', screen: name, screenStack: [], leaguePass: false, fullscreen: false });
-    return true;
-  }
+  const mode = st.appMode ?? 'all';
+  const fresh = { screenStack: [] as Screen[], leaguePass: false, fullscreen: false };
   if (name.startsWith('svc:')) {
     const app = serviceApp(name.slice(4));
     if (!app) return false;
-    setState({ appMode: isNative ? 'service' : 'all', serviceId: app.id, screen: 'service', screenStack: [], leaguePass: false, fullscreen: false });
+    setState({ ...fresh, appMode: isNative ? 'service' : 'all', serviceId: app.id, screen: 'service' });
     return true;
   }
-  // LTTV itself: back to Live TV unless it was already showing.
-  const wasOther = (st.appMode ?? 'all') !== 'tv' && isNative;
-  if (isNative) setState({ appMode: 'tv' });
   if (name === 'leaguepass' || name === 'blitz') {
-    if (wasOther) setState({ screen: 'home', screenStack: [] });
+    // Its own app: the Sports page sits behind it (never LTTV's Live TV).
+    setState({ ...fresh, appMode: isNative ? 'pass' : mode, screen: isNative ? 'sports' : st.screen });
     openPass(name === 'blitz' ? 'nfl' : 'nba');
     return true;
   }
+  // LTTV itself (Live TV + Sports).
+  const wasOther = isNative && mode !== 'tv';
+  if (isNative) setState({ appMode: 'tv' });
   if (name === 'tv') {
-    if (wasOther) setState({ screen: 'home', screenStack: [], leaguePass: false });
+    if (wasOther) setState({ ...fresh, screen: 'home' });
     return wasOther;
   }
   if (OPENABLE.includes(name as Screen)) {

@@ -148,14 +148,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Which section to open: "LTTV Movies" / "LTTV Shows" in the app list, or a tile on LTTV Home
-     * (extra "screen" = home, sports, movies, shows, channels or search).
+     * Which LTTV app to show: League Pass, Blitz or a streaming app ("LTTV Fresh"…) from its tile in the
+     * app list, or a section from LTTV Home (extra "screen" = home, sports, channels, search, settings…).
      */
     private fun screenFor(i: Intent?): String? {
         if (i == null) return null
         val cls = i.component?.className.orEmpty()
-        if (cls.endsWith(".MoviesAlias")) return "movies"
-        if (cls.endsWith(".ShowsAlias")) return "shows"
         if (cls.endsWith(".LeaguePassAlias")) return "leaguepass"
         if (cls.endsWith(".BlitzAlias")) return "blitz"
         for (svc in SERVICE_APPS) if (cls.endsWith(".${svc.replaceFirstChar { it.uppercase() }}Alias")) return "svc:$svc"
@@ -353,8 +351,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val HOST = "appassets.androidplatform.net"
         val SCREENS = setOf("home", "sports", "movies", "shows", "channels", "search", "settings", "leaguepass", "blitz", "tv", "movies", "shows")
-        /** LTTV Fresh, Binge, Prestige, Peak, Family (see src/app/services.ts). */
-        val SERVICE_APPS = listOf("fresh", "binge", "prestige", "peak", "family")
+        /** The streaming apps: LTTV Fresh, Binge, Prestige, Peak, Family, Spark, Bright, Studio, Library (see src/app/services.ts). */
+        val SERVICE_APPS = listOf("fresh", "binge", "prestige", "peak", "family", "spark", "bright", "studio", "library")
     }
 }
 

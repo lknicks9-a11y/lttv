@@ -40,10 +40,11 @@ export interface MultiviewGame {
 export type Screen = 'home' | 'guide' | 'sports' | 'movies' | 'shows' | 'service' | 'channels' | 'search' | 'sources' | 'settings' | 'matches' | 'wizard';
 
 /**
- * Which app is showing on the Fire TV: LTTV (Live TV + Sports), LTTV Movies, LTTV Shows or a service app
- * ("LTTV Fresh"...). Each is its own tile on the TV, all in this one app. 'all' (the computer) shows everything.
+ * Which app is showing on the Fire TV: LTTV (Live TV + Sports), League Pass / Blitz ('pass') or a
+ * streaming service app ("LTTV Fresh"...). Each is its own tile on the TV, all in this one app.
+ * 'all' (the computer) shows everything.
  */
-export type AppMode = 'all' | 'tv' | 'movies' | 'shows' | 'service';
+export type AppMode = 'all' | 'tv' | 'pass' | 'service';
 
 export interface Toast {
   id: number;

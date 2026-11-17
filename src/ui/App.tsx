@@ -34,8 +34,7 @@ import { needsProfilePick, onProfilesChanged } from '../app/profiles';
 const MODE_SCREENS: Record<AppMode, Screen[]> = {
   all: ['home', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'],
   tv: ['home', 'sports', 'channels', 'search', 'settings'],
-  movies: ['movies', 'settings'],
-  shows: ['shows', 'settings'],
+  pass: ['sports', 'settings'],
   service: ['service', 'settings'],
 };
 
@@ -59,7 +58,7 @@ function TopBar() {
   const svc = serviceApp(useApp((s) => s.serviceId));
   const allowed = MODE_SCREENS[mode];
   const items = NAV.filter((n) => allowed.includes(n.id) && (mode !== 'all' || (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true)));
-  const appLabel = mode === 'movies' ? 'Movies' : mode === 'shows' ? 'Shows' : mode === 'service' && svc ? svc.name.replace(/^LTTV\s+/, '') : '';
+  const appLabel = mode === 'service' && svc ? svc.name.replace(/^LTTV\s+/, '') : '';
   const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen === 'guide' ? 'home' : screen;
   return (
     <header class="topbar" data-group="topbar" data-zone="h">

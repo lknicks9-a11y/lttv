@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LTTV</string>
-    <string name="movies_name">LTTV Movies</string>
-    <string name="shows_name">LTTV Shows</string>
     <string name="leaguepass_name">LTTV League Pass</string>
     <string name="blitz_name">LTTV Blitz</string>
     <string name="fresh_name">LTTV Fresh</string>
@@ -10,4 +8,8 @@
     <string name="prestige_name">LTTV Prestige</string>
     <string name="peak_name">LTTV Peak</string>
     <string name="family_name">LTTV Family</string>
+    <string name="spark_name">LTTV Spark</string>
+    <string name="bright_name">LTTV Bright</string>
+    <string name="studio_name">LTTV Studio</string>
+    <string name="library_name">LTTV Library</string>
 </resources>

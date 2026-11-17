@@ -5,7 +5,7 @@ import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
 import { focusFirst, onBack } from '../app/nav';
-import { openRemote } from '../app/platform';
+import { native, openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
 import { bestStreams, buildGameIndexAsync, type GameIndexEntry } from '../core/streamfinder';
@@ -375,7 +375,7 @@ export function LeaguePass() {
   useEffect(() => onBack(() => {
     if (mv) closeMultiview(-1); // Multiview → back to League Pass
     else if (full) setFull(false);
-    else setState({ leaguePass: false });
+    else closePass();
     return true;
   }), [full, !!mv]);
   useLayoutEffect(() => {
@@ -650,7 +650,7 @@ export function LeaguePass() {
         {timeoutUp && cfg.league !== 'nfl' && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
         <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
         {(onThisGame || timeoutUp) && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
-        <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>Close</Button>
+        <Button variant="ghost" icon="close" onClick={closePass}>Close</Button>
       </header>
 
       <div class="lp-main">
@@ -732,6 +732,16 @@ export function LeaguePass() {
 }
 
 // ---------------- Up, Up, Left, Right opens League Pass; Up ×5, Down ×2, Right opens Blitz ----------------
+/** Closing League Pass / Blitz: opened as its own app on the Fire TV, it leaves the app; otherwise back to LTTV. */
+export function closePass() {
+  if (getState().appMode === 'pass' && native) {
+    player.stop();
+    native.exitApp();
+    return;
+  }
+  setState({ leaguePass: false });
+}
+
 export function openPass(league: 'nba' | 'nfl') {
   if (getState().multiview) closeMultiview(-1);
   setState({ leaguePass: true, passLeague: league, fullscreen: false });

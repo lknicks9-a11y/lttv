@@ -173,12 +173,13 @@ export async function clearWatchmodeCache() {
 
 /**
  * Everything on one streaming service (US, English), most popular first: up to `pages` × 250 titles,
- * for the LTTV service apps. Cached 7 days per service (about `pages` credits per refresh).
+ * for the LTTV service apps. Cached 30 days per service (one credit per page).
  */
-export async function serviceTitles(kind: Kind, service: RegExp, pages = 3): Promise<WmTitle[]> {
+export async function serviceTitles(kind: Kind, service: RegExp, pages = 40): Promise<WmTitle[]> {
   const key = watchmodeKey();
   if (!key) return [];
-  return cached(`watchmode:svc:${kind}:${service.source}:${key.slice(-6)}`, 7 * 86400_000, async () => {
+  // The whole catalog (up to 10,000 titles), refreshed monthly: about 150-250 credits a month for all the apps.
+  return cached(`watchmode:svc2:${kind}:${service.source}:${key.slice(-6)}`, 30 * 86400_000, async () => {
     const sources = await cached<Named[]>('watchmode:sources', META_TTL, async () => (await call('/sources/?regions=US&types=sub')) as Named[]);
     const ids = sources.filter((x) => service.test(x.name)).map((x) => x.id);
     if (!ids.length) return [];
