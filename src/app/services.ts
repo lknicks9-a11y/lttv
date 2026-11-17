@@ -120,8 +120,8 @@ function library(): Promise<Lib> {
 
 /** Show key -> "Web channel|Network" from TVmaze ('' = not found). */
 const HOMES_KV = 'tvmaze:homes1';
-/** Movie key -> "Studio|Distributor|…" from Wikidata ('' = not found). */
-const STUDIOS_KV = 'wikidata:studios1';
+/** Movie key -> "p:Studio|d:Distributor|…" from Wikidata ('' = not found). */
+const STUDIOS_KV = 'wikidata:studios2';
 let homes: Record<string, string> = {};
 let studios: Record<string, string> = {};
 /** Each service's catalog from Watchmode (in popularity order). */
@@ -240,23 +240,24 @@ async function moviesJob(lib: Lib) {
       labels.add(x.title);
       labels.add(x.title.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\b(Of|The|A|An|And|In|On|At|To|For)\b(?!$)/g, (w, _m, off: number) => (off === 0 ? w : w.toLowerCase())));
     }
-    const q = `SELECT ?t ?y ?cLabel WHERE {
+    const q = `SELECT ?t ?y ?k ?cLabel WHERE {
   VALUES ?t { ${[...labels].map(sparqlString).join(' ')} }
   VALUES ?type { ${FILM_TYPES} }
   ?f rdfs:label ?t; wdt:P31 ?type.
   OPTIONAL { ?f wdt:P577 ?date. BIND(YEAR(?date) AS ?y) }
-  { ?f wdt:P272 ?c. } UNION { ?f wdt:P750 ?c. }
+  { ?f wdt:P272 ?c. BIND("p" AS ?k) } UNION { ?f wdt:P750 ?c. BIND("d" AS ?k) }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }`;
     try {
       await sleep(1500);
       const j = (await getJson(`${override('lttvWikidataBase', 'https://query.wikidata.org/sparql')}?format=json&query=${encodeURIComponent(q)}`)) as
-        { results?: { bindings?: { t?: { value: string }; y?: { value: string }; cLabel?: { value: string } }[] } };
+        { results?: { bindings?: { t?: { value: string }; y?: { value: string }; k?: { value: string }; cLabel?: { value: string } }[] } };
       // Title -> year -> companies
       const found = new Map<string, Map<number, Set<string>>>();
       for (const b of j.results?.bindings ?? []) {
         const k = keyOf(b.t?.value ?? '');
-        const c = b.cLabel?.value;
+        // "p:" made it (production company), "d:" released it (distributor).
+        const c = b.cLabel?.value ? `${b.k?.value === 'd' ? 'd' : 'p'}:${b.cLabel.value}` : undefined;
         if (!k || !c) continue;
         const y = Number(b.y?.value) || 0;
         const byYear = found.get(k) ?? new Map<number, Set<string>>();
@@ -305,15 +306,25 @@ function showHome(k: string): string[] {
   return [];
 }
 
-/** Movie: the services its studios' films stream on; a streaming original goes only to its own service. */
+/**
+ * Movie: where the studios that made it stream their films; if none of them is known, its US-style
+ * distributors. A Netflix / Amazon / Apple original goes only to its own service.
+ */
 function movieHome(k: string): string[] {
-  const companies = (studios[k] ?? '').split('|').map((c) => c.trim()).filter(Boolean);
-  const out = new Set<string>();
-  for (const c of companies) for (const s of STREAMERS) if (s.studios?.test(c)) out.add(s.id);
-  for (const original of ['binge', 'spark', 'studio']) {
-    if (out.has(original) && companies.some((c) => /^(netflix|amazon|apple)/i.test(c))) return [original];
+  const all = (studios[k] ?? '').split('|').map((c) => c.trim()).filter(Boolean);
+  const made = all.filter((c) => c.startsWith('p:')).map((c) => c.slice(2));
+  const released = all.filter((c) => c.startsWith('d:')).map((c) => c.slice(2));
+  const match = (companies: string[]) => {
+    const out = new Set<string>();
+    for (const c of companies) for (const s of STREAMERS) if (s.studios?.test(c)) out.add(s.id);
+    return out;
+  };
+  for (const [id, re] of [['binge', /^netflix/i], ['spark', /^amazon/i], ['studio', /^apple/i]] as const) {
+    if (made.some((c) => re.test(c))) return [id];
   }
-  return [...out];
+  let out = match(made);
+  if (!out.size) out = match(released);
+  return [...out].slice(0, 2);
 }
 
 function assignments(lib: Lib) {
