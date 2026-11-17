@@ -19,6 +19,8 @@ import { useArt } from '../app/vodmeta';
 import { isForeignScript } from '../core/lang';
 import { updateSettings } from '../app/state';
 import { usePlayerStatus, PlayerBadge } from './Home';
+import { APP_MODE } from '../app/appmode';
+import { STREAMING_SERVICES, loadServiceItems, type StreamingService } from '../app/vod';
 
 
 const PAGE = 48;
@@ -83,7 +85,13 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   const [home, setHome] = useState<VodHome | null>(null);
   const [homeErr, setHomeErr] = useState('');
   const cont = continueList(useContinueWatching()).filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
-  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat }>({ mode: 'home' });
+  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat } | { mode: 'service'; svc: StreamingService }>(() => {
+    // Movies & Shows opens on the service you picked last time.
+    let last = '';
+    try { last = localStorage.getItem('lttvService') ?? ''; } catch { /* storage off */ }
+    const svc = APP_MODE === 'movies' ? STREAMING_SERVICES.find((x) => x.id === last) : undefined;
+    return svc ? { mode: 'service', svc } : { mode: 'home' };
+  });
   const [open, setOpen] = useState<VodItem | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   // The page appears right away with its first rows; the others are added a few at a time just after
@@ -123,7 +131,14 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   }, [view]);
   useLayoutEffect(() => {
     requestAnimationFrame(() => focusFirst(rootRef.current?.querySelector<HTMLElement>('.vod-body') ?? null));
-  }, [view.mode, view.mode === 'category' ? view.cat.key : '']);
+  }, [view.mode, view.mode === 'category' ? view.cat.key : view.mode === 'service' ? view.svc.id : '']);
+  const pickService = (svc: StreamingService | null) => {
+    try {
+      if (svc) localStorage.setItem('lttvService', svc.id);
+      else localStorage.removeItem('lttvService');
+    } catch { /* storage off */ }
+    setView(svc ? { mode: 'service', svc } : { mode: 'home' });
+  };
   // Rows arrive after the screen opens: put focus on the first poster once (unless the viewer moved elsewhere).
   const hasRows = !!home?.rows.length || cont.length > 0;
   useEffect(() => {
@@ -137,7 +152,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       <header class={`screen-head compact ${view.mode === 'home' ? 'vod-home-head' : ''}`}>
         {view.mode === 'home' ? null : (
           <div class="row gap">
-            <Button small icon="back" onClick={() => setView({ mode: 'home' })}>{title}</Button>
+            <Button small icon="back" onClick={() => pickService(null)}>{title}</Button>
             {view.mode === 'search' && <h1>Search</h1>}
           </div>
         )}
@@ -148,8 +163,21 @@ export function VodScreen({ kind }: { kind: VodKind }) {
           <VodSearch kind={kind} onOpen={setOpen} />
         ) : view.mode === 'category' ? (
           <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
+        ) : view.mode === 'service' ? (
+          <>
+            <ServiceRow kind={kind} sel={view.svc.id} onPick={pickService} />
+            <CategoryGrid
+              key={view.svc.id}
+              kind={kind}
+              cat={{ key: `svc:${view.svc.id}`, id: view.svc.id, name: view.svc.label, playlistId: '' } as VodCat}
+              load={() => loadServiceItems(kind, view.svc.id)}
+              emptyNote={`Nothing from ${view.svc.label} in your provider's ${kind === 'movies' ? 'movies' : 'shows'} yet. Add a Watchmode key in Settings → Movies & Shows to match more titles.`}
+              onOpen={setOpen}
+            />
+          </>
         ) : (
           <>
+            <ServiceRow kind={kind} onPick={pickService} />
             {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 10)} top={home.rows[0].id === 'trending' || home.rows[0].id === 'popular'} onOpen={setOpen} />}
             {cont.length > 0 && (
               <section class="vod-row">
@@ -333,6 +361,34 @@ function TopCard({ it, rank, wide, autofocus, onFocus, onOpen }: { it: VodItem; 
   );
 }
 
+/** The streaming services: pick one to see its movies or shows from your provider. */
+function ServiceRow({ kind, sel, onPick }: { kind: VodKind; sel?: string; onPick: (s: StreamingService | null) => void }) {
+  return (
+    <section class="vod-row vod-services">
+      <h2 class="vod-row-title">{sel ? 'Streaming service' : `Pick a streaming service`}</h2>
+      <div class="vod-strip vod-svc-strip" data-group="vod-row-services" data-hlock>
+        {sel && (
+          <button type="button" class="f vod-svc vod-svc-all" onClick={() => onPick(null)}>
+            <span>All {kind === 'movies' ? 'movies' : 'shows'}</span>
+          </button>
+        )}
+        {STREAMING_SERVICES.map((x) => (
+          <button
+            type="button"
+            key={x.id}
+            class={`f vod-svc ${sel === x.id ? 'is-on' : ''}`}
+            data-autofocus={sel === x.id ? '' : undefined}
+            style={{ '--svc-bg': x.bg, '--svc-fg': x.fg } as Record<string, string>}
+            onClick={() => onPick(x)}
+          >
+            <span>{x.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function CategoryRow({ id, title, cats, onPick, autofocus }: { id: string; title: string; cats: VodCat[]; onPick: (c: VodCat) => void; autofocus?: boolean }) {
   return (
     <section class="vod-row">
@@ -370,7 +426,7 @@ function inEra(y: number, e: Era): boolean {
   return e === 'new' ? y >= now - 1 : e === '2020s' ? y >= 2020 : e === '2010s' ? y >= 2010 && y < 2020 : y < 2010;
 }
 
-function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpen: (it: VodItem) => void }) {
+function CategoryGrid({ kind, cat, onOpen, load, emptyNote }: { kind: VodKind; cat: VodCat; onOpen: (it: VodItem) => void; load?: () => Promise<VodItem[]>; emptyNote?: string }) {
   const [items, setItems] = useState<VodItem[] | null>(null);
   const [err, setErr] = useState('');
   const [shown, setShown] = useState(PAGE);
@@ -381,7 +437,7 @@ function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpe
     let alive = true;
     setItems(null);
     setShown(PAGE);
-    loadCategoryItems(kind, cat).then((l) => alive && setItems(dedupe(l))).catch((e) => alive && (setErr((e as Error).message), setItems([])));
+    (load ? load() : loadCategoryItems(kind, cat)).then((l) => alive && setItems(dedupe(l))).catch((e) => alive && (setErr((e as Error).message), setItems([])));
     return () => {
       alive = false;
     };
@@ -407,7 +463,7 @@ function CategoryGrid({ kind, cat, onOpen }: { kind: VodKind; cat: VodCat; onOpe
         <Button class={`vod-filter-btn ${changed ? 'is-on' : ''}`} icon="menu" onClick={() => setMenu(true)}>Filter and sort</Button>
       </div>
       {!items ? <div class="muted row gap"><span class="spinner" /> Loading…</div>
-        : !list.length ? <Empty icon="search" title={err ? 'This category didn’t load' : 'Nothing here'}>{err && <p>{err}</p>}</Empty>
+        : !list.length ? <Empty icon="search" title={err ? 'This category didn’t load' : 'Nothing here'}>{err ? <p>{err}</p> : emptyNote && <p>{emptyNote}</p>}</Empty>
         : (
           <div class="vod-grid vod-grid-posters" data-group="vod-grid" data-hlock>
             {list.slice(0, shown).map((it, i) => <GridCard key={`${it.playlistId}:${it.kind === 'movie' ? it.m.id : it.s.id}`} it={it} autofocus={i === 0} onOpen={onOpen} />)}

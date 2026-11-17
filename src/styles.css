@@ -2044,3 +2044,18 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 /* League Pass after 10 s of watching: only the broadcast buttons tuck away (the page stays as it is). */
 .lp-tucked .lp-feeds { display: none; }
 .team-rank { color: var(--muted); font-weight: 700; font-size: 0.85em; }
+
+/* Movies & Shows: streaming service tiles (glass, the service's color, its name — no logos). */
+.vod-svc-strip { gap: 18px; }
+.vod-svc {
+  flex: 0 0 auto; width: 220px; height: 110px; border-radius: 18px; display: grid; place-items: center;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--svc-bg, #1b1d24) 88%, #fff 12%), var(--svc-bg, #1b1d24));
+  border: 1px solid rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 24px rgba(0,0,0,.35);
+  backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  color: var(--svc-fg, #fff); font-weight: 800; font-size: 1.35rem; letter-spacing: -.01em;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.vod-svc span { text-shadow: 0 1px 10px rgba(0,0,0,.4); }
+.vod-svc:focus, .vod-svc.focused { transform: scale(1.07); border-color: rgba(255,255,255,.85); box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 14px 34px rgba(0,0,0,.5); outline: none; }
+.vod-svc.is-on { border-color: var(--svc-fg); box-shadow: 0 0 0 2px var(--svc-fg), 0 8px 24px rgba(0,0,0,.35); }
+.vod-svc-all { --svc-fg: #fff; background: rgba(255,255,255,.08); }

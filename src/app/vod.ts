@@ -648,6 +648,32 @@ async function buildHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise
  * English, 1080p first). Rows with fewer than 4 of your titles are left out.
  */
 async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h: VodHome) => void, source: (onRow: (rows: WmRow[]) => void) => Promise<WmRow[]> = (onRow) => watchmodeRows(kind, onRow)): Promise<VodHome> {
+  const match = await libraryMatcher(kind, english);
+  const build = (wm: WmRow[], loading: boolean): VodHome => {
+    const rows: VodRow[] = [];
+    for (const r of wm) {
+      const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
+      if (items.length >= (r.id === "popular" ? 1 : 4)) rows.push({ id: r.id, title: r.title, items });
+    }
+    return { rows, categories: english, otherLanguages: [], loading };
+  };
+  // While lists arrive, the page is updated at most about once a second.
+  let lastEmit = 0;
+  const wm = await source((partial) => {
+    if (Date.now() - lastEmit < 1000) return;
+    lastEmit = Date.now();
+    onUpdate(build(partial, true));
+  });
+  if (!wm.length) throw new Error('no lists');
+  const done = build(wm, false);
+  homeCache.set(kind, done);
+  if (done.rows.length) void repo.setKv(savedKey(kind), { at: Date.now(), home: done }).catch(() => undefined);
+  onUpdate(done);
+  return done;
+}
+
+/** Matches titles from a US list (Watchmode, charts) to your provider's English copies. */
+async function libraryMatcher(kind: VodKind, english: VodCat[]): Promise<(t: WmTitle) => VodItem | undefined> {
   // English copies only: titles from the provider's English categories, without a foreign language tag
   // ("FR - The Bear", "The Bear (VOSTFR)"), so a French or Spanish copy never stands in for the show.
   const englishCats = new Set(english.map((c) => c.key));
@@ -678,27 +704,58 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
     const ok = cands.filter((c) => !t.year || !yearOf(c) || Math.abs(yearOf(c) - t.year) <= 1);
     return dedupe(ok)[0];
   };
-  const build = (wm: WmRow[], loading: boolean): VodHome => {
-    const rows: VodRow[] = [];
-    for (const r of wm) {
-      const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
-      if (items.length >= (r.id === "popular" ? 1 : 4)) rows.push({ id: r.id, title: r.title, items });
+  return match;
+}
+
+// ---- Streaming services (Movies & Shows: "pick a service") ----
+
+export interface StreamingService {
+  id: string;
+  label: string;
+  /** Tile colors (no logos: the name is written on the tile). */
+  bg: string;
+  fg: string;
+  /** Your provider's categories for this service ("NETFLIX MOVIES", "EN | Disney+ Series"…). */
+  cat: RegExp;
+}
+
+export const STREAMING_SERVICES: StreamingService[] = [
+  { id: 'Netflix', label: 'Netflix', bg: '#1a0a0b', fg: '#ff3b47', cat: /netflix/i },
+  { id: 'Prime Video', label: 'Prime Video', bg: '#0b1a2a', fg: '#4fb6ff', cat: /\b(amazon|prime)\b/i },
+  { id: 'Disney+', label: 'Disney+', bg: '#0b1440', fg: '#9fc3ff', cat: /disney/i },
+  { id: 'Hulu', label: 'Hulu', bg: '#0b2215', fg: '#3ee07f', cat: /\bhulu\b/i },
+  { id: 'Max', label: 'Max', bg: '#120d3a', fg: '#b2a4ff', cat: /\b(hbo|max)\b/i },
+  { id: 'Apple TV+', label: 'Apple TV+', bg: '#1b1b1f', fg: '#f2f2f2', cat: /\bapple\b/i },
+  { id: 'Paramount+', label: 'Paramount+', bg: '#0a1838', fg: '#5aa0ff', cat: /paramount/i },
+  { id: 'Peacock', label: 'Peacock', bg: '#1c1406', fg: '#ffc94d', cat: /peacock/i },
+];
+
+/**
+ * Everything on one streaming service that your provider has: the service's own categories in your provider,
+ * plus (with a Watchmode key) what's popular on that service in the US, matched to your provider's copies.
+ */
+export async function loadServiceItems(kind: VodKind, id: string): Promise<VodItem[]> {
+  const svc = STREAMING_SERVICES.find((x) => x.id === id);
+  if (!svc) return [];
+  const cats = await loadCategories(kind);
+  const english = cats.filter((c) => isEnglishCategory(c.name));
+  const out: VodItem[] = [];
+  if (watchmodeKey()) {
+    try {
+      const rows = await watchmodeRows(kind);
+      const row = rows.find((r) => r.id === `svc:${svc.id}`);
+      if (row) {
+        const match = await libraryMatcher(kind, english);
+        out.push(...row.titles.map(match).filter((x): x is VodItem => !!x));
+      }
+    } catch (e) {
+      console.warn('Watchmode list for', svc.id, 'unavailable:', (e as Error).message);
     }
-    return { rows, categories: english, otherLanguages: [], loading };
-  };
-  // While lists arrive, the page is updated at most about once a second.
-  let lastEmit = 0;
-  const wm = await source((partial) => {
-    if (Date.now() - lastEmit < 1000) return;
-    lastEmit = Date.now();
-    onUpdate(build(partial, true));
-  });
-  if (!wm.length) throw new Error('no lists');
-  const done = build(wm, false);
-  homeCache.set(kind, done);
-  if (done.rows.length) void repo.setKv(savedKey(kind), { at: Date.now(), home: done }).catch(() => undefined);
-  onUpdate(done);
-  return done;
+  }
+  const own = english.filter((c) => svc.cat.test(c.name)).slice(0, 12);
+  const lists = await Promise.all(own.map((c) => catItems(kind, c).catch(() => [] as VodItem[])));
+  for (const l of lists) out.push(...l);
+  return dedupe(out);
 }
 
 /** Items of one category (for "Browse"). */
