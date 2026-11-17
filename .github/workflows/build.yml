@@ -61,7 +61,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: lttv-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/home/build/outputs/apk/debug/*.apk
       # A direct download link for the Fire TV "Downloader" app:
       # https://github.com/<owner>/<repo>/releases/latest/download/lttv.apk
       - name: Publish the APK as the latest release
@@ -70,6 +72,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp android/app/build/outputs/apk/debug/*.apk lttv.apk
+          # LTTV Home: the separate home screen app (set it with Launcher Manager Mini).
+          cp android/home/build/outputs/apk/debug/*.apk lttv-home.apk
           # The computer version, ready to run: it updates itself from this file (server/update.mjs).
           mkdir -p desk/LTTV && cp -r dist server windows package.json desk/LTTV/
           # build.json: the build number and what changed, as a plain download (the apps read this, not the API).
@@ -86,7 +90,7 @@ jobs:
           if [ "$GITHUB_RUN_NUMBER" -ge 167 ]; then VER="1.0.$((GITHUB_RUN_NUMBER - 167))"; fi
           # Restarted at build 184 = 1.0.0; every tenth build moves the middle number (1.0.9 -> 1.1.0).
           if [ "$GITHUB_RUN_NUMBER" -ge 184 ]; then N=$((GITHUB_RUN_NUMBER - 184)); VER="1.$((N / 10)).$((N % 10))"; fi
-          gh release create tv lttv.apk lttv-desktop.zip build.json --title "LTTV for Fire TV — ${VER} (build ${GITHUB_RUN_NUMBER})" --notes "LTTV ${VER} (build ${GITHUB_RUN_NUMBER}) of main (${GITHUB_SHA::7}). The app offers this update itself (Settings → Check for updates). Downloader: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/lttv.apk" --latest
+          gh release create tv lttv.apk lttv-home.apk lttv-desktop.zip build.json --title "LTTV for Fire TV — ${VER} (build ${GITHUB_RUN_NUMBER})" --notes "LTTV ${VER} (build ${GITHUB_RUN_NUMBER}) of main (${GITHUB_SHA::7}). The app offers this update itself (Settings → Check for updates). Downloader: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/lttv.apk" --latest
       - name: Build signed release APK
         if: ${{ env.KEYSTORE_BASE64 != '' }}
         env:

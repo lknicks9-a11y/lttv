@@ -142,9 +142,19 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() = sendKey("back")
         })
 
-        if (savedInstanceState == null) webView.loadUrl("https://$HOST/index.html?tv")
+        if (savedInstanceState == null) webView.loadUrl("https://$HOST/index.html?tv" + (screenOf(intent)?.let { "&screen=$it" } ?: ""))
         else webView.restoreState(savedInstanceState)
         webView.requestFocus()
+    }
+
+    /** A section asked for by LTTV Home ("screen" extra): home, sports, channels, search, settings. */
+    private fun screenOf(i: Intent?): String? = i?.getStringExtra("screen")?.takeIf { it in SCREENS }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val screen = screenOf(intent) ?: return
+        sendToPage("window.lttvHost && window.lttvHost.openScreen && window.lttvHost.openScreen(${JSONObject.quote(screen)})")
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -329,6 +339,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val HOST = "appassets.androidplatform.net"
+        val SCREENS = setOf("home", "sports", "movies", "shows", "channels", "search", "settings")
     }
 }
 

@@ -5,7 +5,7 @@ import { pollLive, startLiveSports, addBet, addParlay, watchingSports } from './
 import { render } from 'preact';
 import { App } from './ui/App';
 import { installNavigation, dispatchAppKey, goBack, type AppKey } from './app/nav';
-import { addPlaylist, addEpgSource, reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings, rematchAndReload } from './app/state';
+import { addPlaylist, addEpgSource, reloadAll, applyTheme, applySavedTheme, getState, setState, repo, tune, startClock, refreshAll, toast, player, playRequest, updateSettings, rematchAndReload, type Screen } from './app/state';
 import { isTV, isNative } from './app/platform';
 import { describeProgramme } from './app/describe';
 import { cloudConfig, currentSession, markFreshDevice } from './app/cloud';
@@ -13,6 +13,8 @@ import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
 import { isOnboarded } from './ui/Onboarding';
 import './styles.css';
+
+const OPENABLE: Screen[] = ['home', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'];
 
 async function boot() {
   document.documentElement.classList.toggle('tv', isTV);
@@ -28,6 +30,12 @@ async function boot() {
       return;
     }
     dispatchAppKey(key as AppKey);
+  };
+  // LTTV Home opens a section of LTTV via its app tile / nav (extra "screen").
+  window.lttvHost.openScreen = (name: string) => {
+    if (OPENABLE.includes(name as Screen) && !getState().onboarding) {
+      setState({ screen: name as Screen, fullscreen: false });
+    }
   };
 
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
@@ -62,11 +70,16 @@ async function boot() {
   startUpdateChecks();
   startVodDetection();
   prefetchVodHomes();
-  const start = s.startupScreen;
-  if (start === 'guide' || start === 'channels') setState({ screen: start });
+  // A section asked for by LTTV Home (?screen=home|sports|search|settings) opens there and skips autoplay.
+  const wanted = new URLSearchParams(location.search).get('screen');
+  const opened = wanted && OPENABLE.includes(wanted as Screen) && !getState().onboarding ? (wanted as Screen) : null;
+  if (opened) setState({ screen: opened });
+  const start = opened ? undefined : s.startupScreen;
+  if (!opened && (start === 'guide' || start === 'channels')) setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');
   if (last && getState().lineup.some((c) => c.key === last)) {
-    if (start === 'last-channel') void tune(last, { fullscreen: true });
+    if (opened) setState({ currentKey: undefined });
+    else if (start === 'last-channel') void tune(last, { fullscreen: true });
     else if (s.autoplayLastChannel) void tune(last);
     else setState({ currentKey: undefined });
   }

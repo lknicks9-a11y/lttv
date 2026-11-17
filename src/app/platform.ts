@@ -52,6 +52,8 @@ declare global {
       onPlayerEvent(json: string): void;
       onMultiviewEvent?(slot: number, json: string): void;
       onKey(key: string): void;
+      /** LTTV Home asks LTTV to open a section. */
+      openScreen?(name: string): void;
       onUpdateEvent?(json: string): void;
       onSetupSubmit(json: string): void;
     };
