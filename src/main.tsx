@@ -12,6 +12,7 @@ import { cloudConfig, currentSession, markFreshDevice } from './app/cloud';
 import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
 import { isOnboarded } from './ui/Onboarding';
+import { openPass } from './ui/LeaguePass';
 import './styles.css';
 
 /** Sections another app (LTTV Home, the "LTTV Movies" / "LTTV Shows" tiles) may open. */
@@ -34,7 +35,12 @@ async function boot() {
   };
   // "LTTV Movies" / "LTTV Shows" / LTTV Home tiles open a section of the app.
   window.lttvHost.openScreen = (name: string) => {
-    if (OPENABLE.includes(name as Screen) && !getState().onboarding) {
+    if (getState().onboarding) return;
+    if (name === 'leaguepass' || name === 'blitz') {
+      openPass(name === 'blitz' ? 'nfl' : 'nba');
+      return;
+    }
+    if (OPENABLE.includes(name as Screen)) {
       setState({ leaguePass: false });
       navigate(name as Screen);
     }
@@ -73,6 +79,7 @@ async function boot() {
   startUpdateChecks();
   startVodDetection();
   prefetchVodHomes();
+  if ((startScreen === 'leaguepass' || startScreen === 'blitz') && !getState().onboarding) openPass(startScreen === 'blitz' ? 'nfl' : 'nba');
   const opened = OPENABLE.includes(startScreen as Screen) && !getState().onboarding ? (startScreen as Screen) : null;
   const start = opened ? undefined : s.startupScreen;
   if (opened) setState({ screen: opened });

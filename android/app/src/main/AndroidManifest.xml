@@ -62,6 +62,32 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- "LTTV League Pass" (NBA) and "LTTV Blitz" (NFL): their own tiles, opening straight into each. -->
+        <activity-alias
+            android:name=".LeaguePassAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/leaguepass_name"
+            android:banner="@drawable/banner_leaguepass">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".BlitzAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/blitz_name"
+            android:banner="@drawable/banner_blitz">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

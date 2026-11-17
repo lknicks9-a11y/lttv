@@ -3,4 +3,6 @@
     <string name="app_name">LTTV</string>
     <string name="movies_name">LTTV Movies</string>
     <string name="shows_name">LTTV Shows</string>
+    <string name="leaguepass_name">LTTV League Pass</string>
+    <string name="blitz_name">LTTV Blitz</string>
 </resources>

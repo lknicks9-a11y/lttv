@@ -41,7 +41,7 @@ import java.util.Date
  *
  *  - Menu: Home, Live, Sports, Movies, Shows (open LTTV on that section), Apps, Settings, time.
  *  - Featured: LTTV's Live TV / Sports / Movies / Shows, turning every few seconds (◀ ▶ to flip).
- *  - Your Apps: LTTV, LTTV Movies, LTTV Shows, then your streaming apps (Hulu, Netflix, Max,
+ *  - Your Apps: LTTV, LTTV Movies, LTTV Shows, LTTV League Pass, LTTV Blitz, then your streaming apps (Hulu, Netflix, Max,
  *    Paramount+, Disney+, YouTube...) — the real apps installed on the TV.
  *  - All Apps: everything installed, A–Z.
  *
@@ -61,6 +61,8 @@ class HomeActivity : Activity() {
         Slide("Sports", "Today's games, live scores and the channel they're on", "sports", "#0F4A2E", "#4ADE80"),
         Slide("Movies", "Your movie library, ready to play", "movies", "#5C1420", "#FF6B6B"),
         Slide("Shows", "Your shows, season by season", "shows", "#2E1A5C", "#B08CFF"),
+        Slide("League Pass", "Every NBA game tonight, live", "leaguepass", "#5C2A0C", "#FF8A3D"),
+        Slide("Blitz", "Every NFL game, live, in one place", "blitz", "#4A3A08", "#FFC83D"),
     )
 
     private val main = Handler(Looper.getMainLooper())
