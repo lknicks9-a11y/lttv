@@ -4,7 +4,7 @@ import { h, Fragment, Component, type ComponentChildren } from 'preact';
 import { dismissUpdate, installUpdate, useAvailableUpdate, useKnownUpdate, versionOf } from '../app/updates';
 import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
+import { useApp, navigate, screenBack, setState, getState, player, type Screen, type AppMode, tune, zapList, toggleFavorite } from '../app/state';
 import { onAppKey, onBack, focusFirst } from '../app/nav';
 import { adjacentChannel } from '../core/organize';
 import { native, isNative } from '../app/platform';
@@ -22,6 +22,7 @@ import { PlayerOverlay } from './Player';
 import { ProgrammeDetail } from './Detail';
 import { SportsScreen, ReminderPrompt } from './Sports';
 import { VodScreen, VodPlayer, useVodNav } from './Vod';
+import { serviceApp } from '../app/services';
 import { MultiviewScreen } from './Multiview';
 import { SignInScreen } from './SignIn';
 import { OnboardingScreen } from './Onboarding';
@@ -29,11 +30,21 @@ import { SidebarProfile, WhoIsWatching } from './Profiles';
 import { needsProfilePick, onProfilesChanged } from '../app/profiles';
 
 
+/** The sections each LTTV app has on the Fire TV (every section on the computer). */
+const MODE_SCREENS: Record<AppMode, Screen[]> = {
+  all: ['home', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'],
+  tv: ['home', 'sports', 'channels', 'search', 'settings'],
+  movies: ['movies', 'settings'],
+  shows: ['shows', 'settings'],
+  service: ['service', 'settings'],
+};
+
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'home', label: 'Live TV', icon: 'guide' },
   { id: 'sports', label: 'Sports', icon: 'sports' },
   { id: 'movies', label: 'Movies', icon: 'movie' },
   { id: 'shows', label: 'Shows', icon: 'shows' },
+  { id: 'service', label: 'Browse', icon: 'shows' },
   { id: 'channels', label: 'Channels', icon: 'channels' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
@@ -44,13 +55,18 @@ function TopBar() {
   const screen = useApp((s) => s.screen);
   const now = useApp((s) => s.now);
   const vod = useVodNav();
-  const items = NAV.filter((n) => (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true));
+  const mode = useApp((s) => s.appMode ?? 'all');
+  const svc = serviceApp(useApp((s) => s.serviceId));
+  const allowed = MODE_SCREENS[mode];
+  const items = NAV.filter((n) => allowed.includes(n.id) && (mode !== 'all' || (n.id === 'movies' ? vod.movies : n.id === 'shows' ? vod.shows : true)));
+  const appLabel = mode === 'movies' ? 'Movies' : mode === 'shows' ? 'Shows' : mode === 'service' && svc ? svc.name.replace(/^LTTV\s+/, '') : '';
   const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen === 'guide' ? 'home' : screen;
   return (
     <header class="topbar" data-group="topbar" data-zone="h">
       <div class="brand" aria-label="LTTV">
         <LogoMark size="2.9rem" />
         <Wordmark class="brand-text" />
+        {appLabel && <span class="brand-app" style={svc && mode === 'service' ? `color:${svc.color}` : undefined}>{appLabel}</span>}
       </div>
       <nav class="tabs" aria-label="Main">
         {items.map((n) => (
@@ -210,6 +226,7 @@ class ScreenGuard extends Component<{ screen: string; children: ComponentChildre
 
 function Screens() {
   const screen = useApp((s) => s.screen);
+  const serviceId = useApp((s) => s.serviceId);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     // Move focus into the new screen (keeps remote navigation predictable).
@@ -223,6 +240,7 @@ function Screens() {
       {screen === 'sports' && <ScreenGuard screen={screen}><SportsScreen /></ScreenGuard>}
       {screen === 'movies' && <ScreenGuard screen={screen}><VodScreen kind="movies" /></ScreenGuard>}
       {screen === 'shows' && <ScreenGuard screen={screen}><VodScreen kind="shows" /></ScreenGuard>}
+      {screen === 'service' && <ScreenGuard screen={screen}><VodScreen kind="shows" service={serviceId} key={serviceId} /></ScreenGuard>}
       {screen === 'channels' && <ChannelsScreen />}
       {screen === 'search' && <SearchScreen />}
       {screen === 'sources' && <SourcesScreen />}

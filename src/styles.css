@@ -2044,3 +2044,9 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 /* League Pass after 10 s of watching: only the broadcast buttons tuck away (the page stays as it is). */
 .lp-tucked .lp-feeds { display: none; }
 .team-rank { color: var(--muted); font-weight: 700; font-size: 0.85em; }
+
+/* Fire TV app tiles: the app's name next to the logo (LTTV Movies, LTTV Fresh...). */
+.brand-app { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.02em; color: var(--accent); white-space: nowrap; margin-left: 0.2rem; }
+/* Service apps: their own color for the featured badge and focus. */
+.vod-service .vod-hero-badge { background: var(--svc); color: #0a0a0c; }
+.vod-service .vod-row-title { border-left: 0.3rem solid var(--svc); padding-left: 0.6rem; }

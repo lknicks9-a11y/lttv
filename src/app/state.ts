@@ -37,7 +37,13 @@ export interface MultiviewGame {
   day: string;
 }
 
-export type Screen = 'home' | 'guide' | 'sports' | 'movies' | 'shows' | 'channels' | 'search' | 'sources' | 'settings' | 'matches' | 'wizard';
+export type Screen = 'home' | 'guide' | 'sports' | 'movies' | 'shows' | 'service' | 'channels' | 'search' | 'sources' | 'settings' | 'matches' | 'wizard';
+
+/**
+ * Which app is showing on the Fire TV: LTTV (Live TV + Sports), LTTV Movies, LTTV Shows or a service app
+ * ("LTTV Fresh"...). Each is its own tile on the TV, all in this one app. 'all' (the computer) shows everything.
+ */
+export type AppMode = 'all' | 'tv' | 'movies' | 'shows' | 'service';
 
 export interface Toast {
   id: number;
@@ -97,6 +103,10 @@ export interface AppState {
   reminderDue?: Reminder;
   /** First-launch onboarding is showing (sign in → profile → playlist). */
   onboarding?: boolean;
+  /** Which LTTV app is showing (Fire TV); see AppMode. */
+  appMode?: AppMode;
+  /** The service app showing, when appMode is 'service' ("fresh", "binge"...). */
+  serviceId?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -63,7 +63,7 @@ const queues: Record<'tvmaze' | 'itunes', { gap: number; last: number; chain: Pr
   tvmaze: { gap: 600, last: 0, chain: Promise.resolve() },
   itunes: { gap: 3200, last: 0, chain: Promise.resolve() },
 };
-function paced<T>(q: 'tvmaze' | 'itunes', job: () => Promise<T>, urgent: boolean): Promise<T> {
+export function paced<T>(q: 'tvmaze' | 'itunes', job: () => Promise<T>, urgent: boolean): Promise<T> {
   if (urgent) return job();
   const s = queues[q];
   const run = s.chain.then(async () => {

@@ -88,6 +88,68 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- The service apps (LTTV Fresh, Binge, Prestige, Peak, Family): movies and shows from your playlists, by service. -->
+        <activity-alias
+            android:name=".FreshAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/fresh_name"
+            android:banner="@drawable/banner_fresh">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".BingeAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/binge_name"
+            android:banner="@drawable/banner_binge">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".PrestigeAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/prestige_name"
+            android:banner="@drawable/banner_prestige">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".PeakAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/peak_name"
+            android:banner="@drawable/banner_peak">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".FamilyAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:label="@string/family_name"
+            android:banner="@drawable/banner_family">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

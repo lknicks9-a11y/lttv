@@ -5,4 +5,9 @@
     <string name="shows_name">LTTV Shows</string>
     <string name="leaguepass_name">LTTV League Pass</string>
     <string name="blitz_name">LTTV Blitz</string>
+    <string name="fresh_name">LTTV Fresh</string>
+    <string name="binge_name">LTTV Binge</string>
+    <string name="prestige_name">LTTV Prestige</string>
+    <string name="peak_name">LTTV Peak</string>
+    <string name="family_name">LTTV Family</string>
 </resources>

@@ -13,10 +13,49 @@ import { startCloudSync } from './app/cloudsync';
 import { signInSkipped } from './ui/SignIn';
 import { isOnboarded } from './ui/Onboarding';
 import { openPass } from './ui/LeaguePass';
+import { serviceApp } from './app/services';
 import './styles.css';
 
-/** Sections another app (LTTV Home, the "LTTV Movies" / "LTTV Shows" tiles) may open. */
-const OPENABLE: Screen[] = ['home', 'sports', 'movies', 'shows', 'channels', 'search'];
+/** Sections of LTTV (Live TV + Sports) another app or tile may open. */
+const OPENABLE: Screen[] = ['home', 'sports', 'channels', 'search', 'settings'];
+
+/**
+ * Open one of the LTTV apps: "tv" (LTTV itself), "movies", "shows", "svc:<id>" (a service app),
+ * "leaguepass", "blitz", or a section of LTTV ("home", "sports"...). Returns whether it opened something.
+ */
+function openSection(name: string): boolean {
+  const st = getState();
+  if (st.onboarding) return false;
+  if (name === 'movies' || name === 'shows') {
+    setState({ appMode: isNative ? name : 'all', screen: name, screenStack: [], leaguePass: false, fullscreen: false });
+    return true;
+  }
+  if (name.startsWith('svc:')) {
+    const app = serviceApp(name.slice(4));
+    if (!app) return false;
+    setState({ appMode: isNative ? 'service' : 'all', serviceId: app.id, screen: 'service', screenStack: [], leaguePass: false, fullscreen: false });
+    return true;
+  }
+  // LTTV itself: back to Live TV unless it was already showing.
+  const wasOther = (st.appMode ?? 'all') !== 'tv' && isNative;
+  if (isNative) setState({ appMode: 'tv' });
+  if (name === 'leaguepass' || name === 'blitz') {
+    if (wasOther) setState({ screen: 'home', screenStack: [] });
+    openPass(name === 'blitz' ? 'nfl' : 'nba');
+    return true;
+  }
+  if (name === 'tv') {
+    if (wasOther) setState({ screen: 'home', screenStack: [], leaguePass: false });
+    return wasOther;
+  }
+  if (OPENABLE.includes(name as Screen)) {
+    setState({ leaguePass: false });
+    if (wasOther) setState({ screenStack: [] });
+    navigate(name as Screen, { replace: wasOther });
+    return true;
+  }
+  return false;
+}
 
 async function boot() {
   document.documentElement.classList.toggle('tv', isTV);
@@ -33,18 +72,10 @@ async function boot() {
     }
     dispatchAppKey(key as AppKey);
   };
-  // "LTTV Movies" / "LTTV Shows" / LTTV Home tiles open a section of the app.
-  window.lttvHost.openScreen = (name: string) => {
-    if (getState().onboarding) return;
-    if (name === 'leaguepass' || name === 'blitz') {
-      openPass(name === 'blitz' ? 'nfl' : 'nba');
-      return;
-    }
-    if (OPENABLE.includes(name as Screen)) {
-      setState({ leaguePass: false });
-      navigate(name as Screen);
-    }
-  };
+  // The app tiles on the Fire TV (LTTV, LTTV Movies, LTTV Shows, the service apps, League Pass, Blitz)
+  // and LTTV Home's buttons all open this one app on their part.
+  window.lttvHost.openScreen = (name: string) => openSection(name);
+  if (isNative) setState({ appMode: 'tv' });
 
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
   (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports, addPlaylist, addEpgSource, rematchAndReload };
@@ -79,11 +110,9 @@ async function boot() {
   startUpdateChecks();
   startVodDetection();
   prefetchVodHomes();
-  if ((startScreen === 'leaguepass' || startScreen === 'blitz') && !getState().onboarding) openPass(startScreen === 'blitz' ? 'nfl' : 'nba');
-  const opened = OPENABLE.includes(startScreen as Screen) && !getState().onboarding ? (startScreen as Screen) : null;
+  const opened = startScreen && !getState().onboarding ? openSection(startScreen) : false;
   const start = opened ? undefined : s.startupScreen;
-  if (opened) setState({ screen: opened });
-  else if (start === 'guide' || start === 'channels') setState({ screen: start });
+  if (!opened && (start === 'guide' || start === 'channels')) setState({ screen: start });
   const last = await repo.getKv<string>('lastChannel');
   if (last && getState().lineup.some((c) => c.key === last)) {
     if (start === 'last-channel') void tune(last, { fullscreen: true });

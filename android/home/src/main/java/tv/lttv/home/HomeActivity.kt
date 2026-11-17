@@ -83,6 +83,9 @@ class HomeActivity : Activity() {
     private var focusKey: String? = null
     private var focusRow: String? = null
     private var firstShow = true
+    private lateinit var root: FrameLayout
+    /** The Settings page, while it's open. */
+    private var settingsPage: View? = null
 
     private val tick = object : Runnable {
         override fun run() {
@@ -99,7 +102,7 @@ class HomeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = FrameLayout(this)
+        root = FrameLayout(this)
         root.setBackgroundColor(Color.parseColor("#08080A"))
 
         scroll = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false; isSmoothScrollingEnabled = true }
@@ -135,13 +138,14 @@ class HomeActivity : Activity() {
     /** Pressing Home again while on the home screen goes back to the top. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        closeSettings()
         goTop()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // The home screen is the bottom of the stack: Back just returns to the top.
-        goTop()
+        // Back closes Settings; on the home screen (the bottom of the stack) it returns to the top.
+        if (settingsPage != null) closeSettings() else goTop()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -182,7 +186,7 @@ class HomeActivity : Activity() {
             firstGridTile?.requestFocus()
         })
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(navItem("Settings") { openSettings() })
+        bar.addView(navItem("Settings") { showSettings() })
         clock = TextView(this).apply {
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
@@ -395,6 +399,107 @@ class HomeActivity : Activity() {
             .setTitle(app.label)
             .setItems(items.map { it.first }.toTypedArray()) { _, which -> items[which].second() }
             .show()
+    }
+
+    // ---- settings -------------------------------------------------------------------------
+
+    private data class Setting(val title: String, val sub: String, val icon: String, val action: () -> Unit)
+
+    /** A grid of settings like the TV's own: each opens that part of the Fire TV settings. */
+    private fun showSettings() {
+        if (settingsPage != null) return
+        val tv = listOf(
+            Setting("Network", "Wi-Fi and internet", "📶") { system(Settings.ACTION_WIFI_SETTINGS) },
+            Setting("Display & Sounds", "Resolution, screen, audio", "🖥") { system(Settings.ACTION_DISPLAY_SETTINGS, Settings.ACTION_SOUND_SETTINGS) },
+            Setting("Applications", "Installed apps, storage, data", "▦") { system(Settings.ACTION_APPLICATION_SETTINGS, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS) },
+            Setting("Controllers & Bluetooth", "Remotes, game controllers, headphones", "🎮") { system(Settings.ACTION_BLUETOOTH_SETTINGS) },
+            Setting("Accessibility", "Captions, text size, screen reader", "♿") { system(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
+            Setting("Language", "Language and keyboard", "🌐") { system(Settings.ACTION_LOCALE_SETTINGS) },
+            Setting("Date & Time", "Time zone and clock", "🕒") { system(Settings.ACTION_DATE_SETTINGS) },
+            Setting("Storage", "Free space on this TV", "💾") { system(Settings.ACTION_INTERNAL_STORAGE_SETTINGS) },
+            Setting("Privacy", "Location, data and permissions", "🔒") { system(Settings.ACTION_PRIVACY_SETTINGS, Settings.ACTION_SECURITY_SETTINGS) },
+            Setting("My TV", "About, software updates, restart", "ℹ") { system(Settings.ACTION_DEVICE_INFO_SETTINGS) },
+            Setting("All TV Settings", "Everything else", "⚙") { system(Settings.ACTION_SETTINGS) },
+        )
+        val home = listOf(
+            Setting("Reset Your Apps", "Back to LTTV and your streaming apps", "↺") {
+                prefs.edit().remove("favs").apply()
+                toast("Your Apps reset")
+                rebuild()
+            },
+            Setting("Amazon Home", "Open the TV's original home screen", "⌂") {
+                val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage("com.amazon.tv.launcher").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try { startActivity(i) } catch (_: Exception) { toast("The original home screen isn't available") }
+            },
+            Setting("LTTV Settings", "Playlists, guide, profiles", "★") { openLttv("settings") },
+        )
+
+        val page = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F208080A")); isFillViewport = true; isClickable = true }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(56), dp(30), dp(56), dp(40)) }
+        col.addView(TextView(this).apply {
+            text = "Settings"
+            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        })
+        col.addView(sectionTitle("TV"))
+        col.addView(settingsGrid(tv))
+        col.addView(sectionTitle("Home screen"))
+        col.addView(settingsGrid(home))
+        page.addView(col)
+        root.addView(page, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        settingsPage = page
+        page.post { (((col.getChildAt(2) as? GridLayout)?.getChildAt(0)))?.requestFocus() }
+    }
+
+    private fun closeSettings() {
+        val p = settingsPage ?: return
+        root.removeView(p)
+        settingsPage = null
+        hero.requestFocus()
+    }
+
+    private fun settingsGrid(items: List<Setting>) = GridLayout(this).apply {
+        columnCount = 4
+        setPadding(0, dp(8), 0, dp(8))
+        for (x in items) addView(settingTile(x))
+    }
+
+    private fun settingTile(s: Setting) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        isFocusable = true; isClickable = true
+        setPadding(dp(14), dp(16), dp(14), dp(16))
+        background = cardBg(false)
+        layoutParams = GridLayout.LayoutParams().apply { width = dp(196); height = dp(124); setMargins(dp(8), dp(8), dp(8), dp(8)) }
+        addView(TextView(this@HomeActivity).apply {
+            text = s.icon; gravity = Gravity.CENTER
+            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+        })
+        addView(TextView(this@HomeActivity).apply {
+            text = s.title; gravity = Gravity.CENTER
+            setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, dp(6), 0, dp(2))
+        })
+        addView(TextView(this@HomeActivity).apply {
+            text = s.sub; gravity = Gravity.CENTER; maxLines = 2
+            setTextColor(Color.parseColor("#9AA4B2")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+        })
+        setOnClickListener { s.action() }
+        setOnFocusChangeListener { v, f ->
+            v.background = cardBg(f)
+            v.animate().scaleX(if (f) 1.06f else 1f).scaleY(if (f) 1.06f else 1f).setDuration(140).start()
+        }
+    }
+
+    /** Opens the first of these settings pages the TV has (Fire OS doesn't have them all), else all settings. */
+    private fun system(vararg actions: String) {
+        for (a in actions) {
+            try {
+                startActivity(Intent(a).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return
+            } catch (_: Exception) { /* next */ }
+        }
+        openSettings()
     }
 
     // ---- rows -----------------------------------------------------------------------------

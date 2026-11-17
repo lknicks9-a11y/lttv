@@ -158,13 +158,15 @@ class MainActivity : AppCompatActivity() {
         if (cls.endsWith(".ShowsAlias")) return "shows"
         if (cls.endsWith(".LeaguePassAlias")) return "leaguepass"
         if (cls.endsWith(".BlitzAlias")) return "blitz"
-        return i.getStringExtra("screen")?.takeIf { it in SCREENS }
+        for (svc in SERVICE_APPS) if (cls.endsWith(".${svc.replaceFirstChar { it.uppercase() }}Alias")) return "svc:$svc"
+        return i.getStringExtra("screen")?.takeIf { it in SCREENS || it.removePrefix("svc:") in SERVICE_APPS }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val screen = screenFor(intent) ?: return
+        // The plain LTTV tile: back to Live TV + Sports (if another LTTV app was showing).
+        val screen = screenFor(intent) ?: if (intent.component?.className?.endsWith(".MainActivity") == true) "tv" else return
         sendToPage("window.lttvHost && window.lttvHost.openScreen && window.lttvHost.openScreen(${JSONObject.quote(screen)})")
     }
 
@@ -350,7 +352,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val HOST = "appassets.androidplatform.net"
-        val SCREENS = setOf("home", "sports", "movies", "shows", "channels", "search", "leaguepass", "blitz")
+        val SCREENS = setOf("home", "sports", "movies", "shows", "channels", "search", "settings", "leaguepass", "blitz", "tv", "movies", "shows")
+        /** LTTV Fresh, Binge, Prestige, Peak, Family (see src/app/services.ts). */
+        val SERVICE_APPS = listOf("fresh", "binge", "prestige", "peak", "family")
     }
 }
 
