@@ -51,10 +51,18 @@ let lastTvStatus = '';
 /** What happened the last time the Fire TV looked for the files (shown in Settings). */
 export const timeoutTvStatus = () => lastTvStatus;
 async function loadOnTv(): Promise<TimeoutMedia> {
-  // League Pass / Blitz (their own apps): the copy LTTV keeps on this TV — no computer needed, nothing to download.
+  // League Pass / Blitz (their own apps): photos and songs added from your phone (secret settings), plus the copy
+  // LTTV keeps on this TV — no computer needed. The computer is only used when neither has anything.
   if (APP_MODE !== 'lttv') {
+    const local = fromPhone();
     const shared = await fromLttv();
-    if (shared) return shared;
+    if (local || shared) {
+      const a = local ?? { images: [], names: [], audio: [], firstSongs: 0 };
+      const b = shared ?? { images: [], names: [], audio: [], firstSongs: 0 };
+      const songs = [...a.audio, ...b.audio];
+      lastTvStatus = `${a.images.length + b.images.length} pictures and ${songs.length} songs (${a.images.length + a.audio.length} from your phone, ${b.images.length + b.audio.length} from LTTV).`;
+      return { images: [...a.images, ...b.images], names: [...a.names, ...b.names], audio: songs, firstSongs: a.firstSongs + b.firstSongs };
+    }
   }
   const base = (getState().settings.timeoutMedia ?? '').trim().replace(/\/+$/, '');
   let list: Listing | null = null;
@@ -197,6 +205,20 @@ async function shareNow(list: Listing, names: string[], blobOf: (n: string) => P
   }
   const kept = writeList();
   shareStatus = `Shared ${kept.images.length} pictures and ${kept.audio.length} songs with League Pass and Blitz${sent ? ` (${sent} new)` : ''}.`;
+}
+
+/** League Pass / Blitz: photos and songs added from a phone (kept in this app). */
+function fromPhone(): TimeoutMedia | null {
+  try {
+    const list = JSON.parse(native?.localTimeoutFiles?.() || '{}') as Partial<Listing>;
+    const images = list.images ?? [];
+    const audio = firstSongsFirst(list.audio ?? []);
+    if (!images.length && !audio.length) return null;
+    const url = (n: string) => `/lttv-local/${encodeURIComponent(n)}`;
+    return { images: images.map(url), names: images, audio: audio.map(url), firstSongs: audio.filter(isFirstSong).length };
+  } catch {
+    return null;
+  }
 }
 
 /** League Pass / Blitz: the photos and songs LTTV kept, straight from LTTV's files. */

@@ -116,6 +116,8 @@ class MainActivity : AppCompatActivity() {
                 if (url.host == HOST && (url.path ?: "").startsWith("/api/")) return api.handle(url)
                 // League Pass / Blitz: the timeout photos and songs LTTV kept (read from LTTV's shared files).
                 if (url.host == HOST && (url.path ?: "").startsWith("/lttv-shared/")) return sharedFromLttv((url.path ?: "").removePrefix("/lttv-shared/"))
+                // Photos and songs added from a phone (League Pass / Blitz secret settings), kept on this TV.
+                if (url.host == HOST && (url.path ?: "").startsWith("/lttv-local/")) return localMedia((url.path ?: "").removePrefix("/lttv-local/"))
                 return assets.shouldInterceptRequest(url)
             }
 
@@ -346,6 +348,18 @@ class MainActivity : AppCompatActivity() {
 }
 
 /** Serves the bundled web UI from assets/www. */
+private fun MainActivity.localMedia(name: String): WebResourceResponse? {
+    if (name.contains("..") || name.contains('/')) return null
+    val f = java.io.File(MediaServer.dir(this), name)
+    if (!f.isFile) return WebResourceResponse("text/plain", null, 404, "Not Found", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
+    val mime = when (name.substringAfterLast('.', "").lowercase()) {
+        "jpg", "jpeg" -> "image/jpeg"; "png" -> "image/png"; "webp" -> "image/webp"; "gif" -> "image/gif"; "avif" -> "image/avif"
+        "mp3" -> "audio/mpeg"; "m4a", "aac" -> "audio/mp4"; "wav" -> "audio/wav"; "ogg" -> "audio/ogg"; "flac" -> "audio/flac"
+        else -> "application/octet-stream"
+    }
+    return WebResourceResponse(mime, null, 200, "OK", mapOf("Cache-Control" to "no-cache"), f.inputStream())
+}
+
 /** A file LTTV shares with the other LTTV apps (signature-protected), or null if LTTV doesn't have it. */
 private fun MainActivity.sharedFromLttv(path: String): WebResourceResponse? {
     if (BuildConfig.APP_MODE == "lttv" || path.contains("..")) return null

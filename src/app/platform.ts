@@ -52,6 +52,10 @@ export interface NativeBridge {
   sharedFileSizes?(): string;
   finishSharedFile?(path: string): boolean;
   syncTimeoutFrom?(base: string): void;
+  /** League Pass / Blitz: the phone page for photos & songs, and what it has added. */
+  startMediaServer?(): string;
+  stopMediaServer?(): void;
+  localTimeoutFiles?(): string;
 }
 
 declare global {
@@ -66,6 +70,8 @@ declare global {
       openScreen?(name: string): void;
       onUpdateEvent?(json: string): void;
       onSetupSubmit(json: string): void;
+      /** League Pass / Blitz: photos or songs were added from the phone page. */
+      onLocalMedia?(): void;
     };
   }
 }

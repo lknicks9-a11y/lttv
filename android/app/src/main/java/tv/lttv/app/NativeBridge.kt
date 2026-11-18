@@ -172,6 +172,23 @@ class NativeBridge(private val activity: MainActivity) {
         return java.io.File(root, "$path.part").renameTo(java.io.File(root, path))
     }
 
+    // ---- League Pass / Blitz secret settings: photos & songs from your phone ----
+    private var mediaServer: MediaServer? = null
+
+    /** Starts the phone page; returns its address (or "" if the TV isn't on Wi-Fi). */
+    @JavascriptInterface
+    fun startMediaServer(): String {
+        val s = mediaServer ?: MediaServer(activity) { activity.sendToPage("window.lttvHost && window.lttvHost.onLocalMedia && window.lttvHost.onLocalMedia()") }.also { if (it.start()) mediaServer = it }
+        return s.address() ?: ""
+    }
+
+    @JavascriptInterface
+    fun stopMediaServer() { mediaServer?.stop(); mediaServer = null }
+
+    /** What's kept on this TV from the phone page: {"images":[...], "audio":[...]}. */
+    @JavascriptInterface
+    fun localTimeoutFiles(): String = MediaServer.listJson(activity)
+
     /** Which shared timeout files LTTV already kept (name -> size), so only new ones are sent. */
     @JavascriptInterface
     fun sharedFileSizes(): String {

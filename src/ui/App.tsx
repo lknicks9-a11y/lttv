@@ -1,6 +1,8 @@
 import { APP_MODE, APP_TITLE, isPassApp } from '../app/appmode';
 import { lazy } from './lazy';
 import { VideoSlot } from './VideoSlot';
+import { useSecretSettings } from '../app/secret';
+const PassSettings = lazy(() => import('./PassSettings').then((m) => m.PassSettings));
 import { watchPassKeys } from '../app/passkeys';
 import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
@@ -268,6 +270,7 @@ function Screens() {
  */
 function PassApp() {
   const ready = useApp((s) => s.ready);
+  const [secret, setSecret] = useSecretSettings();
   const noProvider = useApp((s) => s.ready && !s.playlists.length);
   const passLeague = useApp((s) => s.passLeague ?? (APP_MODE === 'leaguepass' ? 'nba' : 'nfl'));
   const vodPlaying = useApp((s) => !!s.vodPlaying);

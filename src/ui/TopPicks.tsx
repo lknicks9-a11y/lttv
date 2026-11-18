@@ -9,6 +9,52 @@ import { ChannelLogo, Icon } from './common';
 import { ChannelName } from './ChannelName';
 import { clock, progress } from './fmt';
 import { Welcome } from './Home';
+import { isEventChannel } from '../core/events';
+
+// Placeholder channels that only carry something now and then (PPV, event feeds, 24/7 loops, backups…).
+const JUNK = /\b(ppv|pay[ -]?per[ -]?view|events?|24\/7|247|backup|test|xxx|adult|vip|replay|radio|music choice|feed \d+|ch(annel)? ?\d+$)\b/i;
+// Titles that mean "nothing is really on" on those channels.
+const NOTHING = /^(no (information|program(me)?s?|event)|to be announced|tba|tbd|off ?air|coming soon|event( \d+)?|ppv( \d+)?|stay tuned|.*\bnot available\b.*)$/i;
+// The big US networks people watch most.
+const BIG = /\b(espn2?|espnu|fox|fs1|fs2|nbc|cbs|abc|tnt|tbs|tru ?tv|nfl network|nba tv|nhl network|mlb network|big ten|sec network|acc network|cnn|fox news|msnbc|cnbc|hbo|amc|fx|usa|bravo|hgtv|food|discovery|history|tlc|nick|disney|cartoon|msg|yes|sny|nesn|bally|marquee|peacock|paramount|showtime|starz)\b/i;
+const GAME = /\b(vs\.?|v\.|at|@)\b/i;
+const netKey = (ch: LineupChannel) => (ch.cleanedName || ch.name).toLowerCase()
+  .replace(/^[a-z]{2,3}\s*[|:\-]\s*/, '').replace(/\b(fhd|uhd|hd|sd|4k|hevc|h265|east|west|\(.*?\)|\[.*?\])\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * What's on now, best first: your favourites, the channels you watch most and most recently, real live games,
+ * the big networks — US channels before others — with one copy per channel (HD over SD, no duplicates from other
+ * providers) and no placeholder PPV / event channels or channels with nothing on.
+ */
+function rankChannels(lineup: LineupChannel[], guide: { current(ref: string | undefined, now: number): Programme | undefined }, recents: { key: string; at: number }[]): Pick[] {
+  const t = Date.now();
+  const watched = new Map<string, number>();
+  recents.forEach((r, i) => watched.set(r.key, Math.max(watched.get(r.key) ?? 0, recents.length - i)));
+  const best = new Map<string, Pick>();
+  for (const ch of lineup) {
+    if (ch.hidden || ch.duplicateOf) continue;
+    const p = ch.epgChannelId ? guide.current(ch.epgChannelId, t) : undefined;
+    if (!p || !p.title?.trim() || NOTHING.test(p.title.trim())) continue;
+    const name = ch.cleanedName || ch.name;
+    const isGame = GAME.test(p.title) && (ch.category === 'sports' || SPORTY.test(p.title));
+    // PPV / event / 24-7 channels only when they carry a real game right now.
+    if ((JUNK.test(name) || isEventChannel(ch)) && !isGame) continue;
+    let score = 0;
+    if (ch.favorite) score += 8;
+    const w = watched.get(ch.key);
+    if (w) score += 3 + Math.min(4, w / 4);
+    if (isGame) score += 5;
+    else if (p.live) score += 2;
+    if (BIG.test(name)) score += 2.5;
+    if (p.isNew) score += 1;
+    if (ch.country && ch.country !== 'us') score -= 4;
+    if (/\b(fhd|uhd|hd|4k)\b/i.test(name)) score += 0.3;
+    const k = netKey(ch) || ch.key;
+    const prev = best.get(k);
+    if (!prev || score > prev.score) best.set(k, { ch, p, score });
+  }
+  return [...best.values()].sort((a, b) => b.score - a.score);
+}
 
 const SPORTY = /\b(vs\.?|v\.|at)\b|\b(nfl|nba|nhl|mlb|ncaa|ufc|wnba|mls|premier league|champions league|f1|grand prix|pga|nascar|live)\b/i;
 const CHIPS: { id: 'all' | CategoryId; label: string }[] = [
@@ -38,24 +84,7 @@ export function TopPicksScreen() {
   const playlists = useApp((s) => s.playlists);
   const [chip, setChip] = useState<'all' | CategoryId>('all');
 
-  const picks = useMemo(() => {
-    const recent = new Map(recents.map((r, i) => [r.key, recents.length - i]));
-    const t = Date.now();
-    const out: Pick[] = [];
-    for (const ch of lineup) {
-      if (ch.hidden || ch.duplicateOf) continue;
-      const p = ch.epgChannelId ? guide.current(ch.epgChannelId, t) : undefined;
-      let score = 0;
-      if (ch.favorite) score += 5;
-      if (recent.has(ch.key)) score += 2 + Math.min(3, recent.get(ch.key)! / 5);
-      if (p) score += 1;
-      if (p && (p.live || SPORTY.test(p.title))) score += 3;
-      if (p?.isNew) score += 1;
-      if (ch.category === 'sports' && p) score += 1;
-      out.push({ ch, p, score });
-    }
-    return out.sort((a, b) => b.score - a.score);
-  }, [lineup, guide, recents, Math.floor(now / 60_000)]);
+  const picks = useMemo(() => rankChannels(lineup, guide, recents), [lineup, guide, recents, Math.floor(now / 60_000)]);
 
   if (!playlists.length) return <Welcome />;
   const top = picks.filter((x) => x.p).slice(0, 12);
