@@ -2139,3 +2139,154 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 /* per-service touches */
 .svc-layout-center .svc-tab { font-size: 1.15rem; }
 .svc-poster .vod-card { border-radius: 10px; }
+
+/* ================= Service pages, laid out like each service's own TV app ================= */
+.svcx { background: var(--svc-bottom); color: #fff; font-family: Inter, system-ui, sans-serif; padding-bottom: 8vh; }
+.svcx .f:focus { outline: none; }
+/* menus */
+.svcx-rail { position: fixed; left: 0; top: 0; bottom: 0; width: 6.4vw; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6vh;
+  background: linear-gradient(90deg, rgba(0,0,0,.72), rgba(0,0,0,0)); }
+.svcx-avatar { width: 2.6vw; height: 2.6vw; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 1.1vw; color: #fff;
+  background: linear-gradient(135deg, var(--svc-accent), color-mix(in srgb, var(--svc-accent) 40%, #000)); }
+.svcx-rail .svcx-avatar { position: absolute; top: 4.5vh; }
+.svcx-rail-btn { width: 3.4vw; height: 3.4vw; display: grid; place-items: center; border-radius: .7vw; border: 0; background: none; color: rgba(255,255,255,.72); position: relative; }
+.svcx-rail-btn.is-on { color: #fff; }
+.svcx-rail-btn:focus { background: #fff; color: #000; }
+.svcx-rail-tip { display: none; }
+.svcx-rail-btn:focus .svcx-rail-tip { display: block; position: absolute; left: 4.1vw; white-space: nowrap; background: #fff; color: #000; padding: .4vh .7vw; border-radius: .4vw; font-weight: 700; font-size: .95vw; }
+.svcx-top { position: relative; z-index: 6; display: flex; align-items: center; padding: 3.2vh 4.6vw 1.6vh; gap: 2vw; }
+.svcx-top-items { display: flex; gap: .4vw; align-items: center; margin: 0 auto; }
+.svcx-top-btn { border: 0; background: none; color: rgba(255,255,255,.78); font-size: 1.05vw; font-weight: 600; padding: .9vh 1.1vw; border-radius: 2vw; display: inline-flex; align-items: center; }
+.svcx-top-btn.is-on { color: #fff; background: rgba(255,255,255,.16); }
+.svcx-top-btn:focus { background: #fff; color: #000; }
+.svcx-top-mark { font-weight: 900; color: var(--svc-accent); font-size: 1.3vw; letter-spacing: -.02em; }
+.svcx-top-pill { position: absolute; left: 0; right: 0; top: 0; justify-content: center; }
+.svcx-top-pill .svcx-top-items { background: rgba(70,70,70,.55); backdrop-filter: blur(28px) saturate(1.5); -webkit-backdrop-filter: blur(28px) saturate(1.5); border-radius: 3vw; padding: .5vh .5vw; border: 1px solid rgba(255,255,255,.12); }
+.svcx-top-pill .svcx-top-btn { font-size: 1.15vw; padding: 1vh 1.5vw; border-radius: 2.4vw; }
+.svcx-top-pill .svcx-top-btn.is-on { background: rgba(255,255,255,.55); color: rgba(255,255,255,.95); }
+
+/* featured: full-bleed picture with text on the left */
+.svcx-hero { position: relative; }
+.svcx-hero-bleed .svcx-hero { position: absolute; left: 0; right: 0; top: 0; height: 82vh; }
+.svcx-hero-img { position: absolute; inset: 0; background: center 20% / cover no-repeat; animation: svcxfade .5s ease; }
+@keyframes svcxfade { from { opacity: 0; } to { opacity: 1; } }
+.svcx-hero-shade { position: absolute; inset: 0; background:
+  linear-gradient(90deg, var(--svc-bottom) 0%, color-mix(in srgb, var(--svc-bottom) 70%, transparent) 32%, transparent 62%),
+  linear-gradient(0deg, var(--svc-bottom) 0%, color-mix(in srgb, var(--svc-bottom) 40%, transparent) 24%, transparent 50%); }
+.svcx-hero-text { position: absolute; left: 8.6vw; top: 15vh; width: 40vw; display: flex; flex-direction: column; gap: 1.2vh; z-index: 2; }
+.svcx-nav-top .svcx-hero-text, .svcx-nav-pill .svcx-hero-text { left: 4.6vw; }
+.svcx-eyebrow { font-size: .95vw; font-weight: 700; letter-spacing: .14em; color: rgba(255,255,255,.75); }
+.svcx-label { font-size: .85vw; font-weight: 800; letter-spacing: .16em; color: rgba(255,255,255,.8); }
+.svcx-title { margin: 0; font-size: 4.4vw; line-height: 1; font-weight: 900; letter-spacing: -.02em; text-shadow: 0 .3vw 2vw rgba(0,0,0,.4); }
+.svcx-title.is-long { font-size: 3.2vw; }
+.svcx-title.is-upper { text-transform: uppercase; }
+.svcx-title.is-serif { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.svcx-meta { font-size: 1.05vw; color: rgba(255,255,255,.82); font-weight: 600; }
+.svcx-plot { margin: 0; font-size: 1.15vw; line-height: 1.45; color: rgba(255,255,255,.9); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-width: 36vw; }
+.svcx-btns { display: flex; gap: .9vw; margin-top: 2vh; }
+.svcx-btn { display: inline-flex; align-items: center; gap: .6vw; border: 0; font-weight: 800; font-size: 1.05vw; padding: 1.4vh 2vw; border-radius: .35vw; transition: transform .14s ease; }
+.svcx-btn-main { background: #fff; color: #000; }
+.svcx-btn-alt { background: rgba(255,255,255,.2); color: #fff; }
+.svcx-btn:focus { transform: scale(1.06); box-shadow: 0 0 0 .2vw #fff; }
+.svcx-btn-alt:focus { background: #fff; color: #000; }
+.svcx-dots { position: absolute; left: 0; right: 0; bottom: 22vh; display: flex; justify-content: center; gap: .45vw; z-index: 2; }
+.svcx-dots span { width: .45vw; height: .45vw; border-radius: 50%; background: rgba(255,255,255,.45); }
+.svcx-dots span.on { background: #fff; }
+.svcx-chip { align-self: flex-start; font-size: .95vw; font-weight: 700; padding: .4vh .8vw; border-radius: 1vw; background: rgba(255,255,255,.14); }
+.svcx-included { display: flex; align-items: center; gap: .5vw; font-weight: 700; font-size: 1.05vw; color: #fff; }
+.svcx-included .icon { color: var(--svc-accent); }
+
+/* rows */
+.svcx-rows { position: relative; z-index: 3; padding: 0 0 0 8.6vw; }
+.svcx-hero-bleed .svcx-rows { padding-top: 60vh; }
+.svcx-nav-top .svcx-rows, .svcx-nav-pill .svcx-rows { padding-left: 4.6vw; }
+.svcx-row { margin-top: 3vh; }
+.svcx-row-title { margin: 0 0 1.2vh; font-size: 1.35vw; font-weight: 700; }
+.svcx .vod-strip { gap: 1.1vw; padding: .8vh .4vw 1.2vh; }
+.svcx-card-wrap { flex: 0 0 auto; display: flex; align-items: flex-end; position: relative; }
+.svcx-card { border: 0; padding: 0; background: none; border-radius: var(--card-r, .5vw); transition: transform .16s ease; }
+.svcx-card-img { border-radius: var(--card-r, .5vw); background: rgba(255,255,255,.07) center/cover no-repeat; display: grid; place-items: end start; overflow: hidden; box-shadow: 0 .6vh 1.6vh rgba(0,0,0,.35); }
+.svcx-card.is-wide .svcx-card-img { width: 16.5vw; height: 9.28vw; }
+.svcx-card.is-poster .svcx-card-img { width: 10.4vw; height: 15.6vw; }
+.svcx-card.is-poster.is-big .svcx-card-img { width: 15vw; height: 22.5vw; }
+.svcx-card-img.is-poster-fill { background-position: center 25%; }
+.svcx-card-name { padding: .8vw; font-weight: 800; font-size: 1.05vw; text-shadow: 0 .2vw .8vw rgba(0,0,0,.8); background: linear-gradient(0deg, rgba(0,0,0,.7), transparent); width: 100%; text-align: left; }
+.svcx-card:focus { transform: scale(1.05); }
+.svcx-card:focus .svcx-card-img { box-shadow: 0 0 0 .22vw var(--focus, #fff), 0 1.4vh 3vh rgba(0,0,0,.55); }
+.svcx-num { font-size: 10vw; line-height: .8; font-weight: 900; color: rgba(255,255,255,.88); margin-right: -1.2vw; letter-spacing: -.06em; }
+.svcx-sub { position: absolute; top: calc(100% + .8vh); left: 0; display: flex; flex-direction: column; font-size: .95vw; width: 16.5vw; }
+.svcx-sub b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svcx-sub span { color: rgba(255,255,255,.6); }
+
+/* Disney+: band with category pills, the name, Browse and big posters */
+.svcx-band { padding: 6vh 0 4vh 8.6vw; background: radial-gradient(120% 120% at 20% 0%, #10226e 0%, #0b1748 45%, #040714 100%); }
+.svcx-chips { display: flex; gap: 1.2vw; justify-content: center; padding-right: 8vw; }
+.svcx-chipbtn { border: 0; color: rgba(255,255,255,.75); background: rgba(255,255,255,.08); font-weight: 700; font-size: 1.1vw; padding: 1.6vh 2.2vw; border-radius: 3vw; }
+.svcx-chipbtn.is-on { background: linear-gradient(180deg, #1f80e0, #0b4fbf); color: #fff; box-shadow: 0 0 0 .18vw rgba(255,255,255,.85); }
+.svcx-chipbtn:focus { transform: scale(1.06); box-shadow: 0 0 0 .22vw #fff; color: #fff; }
+.svcx-band-body { display: flex; align-items: center; gap: 3vw; margin-top: 4vh; }
+.svcx-band-text { width: 24vw; text-align: center; }
+.svcx-band-name { font-size: 3.6vw; font-weight: 900; letter-spacing: -.02em; }
+.svcx-band-text p { color: rgba(255,255,255,.8); font-size: 1.1vw; }
+.svcx-band-posters { display: flex; gap: 1.4vw; }
+
+/* ---- per service ---- */
+.svcx-hulu { --svc-bottom: #0b0c0f; --card-r: .45vw; }
+.svcx-hulu .svcx-hero-img { filter: saturate(1.05); }
+.svcx-hulu .svcx-hero-shade { background: linear-gradient(90deg, rgba(8,40,55,.92) 0%, rgba(8,40,55,.55) 34%, transparent 64%), linear-gradient(0deg, #0b0c0f 0%, rgba(11,12,15,.4) 26%, transparent 52%); }
+.svcx-hulu .svcx-meta { color: #3ed2e6; }
+.svcx-hulu .svcx-row-title { font-size: 1.05vw; letter-spacing: .12em; font-weight: 700; color: rgba(255,255,255,.88); }
+.svcx-hulu .svcx-btn { letter-spacing: .06em; font-size: .95vw; border-radius: .3vw; }
+
+.svcx-netflix { --svc-bottom: #141414; --card-r: .3vw; background: radial-gradient(90% 70% at 50% 0%, #22243a, #141414 60%); }
+.svcx-netflix .svcx-hero { margin: 1vh 4.6vw 0; height: 54vh; border-radius: 1vw; overflow: hidden; box-shadow: 0 2vh 5vh rgba(0,0,0,.5); }
+.svcx-netflix .svcx-hero-shade { background: linear-gradient(0deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.25) 45%, transparent 70%), linear-gradient(90deg, rgba(0,0,0,.6), transparent 55%); }
+.svcx-netflix .svcx-hero-text { left: 2.6vw; top: auto; bottom: 4vh; }
+.svcx-netflix .svcx-label { color: #e50914; }
+.svcx-netflix .svcx-btn { border-radius: 2vw; padding: 1.3vh 1.9vw; }
+.svcx-netflix .svcx-btn-alt { background: rgba(109,109,110,.7); }
+.svcx-netflix .svcx-rows { padding-top: 2vh; }
+.svcx-netflix .svcx-num { color: transparent; -webkit-text-stroke: .18vw #8c8c8c; }
+
+.svcx-hbomax { --svc-bottom: #050507; --card-r: .2vw; }
+.svcx-hbomax .svcx-title { font-weight: 800; }
+.svcx-hbomax .svcx-meta { font-weight: 400; font-size: 1.25vw; color: rgba(255,255,255,.85); }
+.svcx-hbomax .svcx-plot { font-size: 1.45vw; font-weight: 300; letter-spacing: .02em; max-width: 44vw; }
+.svcx-hbomax .svcx-row-title { font-size: 1.55vw; letter-spacing: .03em; }
+.svcx-hbomax .svcx-card.is-wide .svcx-card-img { width: 20vw; height: 11.25vw; }
+.svcx-hbomax .svcx-card:focus { transform: none; }
+.svcx-hbomax .svcx-card:focus .svcx-card-img { box-shadow: 0 0 0 .3vw #050507, 0 0 0 .48vw #fff; }
+
+.svcx-primevideo { --svc-bottom: #0f171e; --card-r: .55vw; }
+.svcx-primevideo .svcx-eyebrow { color: #1a98ff; letter-spacing: 0; font-size: 1.3vw; }
+.svcx-primevideo .svcx-title { letter-spacing: .08em; font-weight: 800; }
+.svcx-primevideo .svcx-rail-btn.is-on { background: rgba(255,255,255,.12); }
+.svcx-primevideo .svcx-btn { border-radius: .5vw; }
+.svcx-primevideo .svcx-num { color: rgba(220,226,232,.92); }
+
+.svcx-peacock { --svc-bottom: #000; --card-r: .6vw; --focus: #ffc72c; background: radial-gradient(70% 60% at 85% 10%, #4a137a 0%, #1a0630 40%, #000 75%); }
+.svcx-peacock .svcx-hero-shade { background: linear-gradient(90deg, #000 0%, rgba(0,0,0,.6) 34%, transparent 62%), linear-gradient(0deg, #000 0%, rgba(0,0,0,.3) 26%, transparent 52%); }
+.svcx-peacock .svcx-row-title { font-size: 1vw; letter-spacing: .1em; color: rgba(255,255,255,.85); }
+.svcx-peacock .svcx-btn { border-radius: 2vw; }
+.svcx-peacock .svcx-rail-btn:focus { background: #ffc72c; }
+
+.svcx-disney { --svc-bottom: #0f1014; --card-r: .45vw; background: #1a1d29; }
+.svcx-disney .svcx-rows { background: #1a1d29; padding-top: 3vh; }
+.svcx-disney .svcx-card:focus { transform: scale(1.06); }
+
+.svcx-appletv { --svc-bottom: #0a0a0a; --card-r: .7vw; }
+.svcx-appletv .svcx-hero { height: 100vh; }
+.svcx-appletv .svcx-hero-shade { background: linear-gradient(0deg, rgba(10,10,10,.95) 0%, rgba(10,10,10,.2) 34%, transparent 60%), linear-gradient(90deg, rgba(0,0,0,.45), transparent 50%); }
+.svcx-appletv .svcx-hero-text { top: 30vh; }
+.svcx-appletv .svcx-btn-main { background: rgba(235,235,240,.92); border-radius: .6vw; font-weight: 600; padding: 1.5vh 2.6vw; }
+.svcx-appletv .svcx-rows { padding-top: 70vh; }
+.svcx-appletv .svcx-row { margin-bottom: 7vh; }
+.svcx-appletv .svcx-row-title { font-weight: 600; font-size: 1.5vw; }
+.svcx-appletv .svcx-card:focus { transform: scale(1.08) translateY(-.6vh); }
+
+.svcx-paramount { --svc-bottom: #0b0f17; --card-r: .25vw; --focus: #0064ff; }
+.svcx-paramount .svcx-btn-main { background: #0064ff; color: #fff; border-radius: .25vw; padding: 1.6vh 3vw; letter-spacing: .05em; }
+.svcx-paramount .svcx-btn-alt { background: none; box-shadow: inset 0 0 0 .12vw rgba(255,255,255,.75); border-radius: 2vw; letter-spacing: .05em; }
+.svcx-paramount .svcx-hero-img { left: 30vw; }
+.svcx-paramount .svcx-hero-shade { background: linear-gradient(90deg, #0b0f17 30%, rgba(11,15,23,.6) 46%, transparent 70%), linear-gradient(0deg, #0b0f17 0%, transparent 45%); }
+.svcx-paramount .svcx-rail-btn:focus { background: #0064ff; color: #fff; }

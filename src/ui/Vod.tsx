@@ -402,15 +402,49 @@ function ServicesPage({ kind, onPick, onAll }: { kind: VodKind; onPick: (s: Stre
 }
 
 /**
- * One streaming service's page, full screen, laid out the way that service's app is: its menu (down the side or
- * across the top), its featured area (one big title or a carousel of large cards), its card shape and colors,
- * Top 10 rows and genre rows — what's on the service in the US (Watchmode) that your provider has.
+ * How each service's own TV app is laid out (from screenshots of the real apps): where its menu sits, what its
+ * featured area looks like, its labels and buttons, how rows are titled, card shape and focus colour. The
+ * services' logos aren't used — their names are written out instead.
+ */
+interface SvcStyle {
+  nav: 'rail' | 'top' | 'pill';
+  hero: 'bleed' | 'inset' | 'posters';
+  eyebrow?: string;
+  upper?: boolean;
+  serif?: boolean;
+  buttons: 'hulu' | 'netflix' | 'none' | 'apple' | 'paramount' | 'prime' | 'peacock' | 'disney';
+  rowCaps?: boolean;
+  card: 'wide' | 'poster';
+  bigNumbers?: boolean;
+  subtitles?: boolean;
+  chips?: boolean;
+  follow?: boolean;
+  home?: string;
+}
+const SVC_STYLE: Record<string, SvcStyle> = {
+  Hulu: { nav: 'rail', hero: 'bleed', eyebrow: 'START WATCHING', upper: true, buttons: 'hulu', rowCaps: true, card: 'wide', follow: true },
+  Netflix: { nav: 'top', hero: 'inset', buttons: 'netflix', card: 'wide', bigNumbers: true, home: 'Home' },
+  'HBO Max': { nav: 'rail', hero: 'bleed', buttons: 'none', card: 'wide', follow: true },
+  'Prime Video': { nav: 'rail', hero: 'bleed', eyebrow: '#1 in the US', upper: true, buttons: 'prime', card: 'wide', bigNumbers: true, follow: true },
+  Peacock: { nav: 'rail', hero: 'bleed', buttons: 'peacock', rowCaps: true, card: 'wide', follow: true },
+  'Disney+': { nav: 'rail', hero: 'posters', buttons: 'disney', card: 'wide', chips: true },
+  'Apple TV': { nav: 'pill', hero: 'bleed', serif: true, buttons: 'apple', card: 'wide', subtitles: true, home: 'Watch Now' },
+  'Paramount+': { nav: 'rail', hero: 'bleed', upper: true, buttons: 'paramount', card: 'wide', follow: true },
+};
+
+type Filter = 'all' | 'shows' | 'movies';
+
+/**
+ * One streaming service's page, full screen, laid out like that service's own app — its menu, featured area,
+ * buttons, rows and focus colour — showing what's on the service in the US (Watchmode) that your provider has.
  */
 function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void; onSearch: () => void }) {
+  const st = SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
   const [home, setHome] = useState<ServiceHome | null>(null);
   const [err, setErr] = useState('');
-  const [filter, setFilter] = useState<'all' | 'shows' | 'movies'>('all');
+  const [filter, setFilter] = useState<Filter>('all');
   const [shown, setShown] = useState(3);
+  const [heroIt, setHeroIt] = useState<VodItem | null>(null);
   useEffect(() => {
     let alive = true;
     loadServiceHome(svc.id, (h) => alive && setHome(h)).catch((e) => alive && setErr((e as Error).message));
@@ -426,41 +460,34 @@ function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService;
     const t = setTimeout(() => setShown((n) => n + 3), 150);
     return () => clearTimeout(t);
   }, [shown, rows.length]);
-  const featured = rows.find((r) => !r.ranked)?.items.slice(0, 8) ?? rows[0]?.items.slice(0, 8) ?? [];
+  const featured = rows.find((r) => !r.ranked)?.items ?? rows[0]?.items ?? [];
+  // The featured area shows the title you're on (most services' apps do this), else their pick.
+  const [pick, setPick] = useState(0);
+  useEffect(() => {
+    if (st.follow || featured.length < 2) return;
+    const t = setInterval(() => {
+      if (!document.activeElement?.closest('.svcx-hero')) setPick((n) => (n + 1) % Math.min(8, featured.length));
+    }, 9000);
+    return () => clearInterval(t);
+  }, [featured.length]);
+  const current = (st.follow && heroIt) || featured[pick % Math.max(1, Math.min(8, featured.length))];
   const p = svc.page;
-  const tabs: { id: 'all' | 'shows' | 'movies'; label: string; icon: string }[] = [
-    { id: 'all', label: 'Home', icon: 'home' },
-    { id: 'shows', label: svc.id === 'Netflix' ? 'Shows' : 'TV Shows', icon: 'shows' },
-    { id: 'movies', label: 'Movies', icon: 'movie' },
-  ];
-  const nav = (
-    <nav class={`svc-nav svc-nav-${p.nav}`} data-group="svc-nav" data-zone={p.nav === 'rail' ? 'v' : 'h'}>
-      {p.nav !== 'rail' && <div class="svc-wordmark">{svc.label}</div>}
-      {p.nav === 'rail' && <div class="svc-rail-mark">{svc.label.slice(0, 1)}</div>}
-      <button type="button" class="f svc-tab" onClick={onSearch}><Icon name="search" size="1.3rem" />{p.nav !== 'rail' && <span>Search</span>}<span class="svc-tip">Search</span></button>
-      {tabs.map((t) => (
-        <button type="button" class={`f svc-tab ${filter === t.id ? 'is-on' : ''}`} onClick={() => { setFilter(t.id); setShown(3); }}>
-          <Icon name={t.icon} size="1.3rem" />{p.nav !== 'rail' && <span>{t.label}</span>}<span class="svc-tip">{t.label}</span>
-        </button>
-      ))}
-      <button type="button" class="f svc-tab svc-switch" onClick={() => onPick(null)}><Icon name="menu" size="1.3rem" />{p.nav !== 'rail' && <span>Services</span>}<span class="svc-tip">All services</span></button>
-    </nav>
-  );
+  const slug = svc.id.toLowerCase().replace(/[^a-z]+/g, '');
+  const onCard = (it: VodItem) => st.follow && setHeroIt(it);
+  const nav = <SvcNav svc={svc} st={st} filter={filter} onFilter={(f) => { setFilter(f); setShown(3); setHeroIt(null); }} onSearch={onSearch} onServices={() => onPick(null)} />;
   return (
-    <div class={`svc-full svc-page svc-${p.cards} svc-layout-${p.nav} svc-hero-${p.hero}`} style={{ '--svc-top': p.top, '--svc-bottom': p.bottom, '--svc-accent': p.accent } as Record<string, string>}>
+    <div class={`svc-full svcx svcx-${slug} svcx-nav-${st.nav} svcx-hero-${st.hero}`} style={{ '--svc-top': p.top, '--svc-bottom': p.bottom, '--svc-accent': p.accent } as Record<string, string>}>
       {nav}
-      <div class="svc-main">
-        {p.nav === 'rail' && <div class="svc-wordmark svc-wordmark-float">{svc.label}</div>}
-        {featured.length > 0 && (p.hero === 'carousel'
-          ? <CarouselHero key={filter} items={featured} onOpen={onOpen} />
-          : <Hero key={filter} items={featured} onOpen={onOpen} />)}
+      {current && st.hero !== 'posters' && <SvcHero svc={svc} st={st} it={current} onOpen={onOpen} dots={!st.follow ? Math.min(8, featured.length) : 0} dot={pick} />}
+      {st.hero === 'posters' && featured.length > 0 && <SvcPosters svc={svc} items={featured.slice(0, 6)} onOpen={onOpen} filter={filter} onFilter={(f) => { setFilter(f); setShown(3); }} />}
+      <div class="svcx-rows">
         {rows.slice(0, shown).map((r, ri) => (
-          <section class={`vod-row svc-row ${r.ranked ? 'svc-ranked' : ''}`} key={`${filter}:${r.id}`}>
-            <h2 class="vod-row-title">{r.title}</h2>
+          <section class={`svcx-row ${r.ranked && st.bigNumbers ? 'svcx-ranked' : ''}`} key={`${filter}:${r.id}`}>
+            <h2 class="svcx-row-title">{st.rowCaps ? r.title.toUpperCase() : r.title}</h2>
             <LazyStrip id={`svc-${r.id}`} count={r.items.length}>
-              {(n) => r.items.slice(0, n).map((it, i) => (r.ranked || p.cards === 'poster'
-                ? <ItemCard it={it} rank={r.ranked ? i + 1 : undefined} autofocus={!featured.length && ri === 0 && i === 0} onOpen={onOpen} />
-                : <WideCard it={it} autofocus={!featured.length && ri === 0 && i === 0} onOpen={onOpen} />))}
+              {(n) => r.items.slice(0, n).map((it, i) => (
+                <SvcCard it={it} st={st} rank={r.ranked && st.bigNumbers ? i + 1 : undefined} autofocus={st.buttons === 'none' && ri === 0 && i === 0} onFocus={() => onCard(it)} onOpen={onOpen} />
+              ))}
             </LazyStrip>
           </section>
         ))}
@@ -477,59 +504,153 @@ function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService;
   );
 }
 
-/** The carousel kind of featured area: big wide cards in a row, the one you're on opened up with its details. */
-function CarouselHero({ items, onOpen }: { items: VodItem[]; onOpen: (it: VodItem) => void }) {
-  const [fi, setFi] = useState(0);
-  const it = items[fi] ?? items[0];
+/** The service's menu: icons down the left (Hulu, HBO Max, Prime Video, Peacock, Disney+, Paramount+), words across the top (Netflix) or a glass pill (Apple TV). */
+function SvcNav({ svc, st, filter, onFilter, onSearch, onServices }: { svc: StreamingService; st: SvcStyle; filter: Filter; onFilter: (f: Filter) => void; onSearch: () => void; onServices: () => void }) {
+  const items: { id: Filter | 'search' | 'services'; label: string; icon: string }[] = [
+    { id: 'search', label: 'Search', icon: 'search' },
+    { id: 'all', label: st.home ?? 'Home', icon: 'home' },
+    { id: 'shows', label: svc.id === 'Netflix' ? 'Shows' : 'TV Shows', icon: 'shows' },
+    { id: 'movies', label: 'Movies', icon: 'movie' },
+    { id: 'services', label: 'Services', icon: 'grid' },
+  ];
+  const act = (id: (typeof items)[number]['id']) => (id === 'search' ? onSearch() : id === 'services' ? onServices() : onFilter(id));
+  if (st.nav === 'rail') {
+    return (
+      <nav class="svcx-rail" data-group="svc-nav" data-zone="v">
+        <div class="svcx-avatar" aria-hidden="true">{svc.label.slice(0, 1)}</div>
+        {items.map((n) => (
+          <button type="button" class={`f svcx-rail-btn ${n.id === filter ? 'is-on' : ''}`} onClick={() => act(n.id)} aria-label={n.label}>
+            <Icon name={n.icon} size="1.7rem" /><span class="svcx-rail-tip">{n.label}</span>
+          </button>
+        ))}
+      </nav>
+    );
+  }
+  const words = st.nav === 'pill' ? [items[1], items[2], items[3], items[4], items[0]] : [items[0], items[1], items[2], items[3], items[4]];
+  return (
+    <nav class={`svcx-top svcx-top-${st.nav}`} data-group="svc-nav" data-zone="h">
+      {st.nav === 'top' && <div class="svcx-avatar" aria-hidden="true">{svc.label.slice(0, 1)}</div>}
+      <div class="svcx-top-items">
+        {words.map((n) => (
+          <button type="button" class={`f svcx-top-btn ${n.id === filter ? 'is-on' : ''}`} onClick={() => act(n.id)} aria-label={n.label}>
+            {n.id === 'search' ? <Icon name="search" size="1.5rem" /> : n.label}
+          </button>
+        ))}
+      </div>
+      {st.nav === 'top' && <div class="svcx-top-mark">{svc.label}</div>}
+    </nav>
+  );
+}
+
+/** The featured area: the title's wide picture behind (or in a rounded card for Netflix), its name, details and the service's buttons. */
+function SvcHero({ svc, st, it, onOpen, dots, dot }: { svc: StreamingService; st: SvcStyle; it: VodItem; onOpen: (it: VodItem) => void; dots: number; dot: number }) {
   const name = itemName(it);
   const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  const rating = it.kind === 'movie' ? it.m.rating : it.s.rating;
   const art = useArt(it.kind, name, year, true);
-  const plot = art?.plot ?? (it.kind === 'series' ? it.s.plot : undefined);
+  const back = (it.kind === 'series' ? it.s.backdrop : undefined) ?? art?.backdrop;
+  const img = back ? pic(back, 'backdrop') : pic(art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster), 'poster');
+  const plot = goodText(it.kind === 'series' ? it.s.plot : undefined) ?? art?.plot;
+  const genre = firstGenre((it.kind === 'series' ? it.s.genre : undefined) ?? art?.genre);
+  const title = cleanTitle(name) || name;
+  const kindWord = it.kind === 'movie' ? 'Movie' : 'Series';
+  const play = async () => {
+    if (it.kind === 'series') return onOpen(it);
+    const r = await movieResume(it.playlistId, it.m);
+    const v = moviePlay(it.playlistId, it.m, r ? Math.max(0, r.pos - 5) : 0);
+    if (v) playVod(v);
+  };
+  const meta = st.buttons === 'netflix'
+    ? [it.kind === 'movie' ? 'Movie' : 'Show', genre, year].filter(Boolean).join(' • ')
+    : st.buttons === 'prime'
+      ? [rating ? `★ ${rating.toFixed(1)}` : '', year, genre].filter(Boolean).join('   ')
+      : st.buttons === 'none'
+        ? [kindWord, year, genre].filter(Boolean).join('   ')
+        : [genre, year, kindWord].filter(Boolean).join(' • ');
+  const btn = (label: string, primary: boolean, onClick: () => void, icon?: string, auto?: boolean) => (
+    <button type="button" class={`f svcx-btn ${primary ? 'svcx-btn-main' : 'svcx-btn-alt'}`} data-autofocus={auto ? '' : undefined} onClick={onClick}>
+      {icon && <Icon name={icon} size="1.3rem" />}<span>{label}</span>
+    </button>
+  );
+  const buttons = {
+    hulu: <>{btn('PLAY', true, () => void play(), 'play', true)}{btn('DETAILS', false, () => onOpen(it), 'chevronRight')}</>,
+    netflix: <>{btn('Play', true, () => void play(), 'play', true)}{btn('More Info', false, () => onOpen(it))}</>,
+    apple: <>{btn(it.kind === 'movie' ? 'Play' : 'Go to Show', true, () => (it.kind === 'movie' ? void play() : onOpen(it)), undefined, true)}</>,
+    paramount: <>{btn('WATCH NOW', true, () => void play(), undefined, true)}{btn('MORE INFO', false, () => onOpen(it), 'info')}</>,
+    prime: <>{btn('Play', true, () => void play(), 'play', true)}{btn('Details', false, () => onOpen(it))}</>,
+    peacock: <>{btn('Watch Now', true, () => void play(), 'play', true)}{btn('Details', false, () => onOpen(it))}</>,
+    disney: <>{btn('PLAY', true, () => void play(), 'play', true)}{btn('DETAILS', false, () => onOpen(it))}</>,
+    none: null,
+  }[st.buttons];
   return (
-    <section class="svc-carousel" data-group="svc-carousel">
-      <div class="svc-carousel-strip" data-hlock>
-        {items.map((x, i) => <CarouselCard key={i} it={x} autofocus={i === 0} onFocus={() => setFi(i)} onOpen={onOpen} />)}
+    <section class="svcx-hero" data-group="svc-hero" data-zone="h">
+      <div class="svcx-hero-img" key={img} style={img ? { backgroundImage: `url("${img}")` } : undefined} />
+      <div class="svcx-hero-shade" />
+      <div class="svcx-hero-text">
+        {st.eyebrow && <div class="svcx-eyebrow">{st.eyebrow}</div>}
+        {!st.eyebrow && st.buttons !== 'apple' && <div class="svcx-label">{svc.label.toUpperCase()} {it.kind === 'movie' ? 'MOVIE' : 'SERIES'}</div>}
+        <h1 class={`svcx-title ${st.upper ? 'is-upper' : ''} ${st.serif ? 'is-serif' : ''} ${title.length > 22 ? 'is-long' : ''}`}>{title}</h1>
+        {st.buttons === 'peacock' && rating ? <div class="svcx-chip">★ {rating.toFixed(1)}</div> : null}
+        {meta && <div class="svcx-meta">{meta}</div>}
+        {plot && <p class="svcx-plot">{plot}</p>}
+        {st.buttons === 'prime' && <div class="svcx-included"><Icon name="check" size="1.2rem" /> On your provider</div>}
+        {buttons && <div class="svcx-btns">{buttons}</div>}
       </div>
-      <div class="svc-carousel-info">
-        <h2>{tt(name)}</h2>
-        <div class="muted">{[it.kind === 'movie' ? 'Movie' : 'Series', year ?? art?.year, firstGenre(art?.genre)].filter(Boolean).join(' · ')}</div>
-        {plot && <p>{plot}</p>}
+      {dots > 1 && <div class="svcx-dots" aria-hidden="true">{Array.from({ length: dots }, (_, n) => <span class={n === dot % dots ? 'on' : ''} />)}</div>}
+    </section>
+  );
+}
+
+/** Disney+'s featured area: category pills, the service's name with a Browse button, and big posters. */
+function SvcPosters({ svc, items, onOpen, filter, onFilter }: { svc: StreamingService; items: VodItem[]; onOpen: (it: VodItem) => void; filter: Filter; onFilter: (f: Filter) => void }) {
+  return (
+    <section class="svcx-band" data-group="svc-band">
+      <div class="svcx-chips" data-group="svc-chips" data-hlock>
+        {(['all', 'movies', 'shows'] as Filter[]).map((f, i) => (
+          <button type="button" class={`f svcx-chipbtn ${filter === f ? 'is-on' : ''}`} data-autofocus={i === 0 ? '' : undefined} onClick={() => onFilter(f)}>{f === 'all' ? 'Featured' : f === 'movies' ? 'Movies' : 'Series'}</button>
+        ))}
+      </div>
+      <div class="svcx-band-body">
+        <div class="svcx-band-text">
+          <div class="svcx-band-name">{svc.label}</div>
+          <p>Everything from {svc.label} that your provider has.</p>
+        </div>
+        <div class="svcx-band-posters" data-hlock>
+          {items.map((it) => <SvcCard it={it} st={{ ...SVC_STYLE['Disney+'], card: 'poster' }} onFocus={() => undefined} onOpen={onOpen} big />)}
+        </div>
       </div>
     </section>
   );
 }
 
-function CarouselCard({ it, autofocus, onFocus, onOpen }: { it: VodItem; autofocus?: boolean; onFocus: () => void; onOpen: (it: VodItem) => void }) {
-  const name = itemName(it);
-  const year = it.kind === 'movie' ? it.m.year : it.s.year;
-  const art = useArt(it.kind, name, year, true);
-  const wide = (it.kind === 'series' ? it.s.backdrop : undefined) ?? art?.backdrop;
-  const img = wide ? pic(wide, 'backdrop') : pic(art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster), 'poster');
-  return (
-    <button type="button" class="f svc-ccard" data-autofocus={autofocus ? '' : undefined} onFocus={onFocus} onClick={() => onOpen(it)}>
-      <div class={`svc-ccard-img ${wide ? '' : 'is-poster'}`} style={img ? { backgroundImage: `url("${img}")` } : undefined} />
-      <div class="svc-ccard-title">{tt(name)}</div>
-    </button>
-  );
-}
-
-/** A wide tile (the services that use landscape art): the poster until you land on it, then the wide picture. */
-function WideCard({ it, onOpen, autofocus }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean }) {
+/** A title card in the service's shape: wide picture (most apps) or tall poster, a big number for Top 10, a subtitle line for Apple TV. */
+function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big }: { it: VodItem; st: SvcStyle; rank?: number; autofocus?: boolean; onFocus: () => void; onOpen: (it: VodItem) => void; big?: boolean }) {
   const [focused, setFocused] = useState(false);
   const name = itemName(it);
   const year = it.kind === 'movie' ? it.m.year : it.s.year;
-  const art = useArt(it.kind, name, year, focused);
-  const poster = it.kind === 'movie' ? it.m.poster : it.s.poster;
-  const wide = it.kind === 'series' ? it.s.backdrop ?? art?.backdrop : art?.backdrop;
-  const img = wide ? pic(wide, 'backdrop') : pic(poster, 'poster');
+  const wideWanted = st.card === 'wide';
+  const art = useArt(it.kind, name, year, wideWanted || focused);
+  const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
+  const back = wideWanted ? (it.kind === 'series' ? it.s.backdrop ?? art?.backdrop : art?.backdrop) : undefined;
+  const img = back ? pic(back, 'backdrop') : pic(poster, 'poster');
+  const title = cleanTitle(name) || name;
   return (
-    <button type="button" class="f vod-card svc-wide" data-autofocus={autofocus ? '' : undefined} onFocus={() => setFocused(true)} onClick={() => onOpen(it)}>
-      <div class={`svc-wide-img ${wide ? '' : 'is-poster'}`} style={img ? { backgroundImage: `url("${img}")` } : undefined}>
-        {!img && <span class="svc-wide-fallback">{cleanTitle(name) || name}</span>}
-      </div>
-      <div class="svc-wide-name">{tt(cleanTitle(name) || name)}</div>
-      <div class="vod-meta muted">{[it.kind === 'movie' ? 'Movie' : 'Series', year].filter(Boolean).join(' · ')}</div>
-    </button>
+    <div class={`svcx-card-wrap ${rank ? 'has-rank' : ''}`}>
+      {rank && <span class="svcx-num" aria-hidden="true">{rank}</span>}
+      <button
+        type="button"
+        class={`f svcx-card ${wideWanted ? 'is-wide' : 'is-poster'} ${big ? 'is-big' : ''}`}
+        data-autofocus={autofocus ? '' : undefined}
+        onFocus={() => { setFocused(true); onFocus(); }}
+        onClick={() => onOpen(it)}
+        aria-label={title}
+      >
+        <div class={`svcx-card-img ${wideWanted && !back ? 'is-poster-fill' : ''}`} style={img ? { backgroundImage: `url("${img}")` } : undefined}>
+          {(!img || (wideWanted && !back)) && <span class="svcx-card-name">{title}</span>}
+        </div>
+      </button>
+      {st.subtitles && <div class="svcx-sub"><b>{title}</b><span>{[it.kind === 'movie' ? 'Movie' : 'Series', year].filter(Boolean).join(' · ')}</span></div>}
+    </div>
   );
 }
 
