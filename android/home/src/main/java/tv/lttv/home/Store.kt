@@ -142,6 +142,17 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
     }
 
     // ---- your apps ----------------------------------------------------------------------------
+    /** Home → Search: Store apps whose name matches (title, what happens, action). */
+    fun searchEntries(q: String): List<Triple<String, String, () -> Unit>> {
+        val t = q.trim().lowercase()
+        if (t.isEmpty()) return emptyList()
+        val out = mutableListOf<Triple<String, String, () -> Unit>>()
+        for (m in mine) if (m.name.lowercase().contains(t)) out += Triple(m.name, if (installedPkg(m.pkgs) != null) "Installed · Your apps" else "Install · Your apps", { mineMenu(m) })
+        for (d in direct) if (d.name.lowercase().contains(t)) out += Triple(d.name, if (installed(d.pkg)) "Installed" else "Install right here", { directAction(d) })
+        for (p in popular) if (p.name.lowercase().contains(t)) out += Triple(p.name, if (installed(p.pkg)) "Installed" else "Get it on the Appstore", { popularAction(p) })
+        return out
+    }
+
     private fun installed(pkg: String) = try { a.packageManager.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
     private fun installedPkg(pkgs: List<String>) = pkgs.firstOrNull { installed(it) }
 

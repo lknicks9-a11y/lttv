@@ -129,6 +129,7 @@ class HomeActivity : Activity() {
         buildRecommended()
         Glass.unclip(col)
         root.addView(menuScroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = side - dp(10); topMargin = (sh * 0.17f).toInt() })
+        homeLayers += scroll; homeLayers += menuScroll
         setContentView(root)
     }
 
@@ -211,7 +212,8 @@ class HomeActivity : Activity() {
     // ---- the menu: a list on the left --------------------------------------------------------------
 
     /**
-     * The menu: icons only (Home, Search, Store, All Apps, Settings). Move onto it and it opens over the page with
+     * The menu: icons only (Home, Search, Sports scores, Weather, Store, All Apps, Settings) — LTTV Home's own pages,
+     * nothing that jumps into another app. Move onto it and it opens over the page with
      * the names beside the icons; move off and it folds back to icons.
      */
     private fun buildSidebar(): LinearLayout {
@@ -221,7 +223,9 @@ class HomeActivity : Activity() {
         }
         val items = listOf(
             Triple("Home", R.drawable.ic_home) { recRow.getChildAt(0)?.requestFocus() ?: Unit },
-            Triple("Search", R.drawable.ic_search) { openLttv("search") },
+            Triple("Search", R.drawable.ic_search) { showSearch() },
+            Triple("Sports", R.drawable.ic_sports) { showScores() },
+            Triple("Weather", R.drawable.ic_weather) { showWeather() },
             Triple("Store", R.drawable.ic_store) { showStore() },
             Triple("All Apps", R.drawable.ic_apps) { showAllApps() },
             Triple("Settings", R.drawable.ic_settings) { showSettings() },
@@ -562,10 +566,51 @@ class HomeActivity : Activity() {
     private var overlayPage: View? = null
 
     private fun showOverlay(v: View) {
-        closeOverlay()
+        overlayPage?.let { root.removeView(it) }
         Glass.unclip(v)
         root.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         overlayPage = v
+        updateFocusLock()
+    }
+
+    private val homeLayers = mutableListOf<View>()
+
+    /**
+     * Only the page on top can take the remote's focus: the home screen (and Settings under a page opened from it)
+     * are locked, so moving around a page never lands on tiles behind it.
+     */
+    private fun updateFocusLock() {
+        val top: View? = overlayPage ?: photosPage ?: settingsPage
+        for (v in homeLayers + listOfNotNull(settingsPage, photosPage, overlayPage)) {
+            val open = if (top == null) v in homeLayers else v === top
+            (v as? ViewGroup)?.descendantFocusability = if (open) ViewGroup.FOCUS_AFTER_DESCENDANTS else ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        }
+    }
+
+    private fun showSearch() {
+        val (page, col) = pageScaffold("Search", "Apps on this TV, the Store, and LTTV Home")
+        loadApps()
+        SearchPage(this,
+            apps = { allApps.map { a -> a.label to { open(a) } } },
+            store = { q -> Store(this) { closeOverlay() }.searchEntries(q) },
+            shortcuts = listOf(
+                "Sports scores" to { showScores() }, "Weather" to { showWeather() }, "Store" to { showStore() },
+                "All Apps" to { showAllApps() }, "Settings" to { closeOverlay(); showSettings() }, "TV inputs" to { showInputs() },
+                "Choose apps on Home" to { showChooseApps() }, "Update Center" to { Updater.checkNow(this) },
+            )).build(col)
+        showOverlay(page)
+    }
+
+    private fun showScores() {
+        val (page, col) = pageScaffold("Sports", "Today's scores")
+        ScoresPage(this).build(col)
+        showOverlay(page)
+    }
+
+    private fun showWeather() {
+        val (page, col) = pageScaffold("Weather", "Now, the next hours and the week")
+        WeatherPage(this).build(col)
+        showOverlay(page)
     }
 
     /** A page's title with a Home button at the end of the same row (reached with Up, never in the way). */
@@ -590,13 +635,18 @@ class HomeActivity : Activity() {
     private fun closeOverlay() {
         overlayPage?.let { root.removeView(it) }
         overlayPage = null
+        updateFocusLock()
         rebuildGrid()
+        // Opened from Settings: back to Settings.
+        settingsPage?.post { settingsFirst?.requestFocus() }
     }
+
+    private var settingsFirst: View? = null
 
     private fun pageScaffold(title: String, subtitle: String): Pair<ScrollView, LinearLayout> {
         val page = ScrollView(this).apply { background = Glass.sheet(this@HomeActivity); isFillViewport = true; isClickable = true }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(56), dp(30), dp(56), dp(40)) }
-        col.addView(headerRow(title) { closeOverlay(); homeItem.post { homeItem.requestFocus() } })
+        col.addView(headerRow(title) { closeOverlay(); closeSettings(); homeItem.post { homeItem.requestFocus() } })
         col.addView(Glass.text(this, 15f, "#B8C0CC").apply { text = subtitle; setPadding(0, dp(4), 0, dp(14)) })
         page.addView(col)
         return page to col
@@ -717,10 +767,10 @@ class HomeActivity : Activity() {
         )
         val home = listOf(
             Setting("Photos for your apps", "Add your own pictures from your phone", "🖼") { showPhotos() },
-            Setting("Choose apps on Home", "Pick which apps show in Your Apps", "☑") { closeSettings(); showChooseApps() },
+            Setting("Choose apps on Home", "Pick which apps show in Your Apps", "☑") { showChooseApps() },
             Setting("Update Center", "Check for LTTV Home updates · ${Updater.thisVersion(this)}", "⟳") { Updater.checkNow(this) },
-            Setting("Store", "Your apps, Appstore apps, install from a link", "⬇") { closeSettings(); showStore() },
-            Setting("TV inputs", "HDMI and antenna (on Fire TV smart TVs)", "⎆") { closeSettings(); showInputs() },
+            Setting("Store", "Your apps, Appstore apps, install from a link", "⬇") { showStore() },
+            Setting("TV inputs", "HDMI and antenna (on Fire TV smart TVs)", "⎆") { showInputs() },
             Setting("Reset Your Apps order", "Back to the default order", "↺") { prefs.edit().remove("order").apply(); toast("Order reset"); rebuildGrid() },
             Setting("Amazon Home", "Open the original home screen", "⌂") {
                 val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage("com.amazon.tv.launcher").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -739,11 +789,15 @@ class HomeActivity : Activity() {
         Glass.unclip(page)
         root.addView(page, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         settingsPage = page
-        page.post { ((col.getChildAt(2) as? GridLayout)?.getChildAt(0))?.requestFocus() }
+        settingsFirst = (col.getChildAt(2) as? GridLayout)?.getChildAt(0)
+        updateFocusLock()
+        page.post { settingsFirst?.requestFocus() }
     }
 
     private fun closeSettings() {
         settingsPage?.let { root.removeView(it) }; settingsPage = null
+        settingsFirst = null
+        updateFocusLock()
     }
 
     private fun settingsGrid(items: List<Setting>) = GridLayout(this).apply {
@@ -824,12 +878,14 @@ class HomeActivity : Activity() {
         page.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         root.addView(page, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         photosPage = page
+        updateFocusLock()
         page.post { (col.getChildAt(col.childCount - 1)).requestFocus() }
     }
 
     private fun closePhotos() {
         artServer?.stop(); artServer = null
         photosPage?.let { root.removeView(it) }; photosPage = null
+        updateFocusLock()
         (settingsPage ?: homeItem).requestFocus()
     }
 

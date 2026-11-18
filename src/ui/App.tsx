@@ -182,7 +182,8 @@ function UpdatePrompt() {
 
 function Toasts() {
   const toasts = useApp((s) => s.toasts);
-  const tasks = useApp((s) => s.tasks);
+  // The other LTTV apps read your provider quietly: no "Refreshing…" progress there.
+  const tasks = useApp((s) => (APP_MODE === 'lttv' ? s.tasks : []));
   return (
     <div class="toasts" aria-live="polite">
       {tasks.map((t) => (

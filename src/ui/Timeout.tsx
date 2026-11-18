@@ -85,6 +85,13 @@ async function loadOnTv(): Promise<TimeoutMedia> {
     // No storage for them here: play straight from the computer.
     const url = (n: string) => proxiedUrl(`${base}/timeout/${encodeURIComponent(n)}`);
     lastTvStatus = reached ? `Found ${list.images.length} pictures and ${list.audio.length} songs on the computer.` : 'The computer isn’t reachable.';
+    if (APP_MODE === 'lttv' && reached) {
+      const l = list;
+      void shareWithApps(l, names, async (n) => {
+        const { stream } = await openRemote(`${base}/timeout/${encodeURIComponent(n)}`, AbortSignal.timeout?.(120_000));
+        return tvSized(n, await new Response(stream).blob());
+      }).catch(() => undefined);
+    }
     const songs = firstSongsFirst(list.audio);
     return reached ? { images: list.images.map(url), names: list.images, audio: songs.map(url), firstSongs: songs.filter(isFirstSong).length } : NONE;
   }
@@ -123,7 +130,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
   const songs = firstSongsFirst(list.audio.filter((n) => urls.has(n)));
   const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), names: list.images.filter((n) => urls.has(n)), audio: songs.flatMap((n) => urls.get(n) ?? []), firstSongs: songs.filter(isFirstSong).length };
   lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.`;
-  if (APP_MODE === 'lttv') void shareWithApps(list, names.filter((n) => urls.has(n)), cache, key).catch(() => undefined);
+  if (APP_MODE === 'lttv') void shareWithApps(list, names.filter((n) => urls.has(n)), async (n) => (await cache.match(key(n)))?.blob() ?? null).catch(() => undefined);
   return got;
 }
 
@@ -131,7 +138,20 @@ async function loadOnTv(): Promise<TimeoutMedia> {
 const sharedName = (n: string) => `timeout/${encodeURIComponent(n)}`;
 
 /** LTTV: hands its kept photos and songs to League Pass / Blitz (only new or changed files are sent). */
-async function shareWithApps(list: Listing, names: string[], cache: Cache, key: (n: string) => string) {
+let sharing = false;
+let shareStatus = '';
+/** What LTTV last handed to League Pass / Blitz (shown in Settings). */
+export const timeoutShareStatus = () => shareStatus;
+async function shareWithApps(list: Listing, names: string[], blobOf: (n: string) => Promise<Blob | null>) {
+  if (sharing) return;
+  sharing = true;
+  try {
+    await shareNow(list, names, blobOf);
+  } finally {
+    sharing = false;
+  }
+}
+async function shareNow(list: Listing, names: string[], blobOf: (n: string) => Promise<Blob | null>) {
   const put = native?.putSharedFile;
   if (!put) return;
   let have: Record<string, number> = {};
@@ -140,11 +160,18 @@ async function shareWithApps(list: Listing, names: string[], cache: Cache, key: 
   } catch {
     /* none yet */
   }
+  let sent = 0;
   for (const n of names) {
-    const hit = await cache.match(key(n));
-    if (!hit) continue;
-    const blob = await hit.blob();
+    if (have[encodeURIComponent(n)] > 0) continue; // already handed over
+    let blob: Blob | null = null;
+    try {
+      blob = await blobOf(n);
+    } catch {
+      blob = null;
+    }
+    if (!blob) continue;
     if (have[encodeURIComponent(n)] === blob.size) continue;
+    sent++;
     const buf = new Uint8Array(await blob.arrayBuffer());
     const CHUNK = 384 * 1024;
     for (let i = 0; i < buf.length || i === 0; i += CHUNK) {
@@ -158,6 +185,7 @@ async function shareWithApps(list: Listing, names: string[], cache: Cache, key: 
   }
   const kept = { images: list.images.filter((n) => names.includes(n)), audio: list.audio.filter((n) => names.includes(n)) };
   put.call(native, 'timeout.json', btoa(unescape(encodeURIComponent(JSON.stringify(kept)))), false);
+  shareStatus = `Shared ${kept.images.length} pictures and ${kept.audio.length} songs with League Pass and Blitz${sent ? ` (${sent} new)` : ''}.`;
 }
 
 /** League Pass / Blitz: the photos and songs LTTV kept, straight from LTTV's files. */
@@ -179,7 +207,9 @@ async function fromLttv(): Promise<TimeoutMedia | null> {
 /** LTTV on the TV: keep League Pass' photos and songs up to date in the background, for League Pass / Blitz. */
 export function keepTimeoutForApps() {
   if (APP_MODE !== 'lttv' || !native?.putSharedFile) return;
-  setTimeout(() => void loadOnTv().catch(() => undefined), 20_000);
+  const run = () => void loadOnTv().catch(() => undefined);
+  setTimeout(run, 6_000);
+  setInterval(run, 30 * 60_000);
 }
 /** A big photo is shrunk to TV size before it is kept (a 10 MB picture would choke a Fire TV Stick). */
 async function tvSized(name: string, blob: Blob): Promise<Blob> {
@@ -378,7 +408,7 @@ export function TimeoutSettings() {
     setBusy(true);
     await updateSettings({ timeoutMedia: addr.trim() || undefined });
     await refreshTimeoutMedia();
-    setStatus(timeoutTvStatus());
+    setStatus([timeoutTvStatus(), timeoutShareStatus()].filter(Boolean).join(' '));
     setBusy(false);
   };
   return (
