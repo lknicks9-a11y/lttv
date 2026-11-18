@@ -61,7 +61,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
       const b = shared ?? { images: [], names: [], audio: [], firstSongs: 0 };
       const songs = [...a.audio, ...b.audio];
       lastTvStatus = `${a.images.length + b.images.length} pictures and ${songs.length} songs (${a.images.length + a.audio.length} from your phone, ${b.images.length + b.audio.length} from LTTV).`;
-      return { images: [...a.images, ...b.images], names: [...a.names, ...b.names], audio: songs, firstSongs: a.firstSongs + b.firstSongs };
+      return { images: [...a.images, ...b.images], names: [...a.names, ...b.names], audio: songs, firstSongs: (a.firstSongs ?? 0) + (b.firstSongs ?? 0) };
     }
   }
   const base = (getState().settings.timeoutMedia ?? '').trim().replace(/\/+$/, '');
