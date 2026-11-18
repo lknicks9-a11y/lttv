@@ -1,3 +1,4 @@
+import { isPassApp } from '../app/appmode';
 // LTTV League Pass (NBA) and LTTV Blitz (NFL): the league's games in one place. Opened from Sports, or from anywhere
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
@@ -579,7 +580,7 @@ export function LeaguePass() {
     };
     const active = mv.tiles[mv.active];
     return (
-      <section class={`league-pass lpm lpm-${mv.layout}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name} Multiview`} style={{ '--lp-accent': cfg.accent }}>
+      <section class={`league-pass lpm lpm-${mv.layout}`} data-scope ref={ref} aria-label={`${cfg.name} Multiview`} style={{ '--lp-accent': cfg.accent }}>
         <div class="lp-bg"><i /><i /><i /><i /></div>
         <div class="lpm-grid" data-group="lpm-grid">
           {Array.from({ length: mv.layout }, (_, i) => (
@@ -640,17 +641,17 @@ export function LeaguePass() {
   }
 
   return (
-    <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''} ${tucked ? 'lp-tucked' : ''}`} data-scope ref={ref} aria-label={`LTTV ${cfg.name}`} style={{ '--lp-accent': cfg.accent }}>
+    <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''} ${tucked ? 'lp-tucked' : ''}`} data-scope ref={ref} aria-label={cfg.name} style={{ '--lp-accent': cfg.accent }}>
       <div class="lp-bg"><i /><i /><i /><i /></div>
       <header class="lp-top">
-        <h1><LpLogo kind={cfg.league} /> <span class="lp-mark">LTTV</span> {cfg.name}</h1>
+        <h1><LpLogo kind={cfg.league} /> {!isPassApp && <span class="lp-mark">LTTV</span>} {cfg.name}</h1>
         <span class="muted">{new Date(now).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
         <span class="lp-spacer" />
         {picks.length > 0 && <Button variant="primary" icon="multiview" onClick={startMultiview}>Watch {picks.length} game{picks.length === 1 ? '' : 's'} together</Button>}
         {timeoutUp && cfg.league !== 'nfl' && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
         <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
         {(onThisGame || timeoutUp) && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
-        <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>Close</Button>
+        <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>{isPassApp ? 'Exit' : 'Close'}</Button>
       </header>
 
       <div class="lp-main">
@@ -663,8 +664,8 @@ export function LeaguePass() {
               const next = games.filter((g) => g.state === 'pre').sort((x, y) => x.start - y.start)[0];
               const lines = (
                 <>
-                  <div class="lp-off-kicker"><LpLogo size="1.6rem" kind={cfg.league} /> LTTV {cfg.name}</div>
-                  <div class="lp-off-title">LTTV {cfg.name} took a timeout</div>
+                  <div class="lp-off-kicker"><LpLogo size="1.6rem" kind={cfg.league} /> {isPassApp ? '' : 'LTTV '}{cfg.name}</div>
+                  <div class="lp-off-title">{isPassApp ? '' : 'LTTV '}{cfg.name} took a timeout</div>
                   <div class="lp-off-line">{cfg.league === 'nfl' && offGame ? `${offGame.away.name} at ${offGame.home.name}` : team && anyOnAir ? `The ${team.name} broadcast is off the air` : 'No games on at this time'}</div>
                   {team && offGame ? (
                     pre ? <div class="lp-off-count">{cfg.league === 'nfl' ? `${offFeed?.label ?? 'The game'} · on the air in` : `${team.name} broadcast on the air in`} <b>{untilText(offGame.start - ON_AIR_BEFORE - now)}</b> · {clock(offGame.start)}</div>

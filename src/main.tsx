@@ -45,6 +45,8 @@ async function boot() {
   (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports, addPlaylist, addEpgSource, rematchAndReload };
   applySavedTheme();
   if (APP_MODE === 'lttv') preloadProfiles();
+  // League Pass / Blitz: the pass is the whole app, shown from the first moment (it fills in as your provider loads).
+  if (isPassApp) setState({ leaguePass: true, passLeague: APP_MODE === 'leaguepass' ? 'nba' : 'nfl' });
   render(<App />, document.getElementById('app')!);
   document.getElementById('boot')?.remove();
 
@@ -73,7 +75,7 @@ async function boot() {
   // Returning users who already signed in just sync.
   markFreshDevice(!getState().playlists.length);
   const hasPlaylists = getState().playlists.length > 0;
-  if (!isOnboarded() && !hasPlaylists) {
+  if (APP_MODE === 'lttv' && !isOnboarded() && !hasPlaylists) {
     // Brand-new device / first time: the full onboarding flow.
     if (cloudConfig() && currentSession()) void startCloudSync();
     setState({ onboarding: true });
@@ -94,8 +96,7 @@ async function boot() {
   if (opened) setState({ screen: opened });
   // Each app opens on its own part.
   if (!opened && APP_MODE === 'movies' && !getState().onboarding) setState({ screen: 'movies' });
-  if (isPassApp && !getState().onboarding) {
-    void import('./ui/LeaguePass').then((m) => m.openPass(APP_MODE === 'leaguepass' ? 'nba' : 'nfl'));
+  if (isPassApp) {
     // Closing League Pass / Blitz closes the app (there's nothing behind it).
     let wasOpen = true;
     setInterval(() => {

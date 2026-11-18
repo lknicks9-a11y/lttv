@@ -2290,3 +2290,11 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 .svcx-paramount .svcx-hero-img { left: 30vw; }
 .svcx-paramount .svcx-hero-shade { background: linear-gradient(90deg, #0b0f17 30%, rgba(11,15,23,.6) 46%, transparent 70%), linear-gradient(0deg, #0b0f17 0%, transparent 45%); }
 .svcx-paramount .svcx-rail-btn:focus { background: #0064ff; color: #fff; }
+
+/* League Pass / Blitz as their own apps */
+.pass-app .lp-overlay { z-index: 1; }
+.pass-loading { position: fixed; right: 3vw; bottom: 4vh; z-index: 60; opacity: .7; }
+.needs-lttv { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6rem; text-align: center; padding: 0 20vw;
+  background: radial-gradient(80% 70% at 50% 40%, #1d2030, #08080a 70%); }
+.needs-lttv h1 { font-size: 3.4rem; font-weight: 900; letter-spacing: -.03em; margin: 0; }
+.needs-lttv p { font-size: 1.4rem; color: rgba(255,255,255,.8); margin: 0; }

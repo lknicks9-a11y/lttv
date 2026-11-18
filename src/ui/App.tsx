@@ -1,4 +1,4 @@
-import { APP_MODE } from '../app/appmode';
+import { APP_MODE, APP_TITLE, isPassApp } from '../app/appmode';
 import { lazy } from './lazy';
 import { watchPassKeys } from '../app/passkeys';
 import { isTV } from '../app/platform';
@@ -6,7 +6,7 @@ import { h, Fragment, Component, type ComponentChildren } from 'preact';
 import { dismissUpdate, installUpdate, useAvailableUpdate, useKnownUpdate, versionOf } from '../app/updates';
 import { LiveNotices } from './Fantasy';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
+import { toast, useApp, navigate, screenBack, setState, getState, player, type Screen, tune, zapList, toggleFavorite } from '../app/state';
 import { onAppKey, onBack, focusFirst } from '../app/nav';
 import { adjacentChannel } from '../core/organize';
 import { native, isNative } from '../app/platform';
@@ -247,7 +247,47 @@ function Screens() {
   );
 }
 
+/**
+ * League Pass and Blitz are their own apps: just the pass, full screen, from the first moment — no LTTV menu,
+ * setup or profiles. Your provider comes from LTTV; if LTTV isn't set up yet, the app says so.
+ */
+function PassApp() {
+  const ready = useApp((s) => s.ready);
+  const noProvider = useApp((s) => s.ready && !s.playlists.length);
+  const passLeague = useApp((s) => s.passLeague ?? (APP_MODE === 'leaguepass' ? 'nba' : 'nfl'));
+  const vodPlaying = useApp((s) => !!s.vodPlaying);
+  useEffect(() => onBack(() => {
+    if (native) native.exitApp();
+    return true;
+  }), []);
+  return (
+    <div class="app is-fullscreen pass-app">
+      {noProvider ? <NeedsLttv /> : <div class="lp-overlay"><LeaguePass key={passLeague} /></div>}
+      {!ready && <div class="pass-loading"><span class="spinner" /></div>}
+      {vodPlaying && <VodPlayer />}
+      <UpdatePrompt />
+      <Toasts />
+    </div>
+  );
+}
+
+/** Movies & Shows, League Pass and Blitz use the provider you set up in LTTV. */
+function NeedsLttv() {
+  return (
+    <div class="needs-lttv">
+      <h1>{APP_TITLE[APP_MODE]}</h1>
+      <p>{APP_TITLE[APP_MODE]} uses the provider you set up in LTTV. Open LTTV, add your playlist there, then come back.</p>
+      <button type="button" class="f btn btn-primary" data-autofocus onClick={() => (native?.openApp?.('lttv') ? undefined : toast('Get LTTV from LTTV Home → Store.', 'info'))}>Open LTTV</button>
+    </div>
+  );
+}
+
 export function App() {
+  if (isPassApp) return <PassApp />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const fullscreen = useApp((s) => s.fullscreen);
   const detail = useApp((s) => s.detail);
   const menuKey = useApp((s) => s.channelMenu);
@@ -266,6 +306,8 @@ export function App() {
   // "Who's watching?" shows right away; the app keeps loading behind it.
   const picker = pickerOpen || (!onboarding && needsProfilePick());
   const covered = fullscreen || vodPlaying || multiview || signIn || onboarding || picker || leaguePass;
+  // Movies & Shows: no provider yet means LTTV isn't set up (it has no setup of its own).
+  const needsLttv = useApp((s) => APP_MODE !== 'lttv' && s.ready && !s.playlists.length);
 
   useEffect(() => {
     const offBack = onBack(() => {
@@ -309,7 +351,8 @@ export function App() {
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}
       </div>
       {leaguePass && <div class="lp-overlay"><LeaguePass key={passLeague} /></div>}
-      {picker && !onboarding && !signIn && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ profilePicker: false })} /></div>}
+      {needsLttv && <div class="who-overlay"><NeedsLttv /></div>}
+      {picker && !onboarding && !signIn && !needsLttv && <div class="who-overlay"><WhoIsWatching onPicked={() => setState({ profilePicker: false })} /></div>}
       {onboarding ? <div class="who-overlay signin-overlay"><OnboardingScreen onDone={() => setState({ onboarding: false })} /></div> : signIn && <div class="who-overlay signin-overlay"><SignInScreen onClose={() => setState({ signIn: false })} /></div>}
       {onboarding || signIn ? null : multiview ? !leaguePass && <MultiviewScreen /> : vodPlaying ? <VodPlayer /> : fullscreen && !leaguePass && <PlayerOverlay />}
       <LiveNotices />
