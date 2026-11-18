@@ -511,7 +511,7 @@ export async function findSeriesByName(playlistId: string, name: string): Promis
 const SAVED_TTL = 6 * 3600_000;
 /** Tags that mark a copy in another language (dubbed or subtitled). */
 const FOREIGN_TAG = /\b(vostfr|vost|vf|vff|truefrench|french|latino|castellano|español|espanol|dublado|legendado|deutsch|german|ita|italiano|türkçe|turkce|arabic|hindi|dubbed)\b/i;
-const savedKey = (kind: VodKind) => `vodHome3:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
+const savedKey = (kind: VodKind) => `vodHome4:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
 
 export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise<VodHome> {
   const hit = homeCache.get(kind);
@@ -648,13 +648,16 @@ async function buildHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise
  * English, 1080p first). Rows with fewer than 4 of your titles are left out.
  */
 async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h: VodHome) => void, source: (onRow: (rows: WmRow[]) => void) => Promise<WmRow[]> = (onRow) => watchmodeRows(kind, onRow)): Promise<VodHome> {
-  const match = await libraryMatcher(kind, english);
+  const { match, lib } = await libraryMatcher(kind, english);
   const build = (wm: WmRow[], loading: boolean): VodHome => {
     const rows: VodRow[] = [];
     for (const r of wm) {
       const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
       if (items.length >= (r.id === "popular" ? 1 : 4)) rows.push({ id: r.id, title: r.title, items });
     }
+    // Lists only find the titles your provider has; Shows (and a thin Movies page) are filled out with
+    // rows from your provider's own library: recently added, best rated, each genre and each service.
+    if (!loading && (kind === 'shows' || rows.length < 10)) rows.push(...libraryRows(kind, lib, english, rows));
     return { rows, categories: english, otherLanguages: [], loading };
   };
   // While lists arrive, the page is updated at most about once a second.
@@ -673,7 +676,40 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
 }
 
 /** Matches titles from a US list (Watchmode, charts) to your provider's English copies. */
-async function libraryMatcher(kind: VodKind, english: VodCat[]): Promise<(t: WmTitle) => VodItem | undefined> {
+/** Rows from your provider's own English library, for titles the US lists didn't cover. */
+function libraryRows(kind: VodKind, lib: VodItem[], english: VodCat[], have: VodRow[]): VodRow[] {
+  const out: VodRow[] = [];
+  const titles = new Set(have.map((r) => r.title.toLowerCase()));
+  const used = new Set<string>();
+  const add = (id: string, title: string, list: VodItem[], min = 6) => {
+    if (titles.has(title.toLowerCase())) return;
+    // Prefer titles not already shown in another row, so rows don't repeat the same posters.
+    const all = dedupe(list);
+    const items = [...all.filter((it) => !used.has(itemId(it))), ...all.filter((it) => used.has(itemId(it)))].slice(0, ROW_MAX);
+    if (items.length < min) return;
+    items.slice(0, 12).forEach((it) => used.add(itemId(it)));
+    titles.add(title.toLowerCase());
+    out.push({ id, title, items });
+  };
+  const year = new Date().getFullYear();
+  const yearOf = (it: VodItem) => Number(it.kind === 'movie' ? it.m.year : it.s.year) || 0;
+  add('lib:recent', 'Recently Added', [...lib].filter((it) => itemAdded(it) > 0).sort((a, b) => itemAdded(b) - itemAdded(a)));
+  add('lib:top', 'Critically Acclaimed', lib.filter((it) => itemRating(it) >= 7.5).sort((a, b) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a)));
+  add('lib:new', kind === 'movies' ? 'New This Year' : 'New Seasons', lib.filter((it) => yearOf(it) >= year - 1).sort((a, b) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a)));
+  const catName = new Map(english.map((c) => [c.key, c.name]));
+  const genreText = (it: VodItem) => `${(it.kind === 'movie' ? it.m.categoryId : it.s.categoryId) ? catName.get(`${it.playlistId}:${it.kind === 'movie' ? it.m.categoryId : it.s.categoryId}`) ?? '' : ''} ${(it.kind === 'series' ? it.s.genre : (it.m as { genre?: string }).genre) ?? ''}`;
+  const byRating = (a: VodItem, b: VodItem) => itemRating(b) - itemRating(a) || itemAdded(b) - itemAdded(a);
+  // Services first (Netflix, Hulu…), then genres.
+  const services = GENRE_ROWS.filter((g) => ['netflix', 'hulu', 'disney', 'hbo', 'prime', 'apple', 'paramount', 'peacock'].includes(g.id));
+  const genres = GENRE_ROWS.filter((g) => !services.includes(g));
+  for (const g of services) add(`lib:svc:${g.id}`, `Popular on ${g.label}`, lib.filter((it) => g.re.test(genreText(it))).sort(byRating));
+  for (const g of genres) add(`lib:genre:${g.id}`, g.label, lib.filter((it) => g.re.test(genreText(it))).sort(byRating));
+  add('lib:classic', kind === 'movies' ? 'Classics' : 'Classic TV', lib.filter((it) => yearOf(it) > 1900 && yearOf(it) < 2000).sort(byRating));
+  add('lib:binge', kind === 'movies' ? 'More to Watch' : 'Binge-Worthy', lib.filter((it) => itemRating(it) >= 6.5 && yearOf(it) >= 2005).sort(byRating), 10);
+  return out;
+}
+
+async function libraryMatcher(kind: VodKind, english: VodCat[]): Promise<{ match: (t: WmTitle) => VodItem | undefined; lib: VodItem[] }> {
   // English copies only: titles from the provider's English categories, without a foreign language tag
   // ("FR - The Bear", "The Bear (VOSTFR)"), so a French or Spanish copy never stands in for the show.
   const englishCats = new Set(english.map((c) => c.key));
@@ -704,7 +740,7 @@ async function libraryMatcher(kind: VodKind, english: VodCat[]): Promise<(t: WmT
     const ok = cands.filter((c) => !t.year || !yearOf(c) || Math.abs(yearOf(c) - t.year) <= 1);
     return dedupe(ok)[0];
   };
-  return match;
+  return { match, lib };
 }
 
 // ---- Streaming services (Movies & Shows: "pick a service") ----
@@ -747,7 +783,7 @@ export async function loadServiceItems(kind: VodKind, id: string): Promise<VodIt
       const rows = await watchmodeRows(kind);
       const row = rows.find((r) => r.id === `svc:${svc.id}`);
       if (row) {
-        const match = await libraryMatcher(kind, english);
+        const { match } = await libraryMatcher(kind, english);
         out.push(...row.titles.map(match).filter((x): x is VodItem => !!x));
       }
     } catch (e) {
@@ -901,7 +937,7 @@ export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => 
   }
   onUpdate(build(true));
   try {
-    const [matchMovie, matchShow] = await Promise.all([libraryMatcher('movies', mEng), libraryMatcher('shows', sEng)]);
+    const [matchMovie, matchShow] = await Promise.all([libraryMatcher('movies', mEng).then((x) => x.match), libraryMatcher('shows', sEng).then((x) => x.match)]);
     match = (t: WmTitle) => (t.kind === 'movie' ? matchMovie(t) : t.kind === 'show' ? matchShow(t) : matchShow(t) ?? matchMovie(t));
   } catch {
     /* no library: titles show, nothing plays */
