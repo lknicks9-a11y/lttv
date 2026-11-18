@@ -84,9 +84,13 @@ async function boot() {
     else if (!signInSkipped()) setState({ signIn: true });
   }
   startSharing();
-  if (APP_MODE !== 'movies') void startLiveSports();
-  startUpdateChecks();
-  startVodDetection();
+  // League Pass / Blitz start with only what they need (faster): no live-sports alerts, update checks or movie
+  // library checks — LTTV and LTTV Home do those.
+  if (APP_MODE === 'lttv') void startLiveSports();
+  if (!isPassApp) {
+    startUpdateChecks();
+    startVodDetection();
+  }
   // Movies & Shows lives in its own app now: LTTV doesn't read the movie library in the background (that lagged
   // live TV); Movies & Shows gets its pages ready right away instead.
   if (APP_MODE === 'movies') prefetchVodHomes(1_500);

@@ -278,8 +278,7 @@ function PassApp() {
       {noProvider ? <NeedsLttv /> : <div class="lp-overlay"><LeaguePass key={passLeague} /></div>}
       {!ready && <div class="pass-loading"><span class="spinner" /></div>}
       {vodPlaying && <VodPlayer />}
-      <UpdatePrompt />
-      <Toasts />
+      {/* No update or "reading your playlist" messages here: League Pass / Blitz just show the games. */}
     </div>
   );
 }

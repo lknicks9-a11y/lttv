@@ -112,7 +112,9 @@ class HomeActivity : Activity() {
         root.addView(clock, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply { rightMargin = side; topMargin = (sh * 0.065f).toInt() })
 
         sidebar = buildSidebar()
-        root.addView(sidebar, FrameLayout.LayoutParams((sw * 0.29f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply { leftMargin = side; topMargin = (sh * 0.18f).toInt() })
+        // The menu scrolls, so Settings at the bottom can always be reached.
+        val menuScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = false; clipToPadding = false; setPadding(0, 0, 0, dp(24)); addView(sidebar) }
+        root.addView(menuScroll, FrameLayout.LayoutParams((sw * 0.29f).toInt(), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = side; topMargin = (sh * 0.17f).toInt() })
 
         val left = (sw * 0.43f).toInt()
         contentW = sw - left - side
@@ -220,7 +222,6 @@ class HomeActivity : Activity() {
             "Blitz" to { openLttv("app:blitz") },
             "Search" to { openLttv("search") },
             "Store" to { showStore() },
-            "Inputs" to { showInputs() },
             "All Apps" to { showAllApps() },
             "Settings" to { showSettings() },
         )
@@ -233,8 +234,8 @@ class HomeActivity : Activity() {
     }
 
     private fun menuItem(label: String, selected: Boolean, onClick: () -> Unit) = TextView(this).apply {
-        text = label; typeface = Fonts.medium; setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-        setPadding(dp(18), dp(9), dp(18), dp(9))
+        text = label; typeface = Fonts.medium; setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        setPadding(dp(18), dp(7), dp(18), dp(7))
         isFocusable = true; isClickable = true
         fun paint(f: Boolean) {
             background = when {
@@ -480,14 +481,19 @@ class HomeActivity : Activity() {
             setOnFocusChangeListener { v, f ->
                 v.background = cardBg(f)
                 v.foreground = if (f) GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setStroke(dp(4), Color.WHITE) } else null
+                ((v.parent as? ViewGroup)?.getChildAt(1))?.visibility = if (f) View.VISIBLE else View.INVISIBLE
                 Glass.lift(v, f)
             }
         }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-        col.addView(TextView(this).apply { text = "＋"; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f) })
-        col.addView(TextView(this).apply { text = "Store"; setTextColor(Color.parseColor("#C9D1DB")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f); setPadding(0, dp(4), 0, 0) })
-        card.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        col.addView(ImageView(this).apply { setImageResource(R.drawable.ic_store); setColorFilter(Color.WHITE) }, LinearLayout.LayoutParams(tileH * 34 / 100, tileH * 34 / 100).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        col.addView(TextView(this).apply {
+            text = "Store"; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = Fonts.bold
+            gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        card.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
         box.addView(card, LinearLayout.LayoutParams(tileW, tileH))
+        box.addView(tileLabel("Store"))
         return box
     }
 
@@ -681,6 +687,7 @@ class HomeActivity : Activity() {
             Setting("Choose apps on Home", "Pick which apps show in Your Apps", "☑") { closeSettings(); showChooseApps() },
             Setting("Update Center", "Check for LTTV Home updates · ${Updater.thisVersion(this)}", "⟳") { Updater.checkNow(this) },
             Setting("Store", "Your apps, Appstore apps, install from a link", "⬇") { closeSettings(); showStore() },
+            Setting("TV inputs", "HDMI and antenna (on Fire TV smart TVs)", "⎆") { closeSettings(); showInputs() },
             Setting("Reset Your Apps order", "Back to the default order", "↺") { prefs.edit().remove("order").apply(); toast("Order reset"); rebuildGrid() },
             Setting("Amazon Home", "Open the original home screen", "⌂") {
                 val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage("com.amazon.tv.launcher").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

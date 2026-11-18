@@ -25,19 +25,39 @@ export function startSharing(): void {
   setInterval(() => void shareToApps().catch(() => undefined), 60_000);
 }
 
-/** The other apps: take LTTV's provider when it's new or changed. True when something was imported. */
+/** A short fingerprint of some JSON (to tell whether LTTV's setup really changed). */
+function hash(v: unknown): string {
+  const t = JSON.stringify(v ?? null);
+  let h = 2166136261;
+  for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36) + ':' + t.length;
+}
+
+/**
+ * The other apps: take LTTV's provider when it really changed. True when your playlists / guides changed (they
+ * have to be read again); settings alone (the computer's address for League Pass photos and songs, colours…)
+ * are applied right away without reading anything again. LTTV re-sharing the same setup changes nothing.
+ */
 export async function pullFromLttv(): Promise<boolean> {
   if (APP_MODE === 'lttv' || !native?.sharedSetup) return false;
   let raw = '';
   try { raw = native.sharedSetup() || ''; } catch { return false; }
   if (!raw) return false;
-  const data = JSON.parse(raw) as { exportedAt?: string };
-  const stamp = String(data.exportedAt ?? '');
-  const prev = await repo.getKv<string>('lttvSharedAt');
+  const data = JSON.parse(raw) as { settings?: Record<string, unknown>; playlists?: { id: string; url?: string; enabled?: boolean }[]; epgSources?: { id: string; url?: string; enabled?: boolean }[]; exportedAt?: string };
+  const sources = hash([(data.playlists ?? []).map((p) => [p.id, p.url, p.enabled]), (data.epgSources ?? []).map((e) => [e.id, e.url, e.enabled])]);
+  const all = hash({ ...data, exportedAt: undefined });
+  const [prevAll, prevSources] = await Promise.all([repo.getKv<string>('lttvSharedHash'), repo.getKv<string>('lttvSharedSources')]);
   const have = (await repo.listPlaylists().catch(() => [])).length;
-  if (have > 0 && prev === stamp) return false;
+  if (have > 0 && prevAll === all) return false;
+  if (have > 0 && prevSources === sources) {
+    // Same provider: only settings / customisations changed — apply them, read nothing again.
+    if (data.settings) await repo.saveSettings({ ...(await repo.getSettings()), ...data.settings } as Awaited<ReturnType<typeof repo.getSettings>>);
+    await repo.setKv('lttvSharedHash', all);
+    return false;
+  }
   await repo.importSettings(data);
-  await repo.setKv('lttvSharedAt', stamp);
+  await repo.setKv('lttvSharedHash', all);
+  await repo.setKv('lttvSharedSources', sources);
   return true;
 }
 
