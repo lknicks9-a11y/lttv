@@ -198,8 +198,10 @@ const serviceJobs = new Map<string, Promise<WmServiceRow[]>>();
 export async function serviceRows(label: string, onRow?: (rows: WmServiceRow[]) => void): Promise<WmServiceRow[]> {
   const key = watchmodeKey();
   if (!key) return [];
+  // 'all': every service at once (Movies & Shows' one home); otherwise one service.
+  const all = label === 'all';
   const svc = SERVICES.find((x) => x.label === label);
-  if (!svc) return [];
+  if (!svc && !all) return [];
   const cacheKey = `watchmode:svc2:${label}`;
   const hit = await repo.getKv<{ at: number; key: string; rows: WmServiceRow[] }>(cacheKey).catch(() => undefined);
   const fresh = hit && hit.key === key.slice(-6) && hit.rows.length;
@@ -209,17 +211,18 @@ export async function serviceRows(label: string, onRow?: (rows: WmServiceRow[]) 
   const job = (async () => {
     const sources = await cached<Named[]>('watchmode:sources', META_TTL, async () => (await call('/sources/?regions=US&types=sub')) as Named[]);
     const genres = await cached<Named[]>('watchmode:genres', META_TTL, async () => (await call('/genres/')) as Named[]);
-    const ids = sources.filter((x) => svc.re.test(x.name)).map((x) => x.id);
+    const ids = all ? sources.map((x) => x.id) : sources.filter((x) => svc!.re.test(x.name)).map((x) => x.id);
     if (!ids.length) return [];
-    const src = `&source_ids=${ids.join(',')}`;
+    const src = all ? '&source_types=sub' : `&source_ids=${ids.join(',')}`;
+    const on = all ? 'in the US' : `on ${label}`;
     const since = new Date(Date.now() - 120 * 86400_000);
     const ymd = `${since.getFullYear()}${String(since.getMonth() + 1).padStart(2, '0')}${String(since.getDate()).padStart(2, '0')}`;
     const both = 'movie,tv_series,tv_miniseries';
     const plan: { id: string; title: string; types: string; extra: string; ranked?: boolean }[] = [
-      { id: 'top-shows', title: `Top 10 Shows on ${label} Today`, types: 'tv_series,tv_miniseries', extra: src, ranked: true },
-      { id: 'popular', title: `Popular on ${label}`, types: both, extra: src },
-      { id: 'new', title: `New on ${label}`, types: both, extra: `${src}&release_date_start=${ymd}` },
-      { id: 'top-movies', title: `Top 10 Movies on ${label} Today`, types: 'movie', extra: src, ranked: true },
+      { id: 'top-shows', title: `Top 10 Shows ${on} Today`, types: 'tv_series,tv_miniseries', extra: src, ranked: true },
+      { id: 'popular', title: all ? 'Popular Right Now' : `Popular on ${label}`, types: both, extra: src },
+      { id: 'new', title: all ? 'New Releases' : `New on ${label}`, types: both, extra: `${src}&release_date_start=${ymd}` },
+      { id: 'top-movies', title: `Top 10 Movies ${on} Today`, types: 'movie', extra: src, ranked: true },
     ];
     for (const g of GENRES.filter((x) => SERVICE_GENRES.includes(x.label))) {
       const gids = genres.filter((x) => g.re.test(x.name)).map((x) => x.id);

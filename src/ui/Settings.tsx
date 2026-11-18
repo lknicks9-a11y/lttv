@@ -117,7 +117,7 @@ export function SettingsScreen() {
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
-          <Choice label="Theme" value={s.theme} options={[{ value: 'skyglass', label: 'Sky Glass (YouTube TV layout)' }, { value: 'glass', label: 'Glass (LTTV look)' }, { value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'autosix', label: 'AutoSix (neon Miami sunset)' }, { value: 'autumn', label: 'Autumn (fall road photo)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }, ...(s.theme.startsWith('nba-') ? [{ value: s.theme, label: 'NBA city theme' }] : [])]} onChange={(v) => set({ theme: v })} />
+          <Choice label="Theme" value={s.theme} options={[{ value: 'glass', label: 'Glass (LTTV look)' }, { value: 'a7', label: 'A7 (cosmic glow)' }, { value: 'autosix', label: 'AutoSix (neon Miami sunset)' }, { value: 'autumn', label: 'Autumn (fall road photo)' }, { value: 'luxury', label: 'Luxury (black & gold)' }, { value: 'aero', label: 'Aero (glass)' }, { value: 'dark', label: 'Dark' }, { value: 'darker', label: 'Black (OLED)' }, { value: 'contrast', label: 'High contrast' }, ...(s.theme.startsWith('nba-') ? [{ value: s.theme, label: 'NBA city theme' }] : [])]} onChange={(v) => set({ theme: v })} />
         </div>
 
         <PhoneRemoteSettings />

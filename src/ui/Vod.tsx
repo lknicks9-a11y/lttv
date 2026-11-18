@@ -3,7 +3,7 @@
 import { h, Fragment, type ComponentChildren } from 'preact';
 import { CastRow } from './VodPeople';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { player, setState, toast, useApp } from '../app/state';
+import { navigate, player, setState, toast, useApp } from '../app/state';
 import { isTV, native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
@@ -20,7 +20,7 @@ import { isForeignScript } from '../core/lang';
 import { updateSettings } from '../app/state';
 import { usePlayerStatus, PlayerBadge } from './Home';
 import { APP_MODE } from '../app/appmode';
-import { STREAMING_SERVICES, loadServiceHome, type ServiceHome, type StreamingService, type SvcItem } from '../app/vod';
+import { ALL_SERVICES, STREAMING_SERVICES, loadServiceHome, type ServiceHome, type StreamingService, type SvcItem } from '../app/vod';
 import { tmdbKey, useTmdb } from '../app/tmdb';
 import { currentProfile } from '../app/profiles';
 
@@ -87,15 +87,12 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   const [home, setHome] = useState<VodHome | null>(null);
   const [homeErr, setHomeErr] = useState('');
   const cont = continueList(useContinueWatching()).filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
-  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat } | { mode: 'service'; svc: StreamingService } | { mode: 'services' }>(() => {
-    // Movies & Shows opens on the service you picked last time, or on the services page.
-    let last = '';
-    try { last = localStorage.getItem('lttvService') ?? ''; } catch { /* storage off */ }
-    const svc = APP_MODE === 'movies' ? STREAMING_SERVICES.find((x) => x.id === last) : undefined;
-    return svc ? { mode: 'service', svc } : APP_MODE === 'movies' ? { mode: 'services' } : { mode: 'home' };
-  });
+  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat } | { mode: 'service'; svc: StreamingService } | { mode: 'services' } | { mode: 'all' }>(() => (
+    // Movies & Shows is one app, Netflix-style: everything from every service on one home.
+    APP_MODE === 'movies' ? { mode: 'all' } : { mode: 'home' }
+  ));
   // Service pages and the services page cover the whole screen (no LTTV menu over them).
-  const fullPage = view.mode === 'service' || view.mode === 'services';
+  const fullPage = view.mode === 'service' || view.mode === 'services' || view.mode === 'all';
   useLayoutEffect(() => {
     document.documentElement.classList.toggle('svc-open', fullPage);
     return () => document.documentElement.classList.remove('svc-open');
@@ -127,9 +124,9 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       return onBack(() => {
         const a = document.activeElement;
         if (!rootRef.current?.contains(a)) return false;
-        // Movies & Shows: Back from "Everything" goes to the services page.
+        // Movies & Shows: Back from the plain list goes to its home.
         if (APP_MODE === 'movies') {
-          setView({ mode: 'services' });
+          setView({ mode: 'all' });
           return true;
         }
         const item = document.querySelector<HTMLElement>('.topbar .tab.active') ?? document.querySelector<HTMLElement>('.topbar .tab');
@@ -138,11 +135,10 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       });
     }
     return onBack(() => {
-      // Movies & Shows: Back from a service goes to the services page; Back there leaves the app as usual.
-      if (APP_MODE === 'movies' && view.mode === 'services') return false;
-      if (APP_MODE === 'movies' && view.mode === 'service') {
-        try { localStorage.removeItem('lttvService'); } catch { /* storage off */ }
-        setView({ mode: 'services' });
+      // Movies & Shows: Back on its home leaves the app; from search or a category it goes back home.
+      if (APP_MODE === 'movies' && view.mode === 'all') return false;
+      if (APP_MODE === 'movies') {
+        setView({ mode: 'all' });
         return true;
       }
       setView({ mode: 'home' });
@@ -157,7 +153,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       if (svc) localStorage.setItem('lttvService', svc.id);
       else localStorage.removeItem('lttvService');
     } catch { /* storage off */ }
-    setView(svc ? { mode: 'service', svc } : APP_MODE === 'movies' ? { mode: 'services' } : { mode: 'home' });
+    setView(svc ? { mode: 'service', svc } : APP_MODE === 'movies' ? { mode: 'all' } : { mode: 'home' });
   };
   // Rows arrive after the screen opens: put focus on the first poster once (unless the viewer moved elsewhere).
   const hasRows = !!home?.rows.length || cont.length > 0;
@@ -185,11 +181,12 @@ export function VodScreen({ kind }: { kind: VodKind }) {
           <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
         ) : view.mode === 'service' ? (
           <ServicePage key={view.svc.id} svc={view.svc} onOpen={setOpen} onPick={pickService} onSearch={() => setView({ mode: 'search' })} />
+        ) : view.mode === 'all' ? (
+          <ServicePage key="all" svc={ALL_SERVICES} onOpen={setOpen} onPick={() => setView({ mode: 'home' })} onSearch={() => setView({ mode: 'search' })} />
         ) : view.mode === 'services' ? (
           <ServicesPage kind={kind} onPick={pickService} onAll={() => setView({ mode: 'home' })} />
         ) : (
           <>
-            <ServiceRow kind={kind} onPick={pickService} />
             {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 10)} top={home.rows[0].id === 'trending' || home.rows[0].id === 'popular'} onOpen={setOpen} />}
             {cont.length > 0 && (
               <section class="vod-row">
@@ -458,7 +455,7 @@ function useSvcArt(it: SvcItem, enabled = true) {
  * the others open their details.
  */
 function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void; onSearch: () => void }) {
-  const st = SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
+  const st = svc.id === 'all' ? SVC_STYLE.Netflix : SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
   const [home, setHome] = useState<ServiceHome | null>(null);
   const [err, setErr] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -491,7 +488,7 @@ function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService;
   }, [featured.length]);
   const current = (st.follow && heroIt) || featured[pick % Math.max(1, Math.min(8, featured.length))];
   const p = svc.page;
-  const slug = svc.id.toLowerCase().replace(/[^a-z]+/g, '');
+  const slug = svc.id === 'all' ? 'netflix' : svc.id.toLowerCase().replace(/[^a-z]+/g, '');
   const open = (it: SvcItem) => (it.match ? onOpen(it.match) : setInfo(it));
   const onCard = (it: SvcItem) => st.follow && setHeroIt(it);
   const nav = <SvcNav svc={svc} st={st} filter={filter} onFilter={(f) => { setFilter(f); setShown(3); setHeroIt(null); }} onSearch={onSearch} onServices={() => onPick(null)} />;
@@ -515,7 +512,7 @@ function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService;
         {(!home || home.loading) && !err && <div class="muted row gap vod-loading"><span class="spinner" /> Loading {svc.label}…</div>}
         {err && <p class="error-text">Couldn’t load {svc.label}: {err}</p>}
         {home && !home.loading && !rows.length && (
-          <Empty icon="search" title={home.noKey ? `Add a Watchmode key to see ${svc.label}` : `Nothing from ${svc.label} right now`}>
+          <Empty icon="search" title={svc.id === 'all' ? 'Nothing to show yet' : home.noKey ? `Add a Watchmode key to see ${svc.label}` : `Nothing from ${svc.label} right now`}>
             <p>{home.noKey ? 'With your free Watchmode key (Settings → Movies & Shows), every movie and show on each service shows here.' : 'Watchmode didn’t list anything for this service. Try again later.'}</p>
           </Empty>
         )}
@@ -534,7 +531,7 @@ function SvcInfo({ it, svc, onClose, onSearch }: { it: SvcItem; svc: StreamingSe
       {art.backdrop && <div class="svcx-info-img" style={{ backgroundImage: `url("${pic(art.backdrop, 'backdrop')}")` }} />}
       <div class="muted">{[it.kind === 'movie' ? 'Movie' : 'Series', art.year, art.genre, art.rating ? `★ ${art.rating.toFixed(1)}` : ''].filter(Boolean).join(' · ')}</div>
       {art.plot && <p>{art.plot}</p>}
-      <p class="svcx-info-note">On {svc.label}, but your provider doesn’t have it right now.</p>
+      <p class="svcx-info-note">{svc.id === 'all' ? 'Your provider doesn’t have it right now.' : `On ${svc.label}, but your provider doesn’t have it right now.`}</p>
       <div class="row gap modal-actions">
         <Button variant="primary" icon="search" data-autofocus onClick={() => { onClose(); onSearch(); }}>Search your provider</Button>
         <Button variant="ghost" onClick={onClose}>Close</Button>
@@ -552,9 +549,9 @@ function SvcNav({ svc, st, filter, onFilter, onSearch, onServices }: { svc: Stre
     { id: 'all', label: st.home ?? 'Home', icon: 'home' },
     { id: 'shows', label: svc.id === 'Netflix' ? 'Shows' : 'TV Shows', icon: 'shows' },
     { id: 'movies', label: 'Movies', icon: 'movie' },
-    { id: 'services', label: 'Services', icon: 'grid' },
+    svc.id === 'all' ? { id: 'services', label: 'Settings', icon: 'settings' } : { id: 'services', label: 'Services', icon: 'grid' },
   ];
-  const act = (id: (typeof items)[number]['id']) => (id === 'search' ? onSearch() : id === 'services' ? onServices() : onFilter(id));
+  const act = (id: (typeof items)[number]['id']) => (id === 'search' ? onSearch() : id === 'services' ? (svc.id === 'all' ? navigate('settings') : onServices()) : onFilter(id));
   if (st.nav === 'rail') {
     return (
       <nav class="svcx-rail" data-group="svc-nav" data-zone="v">
@@ -626,7 +623,7 @@ function SvcHero({ svc, st, it, onOpen, dots, dot }: { svc: StreamingService; st
       <div class="svcx-hero-shade" />
       <div class="svcx-hero-text">
         {st.eyebrow && <div class="svcx-eyebrow">{st.eyebrow}</div>}
-        {!st.eyebrow && st.buttons !== 'apple' && <div class="svcx-label">{svc.label.toUpperCase()} {it.kind === 'movie' ? 'MOVIE' : 'SERIES'}</div>}
+        {!st.eyebrow && st.buttons !== 'apple' && <div class="svcx-label">{svc.id === 'all' ? '' : `${svc.label.toUpperCase()} `}{it.kind === 'movie' ? 'MOVIE' : 'SERIES'}</div>}
         <h1 class={`svcx-title ${st.upper ? 'is-upper' : ''} ${st.serif ? 'is-serif' : ''} ${it.title.length > 22 ? 'is-long' : ''}`}>{it.title}</h1>
         {st.buttons === 'peacock' && art.rating ? <div class="svcx-chip">★ {art.rating.toFixed(1)}</div> : null}
         {meta && <div class="svcx-meta">{meta}</div>}
@@ -698,34 +695,6 @@ function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big }: { it: SvcIte
       </button>
       {st.subtitles && <div class="svcx-sub"><b>{it.title}</b><span>{[it.kind === 'movie' ? 'Movie' : 'Series', art.year].filter(Boolean).join(' · ')}</span></div>}
     </div>
-  );
-}
-
-/** The streaming services: pick one to see its movies or shows from your provider. */
-function ServiceRow({ kind, sel, onPick }: { kind: VodKind; sel?: string; onPick: (s: StreamingService | null) => void }) {
-  return (
-    <section class="vod-row vod-services">
-      <h2 class="vod-row-title">{sel ? 'Streaming service' : `Pick a streaming service`}</h2>
-      <div class="vod-strip vod-svc-strip" data-group="vod-row-services" data-hlock>
-        {sel && (
-          <button type="button" class="f vod-svc vod-svc-all" onClick={() => onPick(null)}>
-            <span>All {kind === 'movies' ? 'movies' : 'shows'}</span>
-          </button>
-        )}
-        {STREAMING_SERVICES.map((x) => (
-          <button
-            type="button"
-            key={x.id}
-            class={`f vod-svc ${sel === x.id ? 'is-on' : ''}`}
-            data-autofocus={sel === x.id ? '' : undefined}
-            style={{ '--svc-bg': x.bg, '--svc-fg': x.fg } as Record<string, string>}
-            onClick={() => onPick(x)}
-          >
-            <span>{x.label}</span>
-          </button>
-        ))}
-      </div>
-    </section>
   );
 }
 

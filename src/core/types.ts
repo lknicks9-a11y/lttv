@@ -269,7 +269,7 @@ export const DEFAULT_SETTINGS: Settings = {
   epgKeepPastHours: 3,
   fuzzyAutoApprove: 0,
   accent: '#4cc2ff',
-  theme: 'skyglass',
+  theme: 'glass',
   startupScreen: 'home',
   autoplayLastChannel: false,
   playbackRetries: 3,

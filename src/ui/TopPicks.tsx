@@ -22,9 +22,6 @@ const CHIPS: { id: 'all' | CategoryId; label: string }[] = [
   { id: 'lifestyle', label: 'Lifestyle' },
   { id: 'music', label: 'Music' },
 ];
-// A colour per channel for tiles without a picture (the same channel always gets the same one).
-const TINTS = [['#C8102E', '#5A0614'], ['#1D4ED8', '#0B1F5C'], ['#F58426', '#7A3A08'], ['#0F766E', '#063A35'], ['#7C3AED', '#2E1065'], ['#0EA5E9', '#0C4A6E'], ['#DC2626', '#450A0A'], ['#16A34A', '#052E16']];
-const tint = (k: string) => TINTS[[...k].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % TINTS.length];
 
 interface Pick {
   ch: LineupChannel;
@@ -117,7 +114,6 @@ const watch = (ch: LineupChannel) => {
 /** A live card: the programme's picture (or the channel's logo on its colour), LIVE, progress, then channel · time, title, episode. */
 function LiveCard({ pick, now, big, autofocus }: { pick: Pick; now: number; big?: boolean; autofocus?: boolean }) {
   const { ch, p } = pick;
-  const [c1, c2] = tint(ch.key);
   const [imgOk, setImgOk] = useState(true);
   return (
     <div class={`ytt-card-wrap ${big ? 'is-big' : ''}`}>
@@ -125,7 +121,6 @@ function LiveCard({ pick, now, big, autofocus }: { pick: Pick; now: number; big?
         type="button"
         class="f ytt-card"
         data-autofocus={autofocus ? '' : undefined}
-        style={{ '--c1': c1, '--c2': c2 } as Record<string, string>}
         onClick={() => watch(ch)}
         onContextMenu={(e) => { e.preventDefault(); if (p) setState({ detail: { channelKey: ch.key, programme: p } }); }}
         aria-label={`${p?.title ?? ch.name} on ${ch.name}`}
@@ -143,9 +138,8 @@ function LiveCard({ pick, now, big, autofocus }: { pick: Pick; now: number; big?
 }
 
 function ChannelTile({ ch }: { ch: LineupChannel }) {
-  const [c1, c2] = tint(ch.key);
   return (
-    <button type="button" class="f ytt-ch" style={{ '--c1': c1, '--c2': c2 } as Record<string, string>} onClick={() => watch(ch)} aria-label={ch.name}>
+    <button type="button" class="f ytt-ch" onClick={() => watch(ch)} aria-label={ch.name}>
       <ChannelLogo ch={ch} src={ch.logo} name={ch.name} size="lg" />
       <span class="ytt-gloss" />
     </button>

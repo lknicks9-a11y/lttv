@@ -790,13 +790,35 @@ const fromVod = (it: VodItem): SvcItem => ({ title: cleanTitle(itemName(it)) || 
  * Top 10, Popular, New and genres — each title marked with your provider's copy when it has one (so it plays).
  * Without a Watchmode key, your provider's own categories for the service are shown instead.
  */
+/** Movies & Shows' one home: everything, from every service (Netflix-style). */
+export const ALL_SERVICES: StreamingService = {
+  id: 'all', label: 'Movies & Shows', bg: '#141414', fg: '#e50914', cat: /$^/,
+  page: { top: '#141414', bottom: '#0b0b0b', accent: '#e50914', cards: 'wide', nav: 'top', hero: 'billboard' },
+};
+
 export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => void): Promise<ServiceHome> {
-  const svc = STREAMING_SERVICES.find((x) => x.id === id);
+  const svc = id === 'all' ? ALL_SERVICES : STREAMING_SERVICES.find((x) => x.id === id);
   if (!svc) return { rows: [], loading: false, noKey: !watchmodeKey() };
   const noKey = !watchmodeKey();
   const [mCats, sCats] = await Promise.all([loadCategories('movies').catch(() => [] as VodCat[]), loadCategories('shows').catch(() => [] as VodCat[])]);
   const mEng = mCats.filter((c) => isEnglishCategory(c.name));
   const sEng = sCats.filter((c) => isEnglishCategory(c.name));
+  if (noKey && id === 'all') {
+    // No Watchmode key: the regular Movies and Shows home rows (US charts, your provider's titles), together.
+    const rows: ServiceRowOut[] = [];
+    const add = (h: VodHome, kind: string) => {
+      for (const r of h.rows) rows.push({ id: `${kind}:${r.id}`, title: r.title, items: r.items.slice(0, SVC_ROW_MAX).map(fromVod), ranked: r.id === 'trending' || r.id === 'popular' ? true : undefined });
+    };
+    const [m, sh] = await Promise.all([loadHome('movies', () => undefined).catch(() => null), loadHome('shows', () => undefined).catch(() => null)]);
+    if (sh) add(sh, 'shows');
+    if (m) add(m, 'movies');
+    // Top 10s first, then the rest alternating shows / movies.
+    rows.sort((a, b) => Number(!!b.ranked) - Number(!!a.ranked));
+    for (const r of rows) if (r.ranked) r.items = r.items.slice(0, 10);
+    const h = { rows, loading: false, noKey };
+    onUpdate(h);
+    return h;
+  }
   if (noKey) {
     const own = [...sEng.filter((c) => svc.cat.test(c.name)).map((c) => ['shows', c] as const), ...mEng.filter((c) => svc.cat.test(c.name)).map((c) => ['movies', c] as const)].slice(0, 10);
     const lists = await Promise.all(own.map(([k, c]) => catItems(k, c).catch(() => [] as VodItem[])));
@@ -832,7 +854,7 @@ export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => 
   };
   let last = 0;
   try {
-    wm = await serviceRows(svc.id, (partial) => {
+    wm = await serviceRows(id === 'all' ? 'all' : svc.id, (partial) => {
       wm = partial;
       if (Date.now() - last < 900) return;
       last = Date.now();

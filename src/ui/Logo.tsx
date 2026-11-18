@@ -8,8 +8,8 @@ let gid = 0;
  * aurora hill, a glass highlight across the top, a white "LT" and a bubble on-air dot.
  */
 export function LogoMark({ size = '3rem', class: cls }: { size?: string; class?: string }) {
-  // Sky Glass and the other LTTV apps: the app's own logo (a TV, a clapperboard, a basketball, a football).
-  if (APP_MODE !== 'lttv' || document.documentElement.dataset.theme === 'skyglass') {
+  // The other LTTV apps: the app's own logo (a clapperboard, a basketball, a football).
+  if (APP_MODE !== 'lttv') {
     return <img class={'logo-mark logo-app ' + (cls ?? '')} src={`apps/${APP_MODE}.png`} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: '24%' }} />;
   }
   return (
