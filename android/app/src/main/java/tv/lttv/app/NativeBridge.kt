@@ -189,6 +189,17 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun localTimeoutFiles(): String = MediaServer.listJson(activity)
 
+    /** League Pass / Blitz: removes what was added from a phone ("audio", "images" or "all"). */
+    @JavascriptInterface
+    fun clearLocalTimeout(kind: String): Boolean {
+        val song = Regex("""\.(mp3|m4a|aac|wav|ogg|flac)$""", RegexOption.IGNORE_CASE)
+        MediaServer.dir(activity).listFiles()?.forEach {
+            val isSong = song.containsMatchIn(it.name)
+            if (kind == "all" || (kind == "audio" && isSong) || (kind == "images" && !isSong)) it.delete()
+        }
+        return true
+    }
+
     /** Which shared timeout files LTTV already kept (name -> size), so only new ones are sent. */
     @JavascriptInterface
     fun sharedFileSizes(): String {

@@ -16,7 +16,6 @@ import { native, isNative } from '../app/platform';
 import { Button, Icon, Modal } from './common';
 import { LogoMark, Wordmark } from './Logo';
 import { clock } from './fmt';
-const TopPicksScreen = lazy(() => import('./TopPicks').then((m) => m.TopPicksScreen));
 const GuideScreen = lazy(() => import('./Guide').then((m) => m.GuideScreen));
 const ChannelsScreen = lazy(() => import('./Channels').then((m) => m.ChannelsScreen));
 const ChannelMenu = lazy(() => import('./Channels').then((m) => m.ChannelMenu));
@@ -42,7 +41,6 @@ import { needsProfilePick, onProfilesChanged } from '../app/profiles';
 
 // Like YouTube TV: Home · Live · Sports · Channels in the middle; search and settings as round buttons on the right.
 const NAV: { id: Screen; label: string; icon: string }[] = [
-  { id: 'home', label: 'Home', icon: 'home' },
   { id: 'guide', label: 'Live', icon: 'guide' },
   { id: 'sports', label: 'Sports', icon: 'sports' },
   { id: 'movies', label: 'Movies', icon: 'movie' },
@@ -66,7 +64,7 @@ function TopBar() {
     if (n.id === 'movies' || n.id === 'shows') return n.id === 'movies' ? vod.movies : vod.shows;
     return true;
   });
-  const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen;
+  const active = screen === 'home' ? 'guide' : screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen;
   // Movies & Shows keeps its own menu (Movies, Shows, Search, Settings) in the middle.
   const middle = APP_MODE === 'movies' ? items : items.filter((n) => !ROUND.includes(n.id));
   const round = APP_MODE === 'movies' ? [] : items.filter((n) => ROUND.includes(n.id));
@@ -249,7 +247,7 @@ function Screens() {
   }, [screen]);
   return (
     <main class="content" ref={ref} data-group="content" data-zone>
-      {screen === 'home' && (APP_MODE === 'lttv' ? <TopPicksScreen /> : <GuideScreen />)}
+      {screen === 'home' && <GuideScreen />}
       {screen === 'guide' && <GuideScreen />}
       {screen === 'sports' && <ScreenGuard screen={screen}><SportsScreen /></ScreenGuard>}
       {screen === 'movies' && <ScreenGuard screen={screen}><VodScreen kind="movies" /></ScreenGuard>}

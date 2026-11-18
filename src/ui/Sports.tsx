@@ -15,7 +15,7 @@ import { liveLeague } from '../core/livestats';
 import { mvName, openMultiview } from '../app/multiview';
 import { fallbackTeamLogo } from '../core/schedule';
 import { logoFor, leagueLogo, useLeagueSummaries, useLeagueTeams, useLiveGames } from '../app/schedule';
-import { SCHEDULE_LEAGUES, proTeamLogo, scheduleDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
+import { SCHEDULE_LEAGUES, proTeamLogo, sportsDay, scheduleLeague, type ScheduleLeagueId } from '../core/schedule';
 
 export function TeamBadge({ team, size = 'md' }: { team: Team; size?: 'sm' | 'md' | 'lg' }) {
   // Try every known address for the logo before falling back to the coloured badge.
@@ -202,10 +202,9 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
 
 /** League cards with today's game count and live badge (My Teams first unless left out). */
 export function LeagueGrid({ onPick, teams: withTeams = true }: { onPick: (v: SportsView) => void; teams?: boolean }) {
-  const tz = useApp((s) => s.settings.timeZone);
   const now = useApp((s) => s.now);
   const teams = useFavoriteTeams();
-  const sums = useLeagueSummaries(scheduleDay(now, tz));
+  const sums = useLeagueSummaries(sportsDay(now));
   return (
     <div class="league-grid" data-group="leagues">
       {withTeams && (

@@ -56,6 +56,7 @@ export interface NativeBridge {
   startMediaServer?(): string;
   stopMediaServer?(): void;
   localTimeoutFiles?(): string;
+  clearLocalTimeout?(kind: string): boolean;
 }
 
 declare global {

@@ -390,6 +390,13 @@ export function feedSide(text: string, game: Game, sport: ScheduleLeague['sport'
   return undefined;
 }
 
+/**
+ * The sports day: it turns over at 3:00 AM Eastern, not midnight, so late games stay on "today" until then.
+ */
+export function sportsDay(ts: number): string {
+  return scheduleDay(ts - 3 * 3600_000, 'America/New_York');
+}
+
 /** Day key for the scoreboard ("20261015") in a time zone. */
 export function scheduleDay(ts: number, timeZone?: string): string {
   const p = new Intl.DateTimeFormat('en-CA', { timeZone: timeZone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ts));

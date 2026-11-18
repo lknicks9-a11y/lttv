@@ -40,6 +40,13 @@ export function PassSettings({ onClose }: { onClose: () => void }) {
       <h3>Photos &amp; songs for the timeout screen</h3>
       <p class="muted">They show and play when no game is on. Add them from your phone or computer on the same Wi-Fi; they're kept on this TV.</p>
       <p><b>{counts.images}</b> photos and <b>{counts.audio}</b> songs added from your phone.</p>
+      <p class="muted">Songs come from your computer’s “timeout” folder when it’s on (exactly the songs in it); songs from your phone are only used when there are none there.</p>
+      {(counts.audio > 0 || counts.images > 0) && (
+        <div class="row gap">
+          {counts.audio > 0 && <Button small icon="close" onClick={() => { native?.clearLocalTimeout?.('audio'); count(); lookAgain(); }}>Remove phone songs</Button>}
+          {counts.images > 0 && <Button small icon="close" onClick={() => { native?.clearLocalTimeout?.('images'); count(); lookAgain(); }}>Remove phone photos</Button>}
+        </div>
+      )}
       {addr ? (
         <div class="row gap pass-qr">
           {qr && <svg viewBox={`0 0 ${qr.size} ${qr.size}`} width="180" height="180" style={{ background: '#fff', padding: '8px', borderRadius: '10px' }}><path d={qr.d} fill="#000" /></svg>}

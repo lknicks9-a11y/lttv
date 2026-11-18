@@ -2403,3 +2403,10 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 .pass-settings h3 { margin: 1.2rem 0 .3rem; }
 .pass-qr { align-items: center; gap: 1.6rem; margin: .8rem 0; }
 .pass-addr { font-size: 1.5rem; font-weight: 800; color: #ff8a1f; word-break: break-all; }
+
+/* Sports: moving down (or up) scrolls far enough that the focus ring and glow stay fully on screen,
+   instead of the row sitting flush against the edge with its border cut off. */
+.sports .f, .watch-game .f, .team-picker .f { scroll-margin: 1.6rem 1.2rem; }
+.sports .games { padding: 0.8rem 0.6rem 1.2rem; }
+.sports { padding-bottom: 2.4rem; scroll-padding: 1.2rem; }
+:root.tv .sports .game-row, :root.tv .sports .league-card { contain: layout style; }

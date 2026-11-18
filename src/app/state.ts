@@ -116,7 +116,8 @@ let state: AppState = {
   guideVersion: 0,
   recents: [],
   now: Date.now(),
-  screen: 'home',
+  // LTTV opens on Live (there's no separate Home tab).
+  screen: 'guide',
   screenStack: [],
   fullscreen: false,
   toasts: [],
@@ -215,8 +216,8 @@ export function screenBack(): boolean {
     return true;
   }
   if (!s.screenStack.length) {
-    if (s.screen !== 'home') {
-      setState({ screen: 'home' });
+    if (s.screen !== 'guide') {
+      setState({ screen: 'guide' });
       return true;
     }
     return false;

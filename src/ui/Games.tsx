@@ -2,7 +2,7 @@ import { h, Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { useGames, logoFor } from '../app/schedule';
-import { scheduleDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
+import { sportsDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
 import { buildGameIndexAsync, broadcastSummary, bestStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
 import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
@@ -47,7 +47,6 @@ function TeamLine({ t, g }: { t: GameTeam; g: Game }) {
 export type StreamPickHandler = (key: string, game: Game) => void;
 
 export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; onPick?: StreamPickHandler }) {
-  const tz = useApp((s) => s.settings.timeZone);
   // Minute resolution: the list doesn't need to redraw on every 15-second clock tick.
   const now = useApp((s) => Math.floor(s.now / 60_000) * 60_000);
   const lineup = useApp((s) => s.lineup);
@@ -55,8 +54,9 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   const guideVersion = useApp((s) => s.guideVersion);
   const [offset, setOffset] = useState(0);
   const [open, setOpen] = useState<Game | null>(null);
-  const today = scheduleDay(now, tz);
-  const day = scheduleDay(dayOffset(now, offset), tz);
+  // The sports day changes at 3:00 AM Eastern.
+  const today = sportsDay(now);
+  const day = sportsDay(dayOffset(now, offset));
   const league = scheduleLeague(leagueId)!;
   // College: one conference (or the Top 25) instead of every game in the country.
   const [conf, setConf] = useState<string | undefined>(undefined);

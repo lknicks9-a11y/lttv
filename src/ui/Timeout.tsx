@@ -54,15 +54,8 @@ async function loadOnTv(): Promise<TimeoutMedia> {
   // League Pass / Blitz (their own apps): photos and songs added from your phone (secret settings), plus the copy
   // LTTV keeps on this TV — no computer needed. The computer is only used when neither has anything.
   if (APP_MODE !== 'lttv') {
-    const local = fromPhone();
-    const shared = await fromLttv();
-    if (local || shared) {
-      const a = local ?? { images: [], names: [], audio: [], firstSongs: 0 };
-      const b = shared ?? { images: [], names: [], audio: [], firstSongs: 0 };
-      const songs = [...a.audio, ...b.audio];
-      lastTvStatus = `${a.images.length + b.images.length} pictures and ${songs.length} songs (${a.images.length + a.audio.length} from your phone, ${b.images.length + b.audio.length} from LTTV).`;
-      return { images: [...a.images, ...b.images], names: [...a.names, ...b.names], audio: songs, firstSongs: (a.firstSongs ?? 0) + (b.firstSongs ?? 0) };
-    }
+    const got = await passMedia();
+    if (got) return got;
   }
   const base = (getState().settings.timeoutMedia ?? '').trim().replace(/\/+$/, '');
   let list: Listing | null = null;
@@ -207,31 +200,70 @@ async function shareNow(list: Listing, names: string[], blobOf: (n: string) => P
   shareStatus = `Shared ${kept.images.length} pictures and ${kept.audio.length} songs with League Pass and Blitz${sent ? ` (${sent} new)` : ''}.`;
 }
 
-/** League Pass / Blitz: photos and songs added from a phone (kept in this app). */
-function fromPhone(): TimeoutMedia | null {
+/**
+ * League Pass / Blitz: what to show and play. Your "timeout" folder on the computer is the list that counts —
+ * when the computer answers, exactly its songs play (from LTTV's copy on this TV, else straight from the computer),
+ * so songs you removed from the folder are gone here too. Without the computer: LTTV's copy, and the songs from
+ * your phone only if LTTV has none. Each file counts once, wherever it came from.
+ */
+async function passMedia(): Promise<TimeoutMedia | null> {
+  const phone = fromPhoneList();
+  const shared = await fromLttvList();
+  const base = (getState().settings.timeoutMedia ?? '').trim().replace(/\/+$/, '');
+  let folder: Listing | null = null;
+  if (/^https?:\/\//.test(base)) {
+    try {
+      const { stream } = await openRemote(`${base}/timeout.json`, AbortSignal.timeout?.(4000));
+      const j = JSON.parse(await new Response(stream).text()) as Partial<Listing>;
+      folder = { images: j.images ?? [], audio: j.audio ?? [] };
+    } catch {
+      folder = null;
+    }
+  }
+  const k = (n: string) => n.trim().toLowerCase();
+  const sharedHas = new Set([...(shared?.images ?? []), ...(shared?.audio ?? [])].map(k));
+  const phoneHas = new Set([...(phone?.images ?? []), ...(phone?.audio ?? [])].map(k));
+  const sharedUrl = (n: string) => `/lttv-shared/${encodeURIComponent(sharedName(n)).replace('%2F', '/')}`;
+  const phoneUrl = (n: string) => `/lttv-local/${encodeURIComponent(n)}`;
+  const urlOf = (n: string) => (sharedHas.has(k(n)) ? sharedUrl(n) : phoneHas.has(k(n)) ? phoneUrl(n) : proxiedUrl(`${base}/timeout/${encodeURIComponent(n)}`));
+  const uniq = (l: string[]) => {
+    const seen = new Set<string>();
+    return l.filter((n) => !seen.has(k(n)) && !!seen.add(k(n)));
+  };
+  let images: string[];
+  let audio: string[];
+  let from: string;
+  if (folder) {
+    images = uniq([...folder.images, ...(phone?.images ?? [])]);
+    audio = uniq(folder.audio.length ? folder.audio : phone?.audio ?? []);
+    from = 'your computer’s timeout folder';
+  } else if (shared || phone) {
+    images = uniq([...(shared?.images ?? []), ...(phone?.images ?? [])]);
+    audio = uniq(shared?.audio.length ? shared.audio : phone?.audio ?? []);
+    from = shared?.audio.length ? 'LTTV’s copy on this TV' : 'your phone';
+  } else return null;
+  const songs = firstSongsFirst(audio);
+  lastTvStatus = `${images.length} pictures and ${songs.length} songs (songs from ${from}).`;
+  return { images: images.map(urlOf), names: images, audio: songs.map(urlOf), firstSongs: songs.filter(isFirstSong).length };
+}
+
+function fromPhoneList(): Listing | null {
   try {
     const list = JSON.parse(native?.localTimeoutFiles?.() || '{}') as Partial<Listing>;
-    const images = list.images ?? [];
-    const audio = firstSongsFirst(list.audio ?? []);
-    if (!images.length && !audio.length) return null;
-    const url = (n: string) => `/lttv-local/${encodeURIComponent(n)}`;
-    return { images: images.map(url), names: images, audio: audio.map(url), firstSongs: audio.filter(isFirstSong).length };
+    if (!list.images?.length && !list.audio?.length) return null;
+    return { images: list.images ?? [], audio: list.audio ?? [] };
   } catch {
     return null;
   }
 }
 
-/** League Pass / Blitz: the photos and songs LTTV kept, straight from LTTV's files. */
-async function fromLttv(): Promise<TimeoutMedia | null> {
+async function fromLttvList(): Promise<Listing | null> {
   try {
     const r = await fetch('/lttv-shared/timeout.json', { cache: 'no-store' });
     if (!r.ok) return null;
-    const list = (await r.json()) as Listing;
+    const list = (await r.json()) as Partial<Listing>;
     if (!list.images?.length && !list.audio?.length) return null;
-    const url = (n: string) => `/lttv-shared/${encodeURIComponent(sharedName(n)).replace('%2F', '/')}`;
-    const songs = firstSongsFirst(list.audio ?? []);
-    lastTvStatus = `${list.images.length} pictures and ${songs.length} songs from LTTV.`;
-    return { images: list.images.map(url), names: list.images, audio: songs.map(url), firstSongs: songs.filter(isFirstSong).length };
+    return { images: list.images ?? [], audio: list.audio ?? [] };
   } catch {
     return null;
   }
