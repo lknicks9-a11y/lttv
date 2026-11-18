@@ -80,7 +80,10 @@ export function canUpdateInApp(): boolean {
  *  1.0.x run, 87–154 "1.0.0 Beta"; older builds kept their earlier numbers. */
 export const LAUNCH_BUILD = 184;
 const BETA_BUILD = 224;
+/** From build 240 every build is shown as 1.0.0 Beta for now (the build number tells them apart). */
+const RESET_BUILD = 240;
 export function versionOf(build: number): string {
+  if (build >= RESET_BUILD) return '1.0.0 Beta';
   if (build >= LAUNCH_BUILD) {
     const n = build - LAUNCH_BUILD;
     // Back in beta from build 224.

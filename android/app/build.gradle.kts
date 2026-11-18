@@ -25,7 +25,7 @@ android {
         val run = (System.getenv("GITHUB_RUN_NUMBER") ?: "34").toInt()
         // Restarted at build 184 = 1.0.0; every tenth build moves the middle number (1.0.9 -> 1.1.0).
         // Before: 167-183 were 1.0.0-1.0.16, 155-166 a pre-launch 1.0.x run, 87-154 "1.0.0 Beta".
-        versionName = if (run >= 184) "1.${(run - 184) / 10}.${(run - 184) % 10}" + (if (run >= 224) " Beta" else "") else if (run >= 167) "1.0.${run - 167}" else if (run >= 155) "1.0.${run - 155}" else if (run >= 87) "1.0.0 Beta" else if (run < 61) "1.0.${(run - 34).coerceAtLeast(0)}" else "1.${1 + (run - 61) / 10}.${(run - 61) % 10}"
+        versionName = if (run >= 240) "1.0.0 Beta" else if (run >= 184) "1.${(run - 184) / 10}.${(run - 184) % 10}" + (if (run >= 224) " Beta" else "") else if (run >= 167) "1.0.${run - 167}" else if (run >= 155) "1.0.${run - 155}" else if (run >= 87) "1.0.0 Beta" else if (run < 61) "1.0.${(run - 34).coerceAtLeast(0)}" else "1.${1 + (run - 61) / 10}.${(run - 61) % 10}"
     }
 
     signingConfigs {
