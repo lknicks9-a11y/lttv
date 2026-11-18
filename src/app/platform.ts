@@ -50,6 +50,8 @@ export interface NativeBridge {
   /** LTTV: keep a file for League Pass / Blitz (base64 pieces) and list what's kept. */
   putSharedFile?(path: string, base64: string, append: boolean): boolean;
   sharedFileSizes?(): string;
+  finishSharedFile?(path: string): boolean;
+  syncTimeoutFrom?(base: string): void;
 }
 
 declare global {

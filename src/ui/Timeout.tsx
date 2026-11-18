@@ -161,8 +161,17 @@ async function shareNow(list: Listing, names: string[], blobOf: (n: string) => P
     /* none yet */
   }
   let sent = 0;
-  for (const n of names) {
-    if (have[encodeURIComponent(n)] > 0) continue; // already handed over
+  const here = (n: string) => have[encodeURIComponent(n)] > 0;
+  // The list League Pass reads is updated after every file, so what has arrived shows right away.
+  const writeList = () => {
+    const kept = { images: list.images.filter((n) => names.includes(n) && here(n)), audio: list.audio.filter((n) => names.includes(n) && here(n)) };
+    put.call(native, 'timeout.json', btoa(unescape(encodeURIComponent(JSON.stringify(kept)))), false);
+    return kept;
+  };
+  // Pictures first (small), then songs.
+  const order = [...names.filter((n) => list.images.includes(n)), ...names.filter((n) => !list.images.includes(n))];
+  for (const n of order) {
+    if (here(n)) continue; // already handed over (whole files only; half-sent ones are ".part")
     let blob: Blob | null = null;
     try {
       blob = await blobOf(n);
@@ -170,21 +179,23 @@ async function shareNow(list: Listing, names: string[], blobOf: (n: string) => P
       blob = null;
     }
     if (!blob) continue;
-    if (have[encodeURIComponent(n)] === blob.size) continue;
     sent++;
     const buf = new Uint8Array(await blob.arrayBuffer());
     const CHUNK = 384 * 1024;
+    let ok = true;
     for (let i = 0; i < buf.length || i === 0; i += CHUNK) {
       let bin = '';
       const part = buf.subarray(i, Math.min(buf.length, i + CHUNK));
       for (let j = 0; j < part.length; j += 8192) bin += String.fromCharCode(...part.subarray(j, j + 8192));
-      if (!put.call(native, sharedName(n), btoa(bin), i > 0)) return;
+      if (!put.call(native, `${sharedName(n)}.part`, btoa(bin), i > 0)) { ok = false; break; }
       await new Promise((r) => setTimeout(r, 15)); // let the TV breathe between pieces
       if (buf.length === 0) break;
     }
+    if (!ok || !native?.finishSharedFile?.(sharedName(n))) continue;
+    have[encodeURIComponent(n)] = buf.length;
+    writeList();
   }
-  const kept = { images: list.images.filter((n) => names.includes(n)), audio: list.audio.filter((n) => names.includes(n)) };
-  put.call(native, 'timeout.json', btoa(unescape(encodeURIComponent(JSON.stringify(kept)))), false);
+  const kept = writeList();
   shareStatus = `Shared ${kept.images.length} pictures and ${kept.audio.length} songs with League Pass and Blitz${sent ? ` (${sent} new)` : ''}.`;
 }
 
@@ -207,7 +218,13 @@ async function fromLttv(): Promise<TimeoutMedia | null> {
 /** LTTV on the TV: keep League Pass' photos and songs up to date in the background, for League Pass / Blitz. */
 export function keepTimeoutForApps() {
   if (APP_MODE !== 'lttv' || !native?.putSharedFile) return;
-  const run = () => void loadOnTv().catch(() => undefined);
+  const run = () => {
+    // Straight from the computer, in the background (keeps going while you're in League Pass)…
+    const base = (getState().settings.timeoutMedia ?? '').trim().replace(/\/+$/, '');
+    if (/^https?:\/\//.test(base)) native?.syncTimeoutFrom?.(base);
+    // …and the copy LTTV already keeps, for when the computer is off.
+    void loadOnTv().catch(() => undefined);
+  };
   setTimeout(run, 6_000);
   setInterval(run, 30 * 60_000);
 }
@@ -237,7 +254,14 @@ export function refreshTimeoutMedia(): Promise<TimeoutMedia> {
 
 /** The pictures and songs (looked up again after five minutes, so new files and a computer that woke up are found). */
 export function timeoutMedia(): Promise<TimeoutMedia> {
-  if (!cached || Date.now() - cached.at > 5 * 60_000) cached = { at: Date.now(), job: load() };
+  if (!cached || Date.now() - cached.at > 5 * 60_000) {
+    const c = { at: Date.now(), job: load() };
+    cached = c;
+    // Nothing yet (LTTV may still be passing the files over): look again in 30 seconds, not 5 minutes.
+    void c.job.then((m) => {
+      if (!m.images.length && !m.audio.length) c.at = Date.now() - 4.5 * 60_000;
+    });
+  }
   return cached.job;
 }
 export function useTimeoutMedia(): TimeoutMedia {
