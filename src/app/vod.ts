@@ -718,18 +718,18 @@ export interface StreamingService {
   /** Your provider's categories for this service ("NETFLIX MOVIES", "EN | Disney+ Series"…). */
   cat: RegExp;
   /** The service's page: its colors and the card shape its app uses (tall posters or wide tiles). */
-  page: { top: string; bottom: string; accent: string; cards: 'poster' | 'wide' };
+  page: { top: string; bottom: string; accent: string; cards: 'poster' | 'wide'; nav: 'rail' | 'top' | 'center'; hero: 'billboard' | 'carousel' };
 }
 
 export const STREAMING_SERVICES: StreamingService[] = [
-  { id: 'Netflix', label: 'Netflix', bg: '#1a0a0b', fg: '#ff3b47', cat: /netflix/i, page: { top: '#141414', bottom: '#0b0b0b', accent: '#e50914', cards: 'poster' } },
-  { id: 'Prime Video', label: 'Prime Video', bg: '#0b1a2a', fg: '#4fb6ff', cat: /\b(amazon|prime)\b/i, page: { top: '#0f171e', bottom: '#0a1016', accent: '#1a98ff', cards: 'wide' } },
-  { id: 'Disney+', label: 'Disney+', bg: '#0b1440', fg: '#9fc3ff', cat: /disney/i, page: { top: '#1a1d3a', bottom: '#090b1c', accent: '#3f8cff', cards: 'wide' } },
-  { id: 'Hulu', label: 'Hulu', bg: '#0b2215', fg: '#3ee07f', cat: /\bhulu\b/i, page: { top: '#101418', bottom: '#07090b', accent: '#1ce783', cards: 'wide' } },
-  { id: 'HBO Max', label: 'HBO Max', bg: '#120d3a', fg: '#b2a4ff', cat: /\b(hbo|max)\b/i, page: { top: '#1b1347', bottom: '#07051a', accent: '#8b6bff', cards: 'wide' } },
-  { id: 'Apple TV', label: 'Apple TV', bg: '#1b1b1f', fg: '#f2f2f2', cat: /\bapple\b/i, page: { top: '#1c1c1e', bottom: '#000000', accent: '#ffffff', cards: 'wide' } },
-  { id: 'Paramount+', label: 'Paramount+', bg: '#0a1838', fg: '#5aa0ff', cat: /paramount/i, page: { top: '#0a2470', bottom: '#020a24', accent: '#0064ff', cards: 'poster' } },
-  { id: 'Peacock', label: 'Peacock', bg: '#1c1406', fg: '#ffc94d', cat: /peacock/i, page: { top: '#141414', bottom: '#000000', accent: '#f5c518', cards: 'wide' } },
+  { id: 'Netflix', label: 'Netflix', bg: '#1a0a0b', fg: '#ff3b47', cat: /netflix/i, page: { top: '#141414', bottom: '#0b0b0b', accent: '#e50914', cards: 'wide', nav: 'rail', hero: 'billboard' } },
+  { id: 'Prime Video', label: 'Prime Video', bg: '#0b1a2a', fg: '#4fb6ff', cat: /\b(amazon|prime)\b/i, page: { top: '#0f171e', bottom: '#0a1016', accent: '#1a98ff', cards: 'wide', nav: 'top', hero: 'carousel' } },
+  { id: 'Disney+', label: 'Disney+', bg: '#0b1440', fg: '#9fc3ff', cat: /disney/i, page: { top: '#1a1d3a', bottom: '#090b1c', accent: '#3f8cff', cards: 'wide', nav: 'rail', hero: 'carousel' } },
+  { id: 'Hulu', label: 'Hulu', bg: '#0b2215', fg: '#3ee07f', cat: /\bhulu\b/i, page: { top: '#101418', bottom: '#07090b', accent: '#1ce783', cards: 'wide', nav: 'top', hero: 'billboard' } },
+  { id: 'HBO Max', label: 'HBO Max', bg: '#120d3a', fg: '#b2a4ff', cat: /\b(hbo|max)\b/i, page: { top: '#1b1347', bottom: '#07051a', accent: '#8b6bff', cards: 'wide', nav: 'top', hero: 'billboard' } },
+  { id: 'Apple TV', label: 'Apple TV', bg: '#1b1b1f', fg: '#f2f2f2', cat: /\bapple\b/i, page: { top: '#1c1c1e', bottom: '#000000', accent: '#ffffff', cards: 'wide', nav: 'center', hero: 'billboard' } },
+  { id: 'Paramount+', label: 'Paramount+', bg: '#0a1838', fg: '#5aa0ff', cat: /paramount/i, page: { top: '#0a2470', bottom: '#020a24', accent: '#0064ff', cards: 'poster', nav: 'top', hero: 'carousel' } },
+  { id: 'Peacock', label: 'Peacock', bg: '#1c1406', fg: '#ffc94d', cat: /peacock/i, page: { top: '#141414', bottom: '#000000', accent: '#f5c518', cards: 'wide', nav: 'rail', hero: 'billboard' } },
 ];
 
 /**

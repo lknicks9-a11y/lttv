@@ -14,7 +14,7 @@ import { signInSkipped } from './ui/SignIn';
 import { isOnboarded } from './ui/Onboarding';
 import { APP_MODE, isPassApp } from './app/appmode';
 import { pullFromLttv, startSharing } from './app/share';
-import { openPass } from './ui/LeaguePass';
+import { preloadProfiles } from './app/profiles';
 import './styles.css';
 
 const OPENABLE: Screen[] = ['home', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'];
@@ -44,6 +44,7 @@ async function boot() {
   // Debug/test handle (used by the automated end-to-end test and Diagnostics).
   (window as unknown as { __lttv: unknown }).__lttv = { player, getState, repo, playRequest, tune, updateSettings, describe: describeProgramme, pollLive, saveProgress, addBet, addParlay, watchingSports, addPlaylist, addEpgSource, rematchAndReload };
   applySavedTheme();
+  if (APP_MODE === 'lttv') preloadProfiles();
   render(<App />, document.getElementById('app')!);
   document.getElementById('boot')?.remove();
 
@@ -94,7 +95,7 @@ async function boot() {
   // Each app opens on its own part.
   if (!opened && APP_MODE === 'movies' && !getState().onboarding) setState({ screen: 'movies' });
   if (isPassApp && !getState().onboarding) {
-    openPass(APP_MODE === 'leaguepass' ? 'nba' : 'nfl');
+    void import('./ui/LeaguePass').then((m) => m.openPass(APP_MODE === 'leaguepass' ? 'nba' : 'nfl'));
     // Closing League Pass / Blitz closes the app (there's nothing behind it).
     let wasOpen = true;
     setInterval(() => {

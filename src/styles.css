@@ -2080,3 +2080,62 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .svc-wide-name { margin-top: 8px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .svc-wide:focus .svc-wide-img, .svc-wide.focused .svc-wide-img { outline: 3px solid #fff; outline-offset: 3px; transform: scale(1.04); }
 .svc-note { padding: 10px 12px; }
+
+/* ---- Movies & Shows: full-screen services page and service pages ---- */
+html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !important; }
+.svc-full { position: fixed; inset: 0; z-index: 30; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+.svc-page.svc-full { margin: 0; border-radius: 0; padding: 0 0 6vh; background: linear-gradient(180deg, var(--svc-top) 0%, var(--svc-bottom) 55%); }
+.svc-main { padding: 0 3.2vw 4vh 3.2vw; }
+.svc-layout-rail .svc-main { margin-left: 6.4vw; }
+
+/* the services page */
+.svc-chooser { background: radial-gradient(120% 90% at 20% 0%, #23263a 0%, #0b0c12 60%); padding: 6vh 5vw; }
+.svc-chooser-head h1 { font-size: 3rem; font-weight: 900; letter-spacing: -.03em; margin: 0; }
+.svc-chooser-head p { font-size: 1.2rem; margin: .4rem 0 2.4rem; }
+.svc-chooser-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.8vw; }
+.svc-big { height: 13.5vw; border-radius: 22px; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem;
+  background: linear-gradient(150deg, var(--svc-top, #2a2d3a), var(--svc-bottom, #0d0e14)); border: 1px solid rgba(255,255,255,.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 14px 34px rgba(0,0,0,.45); transition: transform .16s ease, box-shadow .16s ease; }
+.svc-big::after { content: ''; position: absolute; inset: 0; background: radial-gradient(90% 70% at 50% 120%, color-mix(in srgb, var(--svc-accent, #fff) 32%, transparent), transparent 70%); pointer-events: none; }
+.svc-big-name { font-size: 2.6rem; font-weight: 900; letter-spacing: -.03em; color: var(--svc-accent, #fff); text-shadow: 0 2px 20px rgba(0,0,0,.5); z-index: 1; }
+.svc-big-sub { color: rgba(255,255,255,.7); z-index: 1; }
+.svc-big-all { --svc-accent: #fff; }
+.svc-big:focus, .svc-big.focused { transform: scale(1.06); outline: none; box-shadow: 0 0 0 4px #fff, 0 20px 44px rgba(0,0,0,.55); }
+
+/* menus: down the side (rail), across the top, or centered */
+.svc-nav { display: flex; gap: .6rem; align-items: center; z-index: 5; }
+.svc-nav-top, .svc-nav-center { position: sticky; top: 0; padding: 2.2vh 3.2vw 1.4vh; background: linear-gradient(180deg, color-mix(in srgb, var(--svc-top) 92%, transparent), transparent); }
+.svc-nav-center { justify-content: center; }
+.svc-nav-center .svc-wordmark { position: absolute; left: 3.2vw; }
+.svc-nav-rail { position: fixed; left: 0; top: 0; bottom: 0; width: 6.4vw; flex-direction: column; justify-content: center; gap: 1.1rem;
+  background: linear-gradient(90deg, rgba(0,0,0,.75), rgba(0,0,0,0)); }
+.svc-rail-mark { position: absolute; top: 3.5vh; font-weight: 900; font-size: 2.2rem; color: var(--svc-accent); }
+.svc-wordmark { font-weight: 900; font-size: 2.1rem; letter-spacing: -.03em; color: var(--svc-accent); margin-right: 1.6rem; text-shadow: 0 2px 18px rgba(0,0,0,.45); }
+.svc-wordmark-float { padding: 3vh 0 1vh; }
+.svc-tab { display: inline-flex; align-items: center; gap: .5rem; padding: .6rem 1.2rem; border-radius: 999px; color: rgba(255,255,255,.72); font-weight: 700; font-size: 1.08rem; background: transparent; border: 0; position: relative; }
+.svc-tab.is-on { color: #fff; }
+.svc-nav-top .svc-tab.is-on, .svc-nav-center .svc-tab.is-on { box-shadow: inset 0 -3px 0 var(--svc-accent); border-radius: 6px; }
+.svc-nav-rail .svc-tab { width: 3.4rem; height: 3.4rem; padding: 0; justify-content: center; border-radius: 50%; }
+.svc-nav-rail .svc-tab.is-on { color: var(--svc-accent); }
+.svc-tab:focus, .svc-tab.focused { background: #fff; color: #000; outline: none; }
+.svc-tip { display: none; }
+.svc-nav-rail .svc-tab:focus .svc-tip, .svc-nav-rail .svc-tab.focused .svc-tip { display: block; position: absolute; left: 4.2rem; white-space: nowrap; background: #fff; color: #000; padding: .35rem .8rem; border-radius: 8px; font-weight: 800; }
+.svc-switch { margin-left: auto; }
+.svc-nav-rail .svc-switch { margin: 0; }
+
+/* featured: carousel of big cards */
+.svc-carousel { padding-top: 2vh; }
+.svc-carousel-strip { display: flex; gap: 1.6vw; overflow: visible; padding: 1.2vh 0; }
+.svc-ccard { flex: 0 0 auto; width: 44vw; border-radius: 18px; background: none; border: 0; padding: 0; text-align: left; transition: transform .18s ease; }
+.svc-ccard-img { width: 44vw; height: 24.75vw; border-radius: 18px; background: rgba(255,255,255,.06) center/cover no-repeat; box-shadow: 0 18px 40px rgba(0,0,0,.5); }
+.svc-ccard-img.is-poster { background-position: center 25%; }
+.svc-ccard-title { display: none; }
+.svc-ccard:focus, .svc-ccard.focused { outline: none; transform: scale(1.03); }
+.svc-ccard:focus .svc-ccard-img, .svc-ccard.focused .svc-ccard-img { box-shadow: 0 0 0 4px #fff, 0 22px 50px rgba(0,0,0,.6); }
+.svc-carousel-info { max-width: 60vw; padding: 1vh .4vw 2vh; }
+.svc-carousel-info h2 { font-size: 2.2rem; font-weight: 900; margin: 0 0 .3rem; }
+.svc-carousel-info p { color: rgba(255,255,255,.82); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* per-service touches */
+.svc-layout-center .svc-tab { font-size: 1.15rem; }
+.svc-poster .vod-card { border-radius: 10px; }

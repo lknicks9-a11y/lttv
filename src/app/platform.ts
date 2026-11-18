@@ -45,6 +45,8 @@ export interface NativeBridge {
   /** Sharing your provider between the LTTV apps (optional: older builds lack them). */
   shareSetup?(json: string): void;
   sharedSetup?(): string;
+  /** Starts another LTTV app (leaguepass, blitz, movies); false if it isn't installed. */
+  openApp?(which: string): boolean;
 }
 
 declare global {

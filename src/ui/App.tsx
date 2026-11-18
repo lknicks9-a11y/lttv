@@ -1,5 +1,6 @@
 import { APP_MODE } from '../app/appmode';
-import { LeaguePass, watchLeaguePassKeys } from './LeaguePass';
+import { lazy } from './lazy';
+import { watchPassKeys } from '../app/passkeys';
 import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
 import { dismissUpdate, installUpdate, useAvailableUpdate, useKnownUpdate, versionOf } from '../app/updates';
@@ -12,18 +13,23 @@ import { native, isNative } from '../app/platform';
 import { Button, Icon, Modal } from './common';
 import { LogoMark, Wordmark } from './Logo';
 import { clock } from './fmt';
-import { GuideScreen } from './Guide';
-import { ChannelsScreen, ChannelMenu } from './Channels';
+const GuideScreen = lazy(() => import('./Guide').then((m) => m.GuideScreen));
+const ChannelsScreen = lazy(() => import('./Channels').then((m) => m.ChannelsScreen));
+const ChannelMenu = lazy(() => import('./Channels').then((m) => m.ChannelMenu));
 import { SearchScreen } from './Search';
-import { SourcesScreen } from './Sources';
-import { ImportWizard } from './Wizard';
-import { MatchesScreen } from './Matches';
+const SourcesScreen = lazy(() => import('./Sources').then((m) => m.SourcesScreen));
+const ImportWizard = lazy(() => import('./Wizard').then((m) => m.ImportWizard));
+const MatchesScreen = lazy(() => import('./Matches').then((m) => m.MatchesScreen));
 import { SettingsScreen } from './Settings';
 import { PlayerOverlay } from './Player';
 import { ProgrammeDetail } from './Detail';
-import { SportsScreen, ReminderPrompt } from './Sports';
-import { VodScreen, VodPlayer, useVodNav } from './Vod';
-import { MultiviewScreen } from './Multiview';
+import { ReminderPrompt } from './Sports';
+const SportsScreen = lazy(() => import('./Sports').then((m) => m.SportsScreen));
+const VodScreen = lazy(() => import('./Vod').then((m) => m.VodScreen));
+const VodPlayer = lazy(() => import('./Vod').then((m) => m.VodPlayer));
+const LeaguePass = lazy(() => import('./LeaguePass').then((m) => m.LeaguePass));
+const useVodNav = () => useApp((s) => s.vodAvail) ?? { movies: false, shows: false };
+const MultiviewScreen = lazy(() => import('./Multiview').then((m) => m.MultiviewScreen));
 import { SignInScreen } from './SignIn';
 import { OnboardingScreen } from './Onboarding';
 import { SidebarProfile, WhoIsWatching } from './Profiles';
@@ -48,7 +54,9 @@ function TopBar() {
   // Each LTTV app shows only its own part: LTTV = Live TV & Sports, Movies & Shows = movies and shows.
   const items = NAV.filter((n) => {
     if (APP_MODE === 'movies') return n.id === 'movies' || n.id === 'shows' || n.id === 'search' || n.id === 'settings';
-    if (n.id === 'movies' || n.id === 'shows') return APP_MODE === 'lttv' ? false : n.id === 'movies' ? vod.movies : vod.shows;
+    if (APP_MODE !== 'lttv' && n.id !== 'movies' && n.id !== 'shows') return true;
+    // Fire TV: movies and shows are their own app. The computer keeps them in LTTV.
+    if (n.id === 'movies' || n.id === 'shows') return isNative && APP_MODE === 'lttv' ? false : n.id === 'movies' ? vod.movies : vod.shows;
     return true;
   });
   const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen === 'guide' ? 'home' : screen;
@@ -251,11 +259,12 @@ export function App() {
   const pickerOpen = useApp((s) => !!s.profilePicker);
   const leaguePass = useApp((s) => !!s.leaguePass);
   const passLeague = useApp((s) => s.passLeague ?? 'nba');
-  useEffect(() => watchLeaguePassKeys(), []);
+  useEffect(() => (APP_MODE === 'lttv' ? watchPassKeys() : undefined), []);
   // "Who's watching?" at startup when there are several profiles (and from the sidebar avatar).
   const [, bumpProfiles] = useState(0);
   useEffect(() => onProfilesChanged(() => bumpProfiles((n) => n + 1)), []);
-  const picker = pickerOpen || (ready && !onboarding && needsProfilePick());
+  // "Who's watching?" shows right away; the app keeps loading behind it.
+  const picker = pickerOpen || (!onboarding && needsProfilePick());
   const covered = fullscreen || vodPlaying || multiview || signIn || onboarding || picker || leaguePass;
 
   useEffect(() => {

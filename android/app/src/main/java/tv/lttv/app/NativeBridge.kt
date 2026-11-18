@@ -37,6 +37,18 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun appMode(): String = BuildConfig.APP_MODE
 
+    /** Starts another LTTV app (leaguepass, blitz, movies, lttv). False if it isn't installed. */
+    @JavascriptInterface
+    fun openApp(which: String): Boolean {
+        val base = if (which == "lttv") "tv.lttv.app" else "tv.lttv.$which"
+        val pm = activity.packageManager
+        for (pkg in listOf("$base.debug", base)) {
+            val i = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg) ?: continue
+            return try { activity.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        }
+        return false
+    }
+
     /** LTTV keeps your provider setup for the other LTTV apps (see ShareProvider). */
     @JavascriptInterface
     fun shareSetup(json: String) {

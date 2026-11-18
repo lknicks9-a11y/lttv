@@ -1,3 +1,4 @@
+import { APP_MODE } from '../app/appmode';
 import { h, Fragment } from 'preact';
 
 let gid = 0;
@@ -153,6 +154,15 @@ function AeroMark({ size = '3rem', class: cls }: { size?: string; class?: string
 }
 
 export function Wordmark({ class: cls }: { class?: string }) {
+  // Each app shows its own name (Movies & Shows, League Pass, Blitz); LTTV is LTTV.
+  if (APP_MODE !== 'lttv') {
+    const [a, b] = APP_MODE === 'movies' ? ['Movies ', '& Shows'] : APP_MODE === 'leaguepass' ? ['League ', 'Pass'] : ['', 'Blitz'];
+    return (
+      <span class={'wordmark ' + (cls ?? '')} aria-label={a + b}>
+        {a}<span class="wordmark-tv">{b}</span>
+      </span>
+    );
+  }
   return (
     <span class={'wordmark ' + (cls ?? '')} aria-label="LTTV">
       LT<span class="wordmark-tv">TV</span>

@@ -15,6 +15,12 @@
     <queries>
         <package android:name="tv.lttv.app.debug" />
         <package android:name="tv.lttv.app" />
+        <package android:name="tv.lttv.leaguepass.debug" />
+        <package android:name="tv.lttv.leaguepass" />
+        <package android:name="tv.lttv.blitz.debug" />
+        <package android:name="tv.lttv.blitz" />
+        <package android:name="tv.lttv.movies.debug" />
+        <package android:name="tv.lttv.movies" />
     </queries>
 
     <!-- TV first: no touchscreen required; leanback launcher supported but not required (phones/tablets can install too). -->

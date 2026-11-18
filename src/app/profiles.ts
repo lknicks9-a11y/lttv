@@ -60,6 +60,30 @@ function rememberedProfile(): string {
   }
 }
 
+// The profile list is also kept in local storage, so "Who's watching?" shows the moment the app opens
+// (the rest of the app loads behind it).
+const cacheKey = () => `lttvProfilesList:${currentDbName()}`;
+function cacheList() {
+  try {
+    localStorage.setItem(cacheKey(), JSON.stringify(doc.list));
+  } catch {
+    /* storage off */
+  }
+}
+/** At startup, before anything else loads: the profiles from last time (for the instant "Who's watching?"). */
+export function preloadProfiles() {
+  if (doc.list.length) return;
+  try {
+    const list = JSON.parse(localStorage.getItem(cacheKey()) || '[]') as Profile[];
+    if (Array.isArray(list) && list.length) {
+      doc = { list, deleted: [], at: 0 };
+      current = list.some((p) => p.id === rememberedProfile()) ? rememberedProfile() : list[0].id;
+    }
+  } catch {
+    /* nothing saved */
+  }
+}
+
 function newId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -89,6 +113,7 @@ export async function initProfiles(store: Kv, customizations: Map<string, Channe
     doc.migrated = true;
   }
   await store.setKv(DOC, doc);
+  cacheList();
   const want = rememberedProfile();
   current = doc.list.some((p) => p.id === want) ? want : doc.list[0].id;
   fav = (await store.getKv<ProfileData['fav']>(k('fav', current))) ?? {};
@@ -119,6 +144,7 @@ async function touch(id = current) {
 async function saveDoc() {
   doc.at = Date.now();
   await kv?.setKv(DOC, doc);
+  cacheList();
   notify();
 }
 
@@ -207,6 +233,13 @@ export function switchProfile(id: string) {
   } catch {
     /* ignore */
   }
+  // Picked while the app is still loading: it simply loads as that profile (no restart).
+  if (!kv) {
+    current = id;
+    pickedThisRun = true;
+    notify();
+    return;
+  }
   location.reload();
 }
 
@@ -285,6 +318,7 @@ export async function mergeProfiles(remote: ProfilesBundle | undefined): Promise
   if (list.length) {
     doc = { ...doc, list, deleted: [...deleted], at: Math.max(doc.at, remote.at ?? 0) };
     await kv.setKv(DOC, doc);
+    cacheList();
   }
   if (!list.some((p) => p.id === current) && list.length) {
     current = list[0].id;
