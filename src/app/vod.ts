@@ -511,7 +511,7 @@ export async function findSeriesByName(playlistId: string, name: string): Promis
 const SAVED_TTL = 6 * 3600_000;
 /** Tags that mark a copy in another language (dubbed or subtitled). */
 const FOREIGN_TAG = /\b(vostfr|vost|vf|vff|truefrench|french|latino|castellano|español|espanol|dublado|legendado|deutsch|german|ita|italiano|türkçe|turkce|arabic|hindi|dubbed)\b/i;
-const savedKey = (kind: VodKind) => `vodHome4:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
+const savedKey = (kind: VodKind) => `vodHome5:${kind}:${sources().map((x) => x.playlistId).sort().join(',')}`;
 
 export async function loadHome(kind: VodKind, onUpdate: (h: VodHome) => void): Promise<VodHome> {
   const hit = homeCache.get(kind);
@@ -651,13 +651,20 @@ async function loadWatchmodeHome(kind: VodKind, english: VodCat[], onUpdate: (h:
   const { match, lib } = await libraryMatcher(kind, english);
   const build = (wm: WmRow[], loading: boolean): VodHome => {
     const rows: VodRow[] = [];
+    // Cards show the US English title from the list ("The Office"), not the provider's label ("EN| The Office (US) 4K").
+    const usName = (it: VodItem, title: string): VodItem => (it.kind === 'movie' ? { ...it, m: { ...it.m, name: title } } : { ...it, s: { ...it.s, name: title } });
     for (const r of wm) {
-      const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
+      const items = dedupe(r.titles.map((t) => { const it = match(t); return it && usName(it, t.title); }).filter((x): x is VodItem => !!x)).slice(0, ROW_MAX);
       if (items.length >= (r.id === "popular" ? 1 : 4)) rows.push({ id: r.id, title: r.title, items });
     }
     // Lists only find the titles your provider has; Shows (and a thin Movies page) are filled out with
     // rows from your provider's own library: recently added, best rated, each genre and each service.
-    if (!loading && (kind === 'shows' || rows.length < 10)) rows.push(...libraryRows(kind, lib, english, rows));
+    // Only titles the US lists know (the US English shows / movies), like before — not every copy your provider has.
+    if (!loading && (kind === 'shows' || rows.length < 10)) {
+      const us = new Map(wm.flatMap((r) => r.titles.map((t) => [normTitle(cleanTitle(t.title)), t.title] as const)));
+      const usLib = lib.flatMap((it) => { const t = us.get(normTitle(cleanTitle(itemName(it)))); return t ? [usName(it, t)] : []; });
+      rows.push(...libraryRows(kind, usLib, english, rows));
+    }
     return { rows, categories: english, otherLanguages: [], loading };
   };
   // While lists arrive, the page is updated at most about once a second.
