@@ -150,6 +150,7 @@ class HomeActivity : Activity() {
         applyBackground()
         showSlide(slide)
         if (firstShow) { firstShow = false; hero.post { hero.requestFocus() } }
+        main.postDelayed({ if (!isFinishing) Updater.autoCheck(this) }, 4_000)
     }
 
     override fun onPause() {
@@ -693,6 +694,7 @@ class HomeActivity : Activity() {
         val home = listOf(
             Setting("Photos for your apps", "Add your own pictures from your phone", "🖼") { showPhotos() },
             Setting("Choose apps on Home", "Pick which apps show in Your Apps", "☑") { closeSettings(); showChooseApps() },
+            Setting("Update Center", "Check for LTTV Home updates · ${Updater.thisVersion(this)}", "⟳") { Updater.checkNow(this) },
             Setting("Store", "Your apps, Appstore apps, install from a link", "⬇") { closeSettings(); showStore() },
             Setting("Reset Your Apps order", "Back to the default order", "↺") { prefs.edit().remove("order").apply(); toast("Order reset"); rebuildGrid() },
             Setting("Amazon Home", "Open the original home screen", "⌂") {
