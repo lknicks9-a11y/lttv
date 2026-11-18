@@ -33,13 +33,14 @@
       // Each LTTV app opens with its own name (the Fire TV app passes ?app=…).
       (function () {
         var m = { movies: ['Movies ', '&amp; Shows', '#ff5a5f'], leaguepass: ['League ', 'Pass', '#ff8a1f'], blitz: ['', 'Blitz', '#3ddc84'] };
-        var v = m[new URLSearchParams(location.search).get('app')];
+        var app = new URLSearchParams(location.search).get('app') || 'lttv';
+        // The app's own icon (a TV, a clapperboard, a basketball, a football), not LTTV's old mark.
+        var mark = document.getElementById('bootmark') || document.querySelector('#boot > div');
+        if (mark && /^(lttv|movies|leaguepass|blitz)$/.test(app)) mark.innerHTML = '<img src="apps/' + app + '.png" alt="" style="width:100%;height:100%;display:block">';
+        var v = m[app];
         if (!v) return;
         document.getElementById('bootname').innerHTML = v[0] + '<span style="color:' + v[2] + '">' + v[1] + '</span>';
         document.title = (v[0] + v[1]).replace('&amp;', '&');
-        // The app's own icon, not LTTV's mark.
-        var mark = document.getElementById('bootmark');
-        if (mark) mark.innerHTML = '<img src="apps/' + new URLSearchParams(location.search).get('app') + '.png" style="width:100%;height:100%" alt="">';
       })();
     </script>
     <div id="app"></div>

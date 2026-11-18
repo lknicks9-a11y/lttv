@@ -50,6 +50,16 @@ async function boot() {
   render(<App />, document.getElementById('app')!);
   document.getElementById('boot')?.remove();
 
+  // Movies & Shows / League Pass / Blitz: take the provider you set up in LTTV first, so they open straight
+  // into their own screen with your channels (no "set up LTTV" flash, no second load).
+  let pulled = false;
+  if (APP_MODE !== 'lttv') {
+    try {
+      pulled = await pullFromLttv();
+    } catch (e) {
+      console.warn('Couldn\'t take the provider from LTTV', e);
+    }
+  }
   try {
     await reloadAll();
   } catch (e) {
@@ -58,17 +68,7 @@ async function boot() {
     toast('Could not open local storage: ' + (e as Error).message, 'error', 10000);
     return;
   }
-  // Movies & Shows / League Pass / Blitz: use the provider you set up in LTTV.
-  if (APP_MODE !== 'lttv') {
-    try {
-      if (await pullFromLttv()) {
-        await reloadAll();
-        setTimeout(() => void refreshAll(), 300);
-      }
-    } catch (e) {
-      console.warn('Couldn\'t take the provider from LTTV', e);
-    }
-  }
+  if (pulled) setTimeout(() => void refreshAll(), 300);
   const s = getState().settings;
   applyTheme(s);
   // First launch: mandatory onboarding (sign in → profile → playlist).

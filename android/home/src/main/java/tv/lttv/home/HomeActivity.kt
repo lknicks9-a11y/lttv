@@ -341,28 +341,35 @@ class HomeActivity : Activity() {
     /** The LTTV apps are separate now: Movies & Shows, League Pass and Blitz open their own app. */
     private fun openOtherApp(name: String, pkgs: List<String>, screen: String?): Boolean {
         val pkg = pkgs.firstOrNull { p -> try { packageManager.getPackageInfo(p, 0); true } catch (_: Exception) { false } } ?: return false
-        val i = packageManager.getLeanbackLaunchIntentForPackage(pkg) ?: packageManager.getLaunchIntentForPackage(pkg) ?: return false
+        // All LTTV apps share one main screen class; open it directly if the launcher lookup comes back empty.
+        val i = packageManager.getLeanbackLaunchIntentForPackage(pkg) ?: packageManager.getLaunchIntentForPackage(pkg)
+            ?: Intent(Intent.ACTION_MAIN).setComponent(ComponentName(pkg, "tv.lttv.app.MainActivity"))
         if (screen != null) i.putExtra("screen", screen)
-        startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        return true
+        return try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+    }
+
+    /** Not installed yet: get it now (downloads and opens the installer), instead of only saying so. */
+    private fun installLttvApp(name: String, asset: String) {
+        toast("$name isn't installed yet — installing it now")
+        Store(this) {}.install("https://github.com/lknicks9-a11y/lttv/releases/latest/download/$asset", name)
     }
 
     private fun openLttv(screen: String) {
         when (screen) {
             "movies", "shows" -> {
-                if (!openOtherApp("Movies & Shows", listOf("tv.lttv.movies.debug", "tv.lttv.movies"), screen)) { toast("Get Movies & Shows from the Store"); showStore() }
+                if (!openOtherApp("Movies & Shows", listOf("tv.lttv.movies.debug", "tv.lttv.movies"), screen)) installLttvApp("Movies & Shows", "lttv-movies.apk")
                 return
             }
             "app:leaguepass" -> {
-                if (!openOtherApp("League Pass", listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), null)) { toast("Get League Pass from the Store"); showStore() }
+                if (!openOtherApp("League Pass", listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), null)) installLttvApp("League Pass", "lttv-leaguepass.apk")
                 return
             }
             "app:blitz" -> {
-                if (!openOtherApp("Blitz", listOf("tv.lttv.blitz.debug", "tv.lttv.blitz"), null)) { toast("Get Blitz from the Store"); showStore() }
+                if (!openOtherApp("Blitz", listOf("tv.lttv.blitz.debug", "tv.lttv.blitz"), null)) installLttvApp("Blitz", "lttv-blitz.apk")
                 return
             }
         }
-        val pkg = lttvPkg() ?: return toast("Install LTTV first")
+        val pkg = lttvPkg() ?: return installLttvApp("LTTV", "lttv.apk")
         try {
             startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 .setComponent(ComponentName(pkg, "tv.lttv.app.MainActivity"))

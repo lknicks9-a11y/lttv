@@ -6,7 +6,7 @@
  */
 import { APP_MODE } from './appmode';
 import { native } from './platform';
-import { repo, getState } from './state';
+import { repo } from './state';
 
 let lastShared = '';
 
@@ -34,7 +34,8 @@ export async function pullFromLttv(): Promise<boolean> {
   const data = JSON.parse(raw) as { exportedAt?: string };
   const stamp = String(data.exportedAt ?? '');
   const prev = await repo.getKv<string>('lttvSharedAt');
-  if (getState().playlists.length > 0 && prev === stamp) return false;
+  const have = (await repo.listPlaylists().catch(() => [])).length;
+  if (have > 0 && prev === stamp) return false;
   await repo.importSettings(data);
   await repo.setKv('lttvSharedAt', stamp);
   return true;
