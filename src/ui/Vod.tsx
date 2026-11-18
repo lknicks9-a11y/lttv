@@ -459,7 +459,7 @@ function useSvcArt(it: SvcItem, enabled = true) {
  */
 function ServicePage({ svc, onOpen, onPick, onSearch, cont, onResume, onCategory }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void; onSearch: () => void; cont?: ResumeEntry[]; onResume?: (e: ResumeEntry) => void; onCategory?: (kind: VodKind, cat: VodCat) => void }) {
   const all = svc.id === 'all';
-  const st = svc.id === 'all' ? SVC_STYLE.Netflix : SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
+  const st = svc.id === 'all' ? { ...SVC_STYLE.Netflix, follow: true } : SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
   const [home, setHome] = useState<ServiceHome | null>(null);
   const [err, setErr] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -593,7 +593,7 @@ function SvcNav({ svc, st, filter, onFilter, onSearch, onServices }: { svc: Stre
   }
   const words = st.nav === 'pill' ? [items[1], items[2], items[3], items[4], items[0]] : items;
   return (
-    <nav class={`svcx-top svcx-top-${st.nav}`} data-group="svc-nav" data-zone="h">
+    <nav class={`svcx-top svcx-top-${st.nav}`} data-group="svc-nav" data-zone="h" onFocusIn={(ev) => (ev.currentTarget as HTMLElement).closest('.svc-full')?.scrollTo({ top: 0 })}>
       {st.nav === 'top' && avatar}
       <div class="svcx-top-items">
         {words.map((n) => (
@@ -645,8 +645,15 @@ function SvcHero({ svc, st, it, onOpen, dots, dot }: { svc: StreamingService; st
     none: null,
   }[st.buttons];
   return (
-    <section class="svcx-hero" data-group="svc-hero" data-zone="h">
-      <div class="svcx-hero-img" key={img} style={img ? { backgroundImage: `url("${img}")` } : undefined} />
+    <section class="svcx-hero" data-group="svc-hero" data-zone="h" onFocusIn={(ev) => (ev.currentTarget as HTMLElement).closest('.svc-full')?.scrollTo({ top: 0 })}>
+      {art.backdrop || !img ? (
+        <div class="svcx-hero-img" key={img} style={img ? { backgroundImage: `url("${img}")` } : undefined} />
+      ) : (
+        <div class="svcx-hero-img svcx-hero-poster" key={img}>
+          <div class="svcx-hero-blur" style={{ backgroundImage: `url("${img}")` }} />
+          <img src={img} alt="" />
+        </div>
+      )}
       <div class="svcx-hero-shade" />
       <div class="svcx-hero-text">
         {st.eyebrow && <div class="svcx-eyebrow">{st.eyebrow}</div>}
@@ -698,6 +705,7 @@ function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big, named }: { it:
   return (
     <div class={`svcx-card-wrap ${rank ? 'has-rank' : ''} ${it.match ? '' : 'is-off'}`}>
       {rank && <span class="svcx-num" aria-hidden="true">{rank}</span>}
+      <div class="svcx-cardcol">
       <button
         type="button"
         class={`f svcx-card ${wide ? 'is-wide' : 'is-poster'} ${big ? 'is-big' : ''}`}
@@ -720,7 +728,8 @@ function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big, named }: { it:
           </div>
         )}
       </button>
-      {(st.subtitles || named) && <div class="svcx-sub"><b>{it.title}</b><span>{[it.kind === 'movie' ? 'Movie' : 'Series', art.year].filter(Boolean).join(' · ')}</span></div>}
+      {(st.subtitles || named) && <div class="svcx-sub"><b>{it.title}</b><span>{[it.kind === 'movie' ? 'Movie' : 'Series', art.year, art.genre].filter(Boolean).join(' · ')}</span></div>}
+      </div>
     </div>
   );
 }
@@ -736,7 +745,7 @@ function ResumeCard({ e, autofocus, onOpen }: { e: ResumeEntry; autofocus?: bool
   const left = `${fmtClock(Math.max(0, e.dur - e.pos))} left`;
   const sub = e.series ? (e.done ? `Next after S${e.series.season} E${e.series.episode}` : `S${e.series.season} E${e.series.episode} · ${left}`) : left;
   return (
-    <div class="svcx-card-wrap">
+    <div class="svcx-card-wrap"><div class="svcx-cardcol">
       <button type="button" class="f svcx-card is-wide" data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(e)} aria-label={name}>
         {back ? <div class="svcx-card-img" style={{ backgroundImage: `url("${pic(back, 'backdrop')}")` }} />
           : poster ? (
@@ -749,7 +758,7 @@ function ResumeCard({ e, autofocus, onOpen }: { e: ResumeEntry; autofocus?: bool
         <span class="svcx-progress"><span style={{ width: `${pct}%` }} /></span>
       </button>
       <div class="svcx-sub"><b>{name}</b><span>{sub}</span></div>
-    </div>
+    </div></div>
   );
 }
 

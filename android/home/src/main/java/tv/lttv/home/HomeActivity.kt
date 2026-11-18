@@ -177,7 +177,7 @@ class HomeActivity : Activity() {
         main.post(tick)
         rebuildGrid()
         applyBackground()
-        if (firstShow) { firstShow = false; homeItem.post { homeItem.requestFocus() } }
+        if (firstShow) { firstShow = false; focusHome() }
         main.postDelayed({ if (!isFinishing) Updater.autoCheck(this) }, 4_000)
     }
 
@@ -189,7 +189,7 @@ class HomeActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         closeOverlay(); closePhotos(); closeSettings()
-        homeItem.requestFocus()
+        focusHome()
     }
 
     @Deprecated("Deprecated in Java")
@@ -286,6 +286,9 @@ class HomeActivity : Activity() {
     }
 
     private fun profileName(): String = prefs.getString("profile", null) ?: "LTTV"
+
+    /** Home starts on the first Recommended card; the menu only opens when you move onto it. */
+    private fun focusHome() = recRow.post { recRow.getChildAt(0)?.requestFocus() ?: homeItem.requestFocus() }
 
     private fun scrollTopAndFocus() {
         homeItem.requestFocus()
@@ -646,7 +649,7 @@ class HomeActivity : Activity() {
     private fun pageScaffold(title: String, subtitle: String): Pair<ScrollView, LinearLayout> {
         val page = ScrollView(this).apply { background = Glass.sheet(this@HomeActivity); isFillViewport = true; isClickable = true }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(56), dp(30), dp(56), dp(40)) }
-        col.addView(headerRow(title) { closeOverlay(); closeSettings(); homeItem.post { homeItem.requestFocus() } })
+        col.addView(headerRow(title) { closeOverlay(); closeSettings(); focusHome() })
         col.addView(Glass.text(this, 15f, "#B8C0CC").apply { text = subtitle; setPadding(0, dp(4), 0, dp(14)) })
         page.addView(col)
         return page to col
@@ -780,7 +783,7 @@ class HomeActivity : Activity() {
         )
         val page = ScrollView(this).apply { background = Glass.sheet(this@HomeActivity); isFillViewport = true; isClickable = true }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(56), dp(30), dp(56), dp(40)) }
-        col.addView(headerRow("Settings") { closeSettings(); homeItem.post { homeItem.requestFocus() } })
+        col.addView(headerRow("Settings") { closeSettings(); focusHome() })
         col.addView(sectionTitle("TV"))
         col.addView(settingsGrid(tv))
         col.addView(sectionTitle("Home screen"))

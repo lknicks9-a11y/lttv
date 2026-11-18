@@ -837,7 +837,19 @@ export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => 
       loadHome('shows', (h) => { sh = h; emit(); }).then((h) => { sh = h; }).catch(() => undefined),
       loadHome('movies', (h) => { m = h; emit(); }).then((h) => { m = h; }).catch(() => undefined),
     ]);
+    // More to scroll through: your provider's own categories as rows too (a few of each, English).
+    const done0 = build(true);
+    onUpdate(done0);
+    const cats = [...(sh?.categories ?? []).slice(0, 8).map((c) => ['shows', c] as const), ...(m?.categories ?? []).slice(0, 8).map((c) => ['movies', c] as const)];
+    const extra: ServiceRowOut[] = [];
+    const seen = new Set(done0.rows.map((r) => r.title.toLowerCase()));
+    await Promise.all(cats.map(async ([k, c]) => {
+      const items = await catItems(k, c).catch(() => [] as VodItem[]);
+      const title = c.name.replace(/^[A-Z]{2,3}\s*[|:-]\s*/, '').trim();
+      if (items.length >= 4 && !seen.has(title.toLowerCase())) extra.push({ id: `cat:${c.key}`, title: k === 'movies' && !/movie|film/i.test(title) ? `${title} Movies` : title, items: dedupe(items).slice(0, SVC_ROW_MAX).map(fromVod) });
+    }));
     const done = build(false);
+    done.rows.push(...extra);
     onUpdate(done);
     return done;
   }
