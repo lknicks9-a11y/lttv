@@ -2410,3 +2410,15 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 .sports .games { padding: 0.8rem 0.6rem 1.2rem; }
 .sports { padding-bottom: 2.4rem; scroll-padding: 1.2rem; }
 :root.tv .sports .game-row, :root.tv .sports .league-card { contain: layout style; }
+
+/* League Pass / Blitz game cards: each team's logo sits on its own colour — away on the left half, home on the right. */
+.lp-card .lp-teams { left: 0.6rem; right: 0.6rem; top: 0.45rem; justify-content: space-between; }
+.lp-card .lp-teams .team-logo, .lp-card .lp-teams img { filter: drop-shadow(0 0.1rem 0.25rem rgba(0,0,0,0.45)); }
+.lp-card .lp-live { left: 50%; transform: translateX(-50%); top: 0.55rem; }
+/* Always-on networks (NBA TV, NFL RedZone, NFL Network) as their own cards. */
+.lp-card.lp-net { background: linear-gradient(135deg, #1b1d24, #0c0d11); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); justify-content: center; }
+.lp-card.lp-net .lp-net-name { font-weight: 900; font-size: 1.35rem; letter-spacing: 0.01em; color: var(--lp-accent, #ffa04d); }
+.lp-card.lp-net .lp-when { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-card.lp-net .lp-live { left: 0.6rem; transform: none; background: rgba(255,255,255,0.16); }
+.lp-card .lp-teams .team-logo { width: 2.3rem; height: 2.3rem; object-fit: contain; }
+:root.tv .lp-card .lp-teams .team-logo { width: 2.6rem; height: 2.6rem; }

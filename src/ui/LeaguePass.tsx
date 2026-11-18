@@ -36,7 +36,7 @@ interface PassCfg {
   extras: { label: string; re: RegExp }[];
 }
 const PASSES: Record<'nba' | 'nfl', PassCfg> = {
-  nba: { league: 'nba', sport: 'basketball', path: 'basketball/nba', name: 'League Pass', accent: '#ffa04d', days: 1, extras: [] },
+  nba: { league: 'nba', sport: 'basketball', path: 'basketball/nba', name: 'League Pass', accent: '#ffa04d', days: 1, extras: [{ label: 'NBA TV', re: /\bnba\s?tv\b/i }] },
   nfl: { league: 'nfl', sport: 'football', path: 'football/nfl', name: 'Blitz', accent: '#3ddc84', days: 6, extras: [{ label: 'NFL RedZone', re: /\bred\s?zone\b/i }, { label: 'NFL Network', re: /\bnfl\s?(network|net|nw)\b/i }] },
 };
 /** The playlist's best channel(s) for an always-on network: English / US and HD first. */
@@ -317,6 +317,13 @@ export function LeaguePass() {
     if (!index) return m;
     for (const g of games) {
       const picks = bestStreams(g, lineup, cfg.sport, index);
+      // NBA TV / NFL Network / RedZone have their own cards; a game only lists one when it's broadcast on it.
+      const netOk = (key: string) => {
+        const e = extras.find((x) => x.key === key);
+        if (!e) return true;
+        const x = cfg.extras.find((c) => e.label.startsWith(c.label));
+        return !!x && g.broadcasts.some((b) => x.re.test(b.name));
+      };
       const list: Feed[] = [];
       const abbr = (side?: 'home' | 'away') => (side === 'away' ? g.away : g.home).abbr;
       // 1. Each team's own channel from the playlist (the one named after the team), away then home.
@@ -330,7 +337,7 @@ export function LeaguePass() {
         const net = (name: string) => g.broadcasts.find((b) => b.kind !== 'streaming' && new RegExp(`(^|[^a-z0-9])${b.name.replace(/[^a-z0-9]+/gi, '\\W*')}([^a-z0-9]|$)`, 'i').test(name))?.name;
         // Like League Pass: each team's own channel first (away, home), then the networks, the locals and game channels.
         const isTeam = (x: typeof picks[number]) => /team channel/.test(x.reason ?? '') && !!x.side;
-        const rest = picks.filter((x) => !extras.some((e) => e.key === x.ch.key));
+        const rest = picks.filter((x) => netOk(x.ch.key));
         const ordered = [...rest.filter((x) => isTeam(x) && x.side === 'away'), ...rest.filter((x) => isTeam(x) && x.side === 'home'), ...rest.filter((x) => !isTeam(x))];
         for (const p of ordered.slice(0, 8)) {
           const n = p.broadcast ?? net(p.ch.name);
@@ -341,7 +348,7 @@ export function LeaguePass() {
         continue;
       }
       // 3. A few other good streams, just in case.
-      for (const p of picks.filter((x) => !x.main && !extras.some((e) => e.key === x.ch.key)).slice(0, cfg.league === 'nba' ? 3 : 5)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : p.kind === 'event' ? 'Game channel' : p.kind === 'local' ? 'Local' : 'Other', sub: p.ch.name });
+      for (const p of picks.filter((x) => !x.main && netOk(x.ch.key)).slice(0, cfg.league === 'nba' ? 3 : 5)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : p.kind === 'event' ? 'Game channel' : p.kind === 'local' ? 'Local' : 'Other', sub: p.ch.name });
       m.set(g.id, list);
     }
     return m;
@@ -555,7 +562,8 @@ export function LeaguePass() {
   /** The game and broadcast a Multiview tile is showing. */
   const tileGame = (t: MvTile | null | undefined) => (t ? games.find((g) => feedsOf(g).some((f) => f.key === t.key)) : undefined);
   const tileFeed = (t: MvTile | null | undefined) => feedsOf(tileGame(t)).find((f) => f.key === t?.key);
-  const feedButtons = (cls: string) => [...extras.map((f) => ({ f, extra: true })), ...gameFeeds.map((f) => ({ f, extra: false }))].map(({ f, extra }) => (
+  const netOf = (label: string) => cfg.extras.find((c) => label.startsWith(c.label))?.label ?? label;
+  const feedButtons = (cls: string) => (extraOn ? extras.filter((f) => netOf(f.label) === netOf(extraOn.label)).map((f) => ({ f, extra: true })) : gameFeeds.map((f) => ({ f, extra: false }))).map(({ f, extra }) => (
     <button type="button" class={`f ${cls} ${extra ? 'extra' : ''} ${f.key === playing || (off?.key === f.key && off.gameId === game?.id) ? 'on' : ''}`} key={f.key} onClick={() => (extra ? (setOff(null), f.key !== playing && void tune(f.key, { fullscreen: false })) : game && watch(game, f.key))} title={f.sub}>
       <b>{f.label}</b>
       <small>{f.sub}</small>
@@ -694,12 +702,30 @@ export function LeaguePass() {
             )}
           </VideoSlot>
           {scoreBug}
-          {gameFeeds.length + extras.length > 0 && <div class="lp-feeds" data-group="lp-feeds">{feedButtons('lp-feed')}</div>}
+          {(extraOn ? true : gameFeeds.length > 0) && <div class="lp-feeds" data-group="lp-feeds">{feedButtons('lp-feed')}</div>}
         </div>
-        {game && (!full || boxOpen) && (hideScore ? (full ? null : <div class="lp-box"><p class="muted">Score and box score are hidden for this game. Choose “Show score” to see them.</p></div>) : cfg.league === 'nfl' ? <NflBox game={game} box={nflBox} /> : <BoxScore game={game} box={nbaBox} />)}
+        {game && !extraOn && (!full || boxOpen) && (hideScore ? (full ? null : <div class="lp-box"><p class="muted">Score and box score are hidden for this game. Choose “Show score” to see them.</p></div>) : cfg.league === 'nfl' ? <NflBox game={game} box={nflBox} /> : <BoxScore game={game} box={nbaBox} />)}
       </div>
 
       <div class="lp-strip" data-group="lp-strip">
+        {/* NBA TV · NFL RedZone · NFL Network: each its own card, like a game that's always on. */}
+        {extras.filter((f, i) => extras.findIndex((x) => netOf(x.label) === netOf(f.label)) === i).map((f) => {
+          const on = !!extraOn && netOf(extraOn.label) === netOf(f.label);
+          return (
+            <div class="lp-card-wrap" key={`net:${f.key}`}>
+              <button
+                type="button"
+                class={`f lp-card lp-net ${on ? 'current' : ''}`}
+                onClick={() => { setOff(null); if (f.key !== playing) void tune(f.key, { fullscreen: false }); }}
+                aria-label={`${netOf(f.label)}, always on`}
+              >
+                <span class="lp-live">24/7</span>
+                <span class="lp-net-name">{netOf(f.label)}</span>
+                <span class="lp-when">{f.sub}</span>
+              </button>
+            </div>
+          );
+        })}
         {games.map((g) => {
           const on = picks.includes(g.id);
           const has = feedsOf(g).length > 0;
@@ -707,7 +733,7 @@ export function LeaguePass() {
             <div class="lp-card-wrap" key={g.id}>
               <button
                 type="button"
-                class={`f lp-card ${g.id === game?.id ? 'current' : ''} ${has ? '' : 'nostream'}`}
+                class={`f lp-card ${!extraOn && g.id === game?.id ? 'current' : ''} ${has ? '' : 'nostream'}`}
                 style={{ '--a': g.away.color ? `#${g.away.color}` : '#333', '--h': g.home.color ? `#${g.home.color}` : '#555' }}
                 data-autofocus={g.id === game?.id ? '' : undefined}
                 onClick={() => watch(g)}
