@@ -86,8 +86,25 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   const title = kind === 'movies' ? 'Movies' : 'Shows';
   const [home, setHome] = useState<VodHome | null>(null);
   const [homeErr, setHomeErr] = useState('');
-  const cont = continueList(useContinueWatching()).filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
-  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat } | { mode: 'service'; svc: StreamingService } | { mode: 'services' } | { mode: 'all' }>(() => (
+  const contAll = continueList(useContinueWatching());
+  const cont = contAll.filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
+  // Continue watching: shows open their page with the episode selected; movies continue right away.
+  const openResume = (e: ResumeEntry) => {
+    const here = providerPresent(e.playlistId);
+    if (e.series && here) setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } });
+    else if (e.series || e.key.startsWith('e:')) {
+      // Watched on a provider you've since replaced: the same show on your provider now.
+      void findSeriesByName(e.playlistId, e.series?.name ?? e.title).then((sr) => (sr ? setOpen({ kind: 'series', playlistId: (sr as VodSeries & { playlistId?: string }).playlistId ?? e.playlistId, s: sr }) : here ? playVod(resumePlay(e)) : toast(`${e.series?.name ?? e.title} isn’t on your provider now.`, 'info')));
+    } else if (here) playVod(resumePlay(e));
+    else {
+      void findMovieByName(e.title, e.subtitle).then((m) => {
+        const v = m && moviePlay(m.playlistId, m, Math.max(0, e.pos - 5));
+        if (v) playVod(v);
+        else toast(`${e.title} isn’t on your provider now.`, 'info');
+      });
+    }
+  };
+  const [view, setView] = useState<{ mode: 'home' } | { mode: 'search' } | { mode: 'category'; cat: VodCat; kind?: VodKind } | { mode: 'service'; svc: StreamingService } | { mode: 'services' } | { mode: 'all' }>(() => (
     // Movies & Shows is one app, Netflix-style: everything from every service on one home.
     APP_MODE === 'movies' ? { mode: 'all' } : { mode: 'home' }
   ));
@@ -178,11 +195,11 @@ export function VodScreen({ kind }: { kind: VodKind }) {
         {view.mode === 'search' ? (
           <VodSearch kind={kind} onOpen={setOpen} />
         ) : view.mode === 'category' ? (
-          <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
+          <CategoryGrid kind={view.kind ?? kind} cat={view.cat} onOpen={setOpen} />
         ) : view.mode === 'service' ? (
           <ServicePage key={view.svc.id} svc={view.svc} onOpen={setOpen} onPick={pickService} onSearch={() => setView({ mode: 'search' })} />
         ) : view.mode === 'all' ? (
-          <ServicePage key="all" svc={ALL_SERVICES} onOpen={setOpen} onPick={() => setView({ mode: 'home' })} onSearch={() => setView({ mode: 'search' })} />
+          <ServicePage key="all" svc={ALL_SERVICES} onOpen={setOpen} onPick={() => setView({ mode: 'home' })} onSearch={() => setView({ mode: 'search' })} cont={contAll} onResume={openResume} onCategory={(k, cat) => setView({ mode: 'category', cat, kind: k })} />
         ) : view.mode === 'services' ? (
           <ServicesPage kind={kind} onPick={pickService} onAll={() => setView({ mode: 'home' })} />
         ) : (
@@ -199,21 +216,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                       key={e.key}
                       data-autofocus={i === 0 ? '' : undefined}
                       // Shows open their page with the episode selected; movies continue right away.
-                      onClick={() => {
-                        const here = providerPresent(e.playlistId);
-                        if (e.series && here) setOpen({ kind: 'series', playlistId: e.playlistId, s: { id: e.series.id, name: e.series.name, poster: e.series.poster, categoryId: '', year: e.series.year } });
-                        else if (e.series || e.key.startsWith('e:')) {
-                          // Watched on a provider you've since replaced: the same show on your provider now.
-                          void findSeriesByName(e.playlistId, e.series?.name ?? e.title).then((sr) => (sr ? setOpen({ kind: 'series', playlistId: (sr as VodSeries & { playlistId?: string }).playlistId ?? e.playlistId, s: sr }) : here ? playVod(resumePlay(e)) : toast(`${e.series?.name ?? e.title} isn’t on your provider now.`, 'info')));
-                        } else if (here) playVod(resumePlay(e));
-                        else {
-                          void findMovieByName(e.title, e.subtitle).then((m) => {
-                            const v = m && moviePlay(m.playlistId, m, Math.max(0, e.pos - 5));
-                            if (v) playVod(v);
-                            else toast(`${e.title} isn’t on your provider now.`, 'info');
-                          });
-                        }
-                      }}
+                      onClick={() => openResume(e)}
                     >
                       <ArtPoster kind={e.key.startsWith('e:') ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? (e.key.startsWith('e:') ? undefined : e.poster)} />
                       <div class="vod-progress"><div style={{ width: `${e.done ? 100 : Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
@@ -454,7 +457,8 @@ function useSvcArt(it: SvcItem, enabled = true) {
  * buttons, rows and focus colour — with everything Watchmode lists on the service. Titles your provider has play;
  * the others open their details.
  */
-function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void; onSearch: () => void }) {
+function ServicePage({ svc, onOpen, onPick, onSearch, cont, onResume, onCategory }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void; onSearch: () => void; cont?: ResumeEntry[]; onResume?: (e: ResumeEntry) => void; onCategory?: (kind: VodKind, cat: VodCat) => void }) {
+  const all = svc.id === 'all';
   const st = svc.id === 'all' ? SVC_STYLE.Netflix : SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
   const [home, setHome] = useState<ServiceHome | null>(null);
   const [err, setErr] = useState('');
@@ -499,16 +503,39 @@ function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService;
       {current && st.hero !== 'posters' && <SvcHero svc={svc} st={st} it={current} onOpen={open} dots={!st.follow ? Math.min(8, featured.length) : 0} dot={pick} />}
       {st.hero === 'posters' && featured.length > 0 && <SvcPosters svc={svc} items={featured.slice(0, 6)} onOpen={open} filter={filter} onFilter={(f) => { setFilter(f); setShown(3); }} />}
       <div class="svcx-rows">
+        {all && cont && onResume && (() => {
+          const list = cont.filter((e) => filter === 'all' || (filter === 'movies') === !e.key.startsWith('e:'));
+          return list.length > 0 && (
+            <section class="svcx-row">
+              <h2 class="svcx-row-title">Continue Watching</h2>
+              <LazyStrip id="svc-continue" count={list.length}>
+                {(n) => list.slice(0, n).map((e, i) => <ResumeCard e={e} autofocus={!featured.length && i === 0} onOpen={onResume} />)}
+              </LazyStrip>
+            </section>
+          );
+        })()}
         {rows.slice(0, shown).map((r, ri) => (
           <section class={`svcx-row ${r.ranked && st.bigNumbers ? 'svcx-ranked' : ''}`} key={`${filter}:${r.id}`}>
             <h2 class="svcx-row-title">{st.rowCaps ? r.title.toUpperCase() : r.title}</h2>
             <LazyStrip id={`svc-${r.id}`} count={r.items.length}>
               {(n) => r.items.slice(0, n).map((it, i) => (
-                <SvcCard it={it} st={st} rank={r.ranked && st.bigNumbers ? i + 1 : undefined} autofocus={st.buttons === 'none' && ri === 0 && i === 0} onFocus={() => onCard(it)} onOpen={open} />
+                <SvcCard it={it} st={st} named={all} rank={r.ranked && st.bigNumbers ? i + 1 : undefined} autofocus={st.buttons === 'none' && ri === 0 && i === 0} onFocus={() => onCard(it)} onOpen={open} />
               ))}
             </LazyStrip>
           </section>
         ))}
+        {all && onCategory && home && !home.loading && shown >= rows.length && (home.categories?.length ?? 0) > 0 && (
+          <section class="svcx-row">
+            <h2 class="svcx-row-title">Browse by Category</h2>
+            <div class="vod-strip svcx-cats" data-group="svc-cats" data-hlock>
+              {home.categories!.filter((c) => filter === 'all' || c.kind === filter).map((c) => (
+                <button type="button" class="f svcx-catbtn" onClick={() => onCategory(c.kind, c.cat)}>
+                  <span>{c.cat.name.replace(/^[A-Z]{2,3}\s*[|:-]\s*/, '')}</span><small>{c.kind === 'movies' ? 'Movies' : 'Shows'}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         {(!home || home.loading) && !err && <div class="muted row gap vod-loading"><span class="spinner" /> Loading {svc.label}…</div>}
         {err && <p class="error-text">Couldn’t load {svc.label}: {err}</p>}
         {home && !home.loading && !rows.length && (
@@ -516,7 +543,7 @@ function ServicePage({ svc, onOpen, onPick, onSearch }: { svc: StreamingService;
             <p>{home.noKey ? 'With your free Watchmode key (Settings → Movies & Shows), every movie and show on each service shows here.' : 'Watchmode didn’t list anything for this service. Try again later.'}</p>
           </Empty>
         )}
-        {home && !home.loading && !home.noKey && <p class="muted svc-note">{playable.toLocaleString()} of these play from your provider. {tmdbKey() ? '' : 'Add a free TMDB key in Settings → Movies & Shows for sharp pictures on every title.'}</p>}
+        {home && !home.loading && !home.noKey && !all && <p class="muted svc-note">{playable.toLocaleString()} of these play from your provider. {tmdbKey() ? '' : 'Add a free TMDB key in Settings → Movies & Shows for sharp pictures on every title.'}</p>}
       </div>
       {info && <SvcInfo it={info} svc={svc} onClose={() => setInfo(null)} onSearch={onSearch} />}
     </div>
@@ -629,7 +656,7 @@ function SvcHero({ svc, st, it, onOpen, dots, dot }: { svc: StreamingService; st
         {meta && <div class="svcx-meta">{meta}</div>}
         {art.plot && <p class="svcx-plot">{art.plot}</p>}
         {st.buttons === 'prime' && can && <div class="svcx-included"><Icon name="check" size="1.2rem" /> On your provider</div>}
-        {!can && <div class="svcx-unavail">Not on your provider right now</div>}
+        {!can && svc.id !== 'all' && <div class="svcx-unavail">Not on your provider right now</div>}
         {buttons && <div class="svcx-btns">{buttons}</div>}
       </div>
       {dots > 1 && <div class="svcx-dots" aria-hidden="true">{Array.from({ length: dots }, (_, n) => <span class={n === dot % dots ? 'on' : ''} />)}</div>}
@@ -663,7 +690,7 @@ function SvcPosters({ svc, items, onOpen, filter, onFilter }: { svc: StreamingSe
  * A title card in the service's shape. Wide cards use the title's wide picture; when there isn't one, the poster
  * sits on a blurred copy of itself with the name beside it (instead of a stretched, cropped poster).
  */
-function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big }: { it: SvcItem; st: SvcStyle; rank?: number; autofocus?: boolean; onFocus: () => void; onOpen: (it: SvcItem) => void; big?: boolean }) {
+function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big, named }: { it: SvcItem; st: SvcStyle; rank?: number; autofocus?: boolean; onFocus: () => void; onOpen: (it: SvcItem) => void; big?: boolean; named?: boolean }) {
   const art = useSvcArt(it);
   const wide = st.card === 'wide';
   const back = wide ? art.backdrop : undefined;
@@ -693,7 +720,35 @@ function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big }: { it: SvcIte
           </div>
         )}
       </button>
-      {st.subtitles && <div class="svcx-sub"><b>{it.title}</b><span>{[it.kind === 'movie' ? 'Movie' : 'Series', art.year].filter(Boolean).join(' · ')}</span></div>}
+      {(st.subtitles || named) && <div class="svcx-sub"><b>{it.title}</b><span>{[it.kind === 'movie' ? 'Movie' : 'Series', art.year].filter(Boolean).join(' · ')}</span></div>}
+    </div>
+  );
+}
+
+/** Continue Watching: the title's picture with how far you got, its name and what's next under it. */
+function ResumeCard({ e, autofocus, onOpen }: { e: ResumeEntry; autofocus?: boolean; onOpen: (e: ResumeEntry) => void }) {
+  const isShow = e.key.startsWith('e:');
+  const name = e.series?.name ?? e.title;
+  const art = useArt(isShow ? 'series' : 'movie', name, e.series?.year, true);
+  const back = art?.backdrop;
+  const poster = art?.poster ?? e.series?.poster ?? (isShow ? undefined : e.poster);
+  const pct = e.done ? 100 : Math.min(100, (e.pos / Math.max(1, e.dur)) * 100);
+  const left = `${fmtClock(Math.max(0, e.dur - e.pos))} left`;
+  const sub = e.series ? (e.done ? `Next after S${e.series.season} E${e.series.episode}` : `S${e.series.season} E${e.series.episode} · ${left}`) : left;
+  return (
+    <div class="svcx-card-wrap">
+      <button type="button" class="f svcx-card is-wide" data-autofocus={autofocus ? '' : undefined} onClick={() => onOpen(e)} aria-label={name}>
+        {back ? <div class="svcx-card-img" style={{ backgroundImage: `url("${pic(back, 'backdrop')}")` }} />
+          : poster ? (
+            <div class="svcx-card-img svcx-pw">
+              <div class="svcx-pw-blur" style={{ backgroundImage: `url("${pic(poster, 'poster')}")` }} />
+              <img class="svcx-pw-poster" src={pic(poster, 'poster')} alt="" loading="lazy" />
+              <span class="svcx-pw-name">{name}</span>
+            </div>
+          ) : <div class="svcx-card-img"><span class="svcx-card-name">{name}</span></div>}
+        <span class="svcx-progress"><span style={{ width: `${pct}%` }} /></span>
+      </button>
+      <div class="svcx-sub"><b>{name}</b><span>{sub}</span></div>
     </div>
   );
 }

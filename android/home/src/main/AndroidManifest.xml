@@ -31,6 +31,7 @@
         <package android:name="tv.lttv.leaguepass.debug" />
         <package android:name="tv.lttv.blitz" />
         <package android:name="tv.lttv.blitz.debug" />
+        <package android:name="com.lttube.tv" />
     </queries>
 
     <application

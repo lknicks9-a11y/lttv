@@ -114,9 +114,7 @@ class HomeActivity : Activity() {
         sidebar = buildSidebar()
         // The menu scrolls, so Settings at the bottom can always be reached.
         val menuScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = false; clipToPadding = false; setPadding(0, 0, 0, dp(24)); addView(sidebar) }
-        root.addView(menuScroll, FrameLayout.LayoutParams((sw * 0.29f).toInt(), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = side; topMargin = (sh * 0.17f).toInt() })
-
-        val left = (sw * 0.43f).toInt()
+        val left = side + dp(104)
         contentW = sw - left - side
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; clipToPadding = false }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, dp(40)) }
@@ -130,6 +128,7 @@ class HomeActivity : Activity() {
         root.addView(scroll, FrameLayout.LayoutParams(contentW + dp(12), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = left - dp(6); topMargin = (sh * 0.13f).toInt() })
         buildRecommended()
         Glass.unclip(col)
+        root.addView(menuScroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = side - dp(10); topMargin = (sh * 0.17f).toInt() })
         setContentView(root)
     }
 
@@ -143,7 +142,7 @@ class HomeActivity : Activity() {
     private data class Rec(val title: String, val art: Int, val screen: String)
     private val recs = listOf(
         Rec("Live TV", R.drawable.rec_live, "guide"),
-        Rec("Sports", R.drawable.rec_sports, "sports"),
+        Rec("LTTube", R.drawable.rec_lttube, "app:lttube"),
         Rec("Movies & Shows", R.drawable.rec_movies, "movies"),
         Rec("League Pass", R.drawable.rec_leaguepass, "app:leaguepass"),
         Rec("Blitz", R.drawable.rec_blitz, "app:blitz"),
@@ -211,42 +210,75 @@ class HomeActivity : Activity() {
 
     // ---- the menu: a list on the left --------------------------------------------------------------
 
+    /**
+     * The menu: icons only (Home, Search, Store, All Apps, Settings). Move onto it and it opens over the page with
+     * the names beside the icons; move off and it folds back to icons.
+     */
     private fun buildSidebar(): LinearLayout {
-        val bar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val items = listOf<Pair<String, () -> Unit>>(
-            "Home" to { recRow.getChildAt(0)?.requestFocus() },
-            "Live TV" to { openLttv("guide") },
-            "Sports" to { openLttv("sports") },
-            "Movies & Shows" to { openLttv("movies") },
-            "Search" to { openLttv("search") },
-            "Store" to { showStore() },
-            "All Apps" to { showAllApps() },
-            "Settings" to { showSettings() },
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(12), dp(10), dp(12))
+        }
+        val items = listOf(
+            Triple("Home", R.drawable.ic_home) { recRow.getChildAt(0)?.requestFocus() ?: Unit },
+            Triple("Search", R.drawable.ic_search) { openLttv("search") },
+            Triple("Store", R.drawable.ic_store) { showStore() },
+            Triple("All Apps", R.drawable.ic_apps) { showAllApps() },
+            Triple("Settings", R.drawable.ic_settings) { showSettings() },
         )
-        for ((label, action) in items) {
-            val t = menuItem(label, label == "Home", action)
+        for ((label, icon, action) in items) {
+            val t = menuItem(label, icon, label == "Home") { action() }
             if (label == "Home") homeItem = t
             bar.addView(t)
         }
         return bar
     }
 
-    private fun menuItem(label: String, selected: Boolean, onClick: () -> Unit) = TextView(this).apply {
-        text = label; typeface = Fonts.medium; setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-        setPadding(dp(18), dp(7), dp(18), dp(7))
-        isFocusable = true; isClickable = true
-        fun paint(f: Boolean) {
-            background = when {
-                f -> GradientDrawable().apply { cornerRadius = dp(6).toFloat(); setColor(Color.WHITE) }
-                selected -> GradientDrawable().apply { cornerRadius = dp(6).toFloat(); setColor(Color.parseColor("#2EFFFFFF")) }
+    private val menuLabels = mutableListOf<TextView>()
+    private val menuPainters = mutableListOf<() -> Unit>()
+    private var menuOpen = false
+
+    private fun menuFocusChanged() = sidebar.post {
+        val open = sidebar.hasFocus()
+        if (open == menuOpen) { menuPainters.forEach { it() }; return@post }
+        menuOpen = open
+        for (l in menuLabels) l.visibility = if (open) View.VISIBLE else View.GONE
+        sidebar.background = if (open) GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.parseColor("#F0140C30"), Color.parseColor("#E61A1240"))).apply { cornerRadius = dp(18).toFloat(); setStroke(dp(1), Color.parseColor("#33FFFFFF")) } else null
+        sidebar.elevation = if (open) dp(16).toFloat() else 0f
+        menuPainters.forEach { it() }
+    }
+
+    private fun menuItem(label: String, icon: Int, selected: Boolean, onClick: () -> Unit): LinearLayout {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            isFocusable = true; isClickable = true
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            contentDescription = label
+        }
+        val img = ImageView(this).apply { setImageResource(icon) }
+        val name = TextView(this).apply {
+            text = label; typeface = Fonts.medium; setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setPadding(dp(16), 0, dp(18), 0); visibility = View.GONE
+        }
+        menuLabels += name
+        item.addView(img, LinearLayout.LayoutParams(dp(28), dp(28)))
+        item.addView(name)
+        fun paint() {
+            val f = item.isFocused
+            item.background = when {
+                f -> GradientDrawable().apply { cornerRadius = dp(26).toFloat(); setColor(Color.WHITE) }
+                selected && !menuOpen -> GradientDrawable().apply { cornerRadius = dp(26).toFloat(); setColor(Color.parseColor("#33FFFFFF")) }
                 else -> null
             }
-            setTextColor(if (f) Color.parseColor("#1A1236") else Color.WHITE)
+            img.setColorFilter(if (f) Color.parseColor("#1A1236") else Color.WHITE)
+            name.setTextColor(if (f) Color.parseColor("#1A1236") else Color.WHITE)
         }
-        paint(false)
-        setOnClickListener { onClick() }
-        setOnFocusChangeListener { _, f -> paint(f) }
-        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(2) }
+        menuPainters += ::paint
+        paint()
+        item.setOnClickListener { onClick() }
+        item.setOnFocusChangeListener { _, _ -> paint(); menuFocusChanged() }
+        item.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) }
+        return item
     }
 
     private fun profileName(): String = prefs.getString("profile", null) ?: "LTTV"
@@ -361,6 +393,13 @@ class HomeActivity : Activity() {
             }
             "app:leaguepass" -> {
                 if (!openOtherApp("League Pass", listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), null)) installLttvApp("League Pass", "lttv-leaguepass.apk")
+                return
+            }
+            "app:lttube" -> {
+                if (!openOtherApp("LTTube", listOf("com.lttube.tv"), null)) {
+                    toast("LTTube isn't installed yet — installing it now")
+                    Store(this) {}.install("https://github.com/lknicks9-a11y/lttube-firetv/releases/latest/download/LTTube-TV.apk", "LTTube")
+                }
                 return
             }
             "app:blitz" -> {

@@ -1,5 +1,6 @@
 import { APP_MODE, APP_TITLE, isPassApp } from '../app/appmode';
 import { lazy } from './lazy';
+import { VideoSlot } from './VideoSlot';
 import { watchPassKeys } from '../app/passkeys';
 import { isTV } from '../app/platform';
 import { h, Fragment, Component, type ComponentChildren } from 'preact';
@@ -318,6 +319,10 @@ function MainApp() {
   // "Who's watching?" shows right away; the app keeps loading behind it.
   const picker = pickerOpen || (!onboarding && needsProfilePick());
   const covered = fullscreen || vodPlaying || multiview || signIn || onboarding || picker || leaguePass;
+  // Like YouTube TV: when a channel is playing and you go back, it keeps playing full screen behind the menus
+  // (dimmed), instead of disappearing. Screens with their own preview (the guide) show it there instead.
+  const playingKey = useApp((s) => s.currentKey);
+  const behind = !!playingKey && !covered && APP_MODE === 'lttv';
   // Movies & Shows: no provider yet means LTTV isn't set up (it has no setup of its own).
   const needsLttv = useApp((s) => APP_MODE !== 'lttv' && s.ready && !s.playlists.length);
 
@@ -356,8 +361,9 @@ function MainApp() {
   }, []);
 
   return (
-    <div class={`app ${covered ? 'is-fullscreen' : ''} ${multiview ? 'mv-open' : ''} ${isNative ? 'native' : ''}`}>
+    <div class={`app ${covered ? 'is-fullscreen' : ''} ${multiview ? 'mv-open' : ''} ${isNative ? 'native' : ''} ${behind ? 'video-behind' : ''}`}>
       <div class="backdrop" />
+      {behind && <div class="bg-video" aria-hidden="true"><VideoSlot priority={-1} /></div>}
       <div class="shell" aria-hidden={covered ? 'true' : undefined} data-nav-skip={covered ? '' : undefined}>
         <TopBar />
         {ready ? <Screens /> : <main class="content"><LoadingScreen /></main>}

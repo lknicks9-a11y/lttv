@@ -355,7 +355,7 @@ export function GuideScreen() {
         <span class="guide-head-meta">{rows.length.toLocaleString()} channels · {clock(now)}{lastUpdate ? ` · Guide updated ${clock(lastUpdate)}` : ''}</span>
       </div>
       <div class="guide-controls" data-group="guide-controls">
-        <div class="chips compact country-tabs">
+        <div class="chips compact country-tabs" data-group="guide-countries" data-hlock>
           {chips.map((c) => {
             const active = filter === c.id || filter.startsWith(`${c.id}|`);
             const code = String(c.id).slice(8);
@@ -376,7 +376,7 @@ export function GuideScreen() {
             );
           })}
         </div>
-        <div class="row gap-sm">
+        <div class="row gap-sm" data-group="guide-buttons" data-hlock>
           <GuideUpdateButton />
           <Button small icon="chevronLeft" onClick={() => shiftView(-STEP * 2)} aria-label="Earlier" />
           <Button small icon="now" onClick={jumpNow}>Now</Button>

@@ -778,6 +778,8 @@ export interface ServiceRowOut {
 export interface ServiceHome {
   rows: ServiceRowOut[];
   loading: boolean;
+  /** Movies & Shows (all in one): your provider's categories, for "Browse". */
+  categories?: { kind: VodKind; cat: VodCat }[];
   /** No Watchmode key: rows come from your provider's categories for this service only. */
   noKey: boolean;
 }
@@ -803,21 +805,41 @@ export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => 
   const [mCats, sCats] = await Promise.all([loadCategories('movies').catch(() => [] as VodCat[]), loadCategories('shows').catch(() => [] as VodCat[])]);
   const mEng = mCats.filter((c) => isEnglishCategory(c.name));
   const sEng = sCats.filter((c) => isEnglishCategory(c.name));
-  if (noKey && id === 'all') {
-    // No Watchmode key: the regular Movies and Shows home rows (US charts, your provider's titles), together.
-    const rows: ServiceRowOut[] = [];
-    const add = (h: VodHome, kind: string) => {
-      for (const r of h.rows) rows.push({ id: `${kind}:${r.id}`, title: r.title, items: r.items.slice(0, SVC_ROW_MAX).map(fromVod), ranked: r.id === 'trending' || r.id === 'popular' ? true : undefined });
+  if (id === 'all') {
+    // Movies & Shows, all in one: your provider's movies and shows like before (US charts / Watchmode lists matched
+    // to your provider, Recently Added, genres…), shows and movies together, filling in as each loads.
+    let sh: VodHome | null = null;
+    let m: VodHome | null = null;
+    const build = (loading: boolean): ServiceHome => {
+      const rows: ServiceRowOut[] = [];
+      const tag = (h: VodHome | null, kind: string) => (h?.rows ?? []).map((r) => {
+        const ranked = r.id === 'trending' || r.id === 'popular';
+        return { id: `${kind}:${r.id}`, title: r.title, items: r.items.slice(0, ranked ? 10 : SVC_ROW_MAX).map(fromVod), ranked: ranked || undefined };
+      });
+      const s1 = tag(sh, 'shows');
+      const m1 = tag(m, 'movies');
+      // Top 10s first, then shows and movies rows taking turns.
+      rows.push(...s1.filter((r) => r.ranked), ...m1.filter((r) => r.ranked));
+      const rs = s1.filter((r) => !r.ranked);
+      const rm = m1.filter((r) => !r.ranked);
+      for (let i = 0; i < Math.max(rs.length, rm.length); i++) {
+        if (rs[i]) rows.push(rs[i]);
+        if (rm[i]) rows.push(rm[i]);
+      }
+      const categories = [
+        ...(sh?.categories ?? []).map((cat) => ({ kind: 'shows' as VodKind, cat })),
+        ...(m?.categories ?? []).map((cat) => ({ kind: 'movies' as VodKind, cat })),
+      ];
+      return { rows, loading, noKey, categories };
     };
-    const [m, sh] = await Promise.all([loadHome('movies', () => undefined).catch(() => null), loadHome('shows', () => undefined).catch(() => null)]);
-    if (sh) add(sh, 'shows');
-    if (m) add(m, 'movies');
-    // Top 10s first, then the rest alternating shows / movies.
-    rows.sort((a, b) => Number(!!b.ranked) - Number(!!a.ranked));
-    for (const r of rows) if (r.ranked) r.items = r.items.slice(0, 10);
-    const h = { rows, loading: false, noKey };
-    onUpdate(h);
-    return h;
+    const emit = () => onUpdate(build(true));
+    await Promise.all([
+      loadHome('shows', (h) => { sh = h; emit(); }).then((h) => { sh = h; }).catch(() => undefined),
+      loadHome('movies', (h) => { m = h; emit(); }).then((h) => { m = h; }).catch(() => undefined),
+    ]);
+    const done = build(false);
+    onUpdate(done);
+    return done;
   }
   if (noKey) {
     const own = [...sEng.filter((c) => svc.cat.test(c.name)).map((c) => ['shows', c] as const), ...mEng.filter((c) => svc.cat.test(c.name)).map((c) => ['movies', c] as const)].slice(0, 10);
