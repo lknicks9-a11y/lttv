@@ -125,6 +125,11 @@ export function VodScreen({ kind }: { kind: VodKind }) {
       return onBack(() => {
         const a = document.activeElement;
         if (!rootRef.current?.contains(a)) return false;
+        // Movies & Shows: Back from "Everything" goes to the services page.
+        if (APP_MODE === 'movies') {
+          setView({ mode: 'services' });
+          return true;
+        }
         const item = document.querySelector<HTMLElement>('.topbar .tab.active') ?? document.querySelector<HTMLElement>('.topbar .tab');
         item?.focus();
         return !!item;
@@ -138,7 +143,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
         setView({ mode: 'services' });
         return true;
       }
-      setView({ mode: APP_MODE === 'movies' && view.mode === 'home' ? 'services' : 'home' });
+      setView({ mode: 'home' });
       return true;
     });
   }, [view]);
