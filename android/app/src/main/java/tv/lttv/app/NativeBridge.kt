@@ -328,6 +328,8 @@ class NativeBridge(private val activity: MainActivity) {
 
     @JavascriptInterface
     fun exitApp() {
-        activity.runOnUiThread { activity.finish() }
+        // Leaving with Back only puts the app in the background (like Home): coming back seconds later finds it
+        // exactly where it was, with nothing to load again. Fire TV still closes it on its own when it needs room.
+        activity.runOnUiThread { if (!activity.moveTaskToBack(true)) activity.finish() }
     }
 }
