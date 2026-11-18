@@ -840,7 +840,9 @@ export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => 
     // More to scroll through: your provider's own categories as rows too (a few of each, English).
     const done0 = build(true);
     onUpdate(done0);
-    const cats = [...(sh?.categories ?? []).slice(0, 8).map((c) => ['shows', c] as const), ...(m?.categories ?? []).slice(0, 8).map((c) => ['movies', c] as const)];
+    const shH = sh as VodHome | null;
+    const mH = m as VodHome | null;
+    const cats = [...(shH?.categories ?? []).slice(0, 8).map((c) => ['shows', c] as const), ...(mH?.categories ?? []).slice(0, 8).map((c) => ['movies', c] as const)];
     const extra: ServiceRowOut[] = [];
     const seen = new Set(done0.rows.map((r) => r.title.toLowerCase()));
     await Promise.all(cats.map(async ([k, c]) => {
