@@ -59,7 +59,7 @@ class HomeActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("home", MODE_PRIVATE) }
 
     private lateinit var root: FrameLayout
-    private lateinit var grid: GridLayout
+    private lateinit var grid: LinearLayout
     private lateinit var clock: TextView
     private lateinit var sidebar: LinearLayout
 
@@ -86,8 +86,10 @@ class HomeActivity : Activity() {
 
     private val tick = object : Runnable {
         override fun run() {
-            clock.text = DateFormat.format("EEEE, MMMM d", Date()).toString() + "   " +
-                DateFormat.getTimeFormat(this@HomeActivity).format(Date())
+            clock.text = DateFormat.getTimeFormat(this@HomeActivity).format(Date())
+            val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            val part = if (h < 12) "Good morning" else if (h < 18) "Good afternoon" else "Good evening"
+            greeting.text = if (profileName() == "LTTV") part else "$part, ${profileName()}"
             main.postDelayed(this, 15_000)
         }
     }
@@ -100,47 +102,84 @@ class HomeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The Figma design (LTTV Home — Fire TV launcher): deep blue-violet backdrop with soft colour glows,
+        // a slim glass icon rail on the left, greeting + clock, a big featured banner, one row of wide app
+        // tiles (the focused one gets a white border and its name), and the TV's inputs as glass pills.
         root = FrameLayout(this)
-        // a deep blue-violet glow behind the glass
-        root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#141B33"), Color.parseColor("#0A0B10"), Color.parseColor("#1E1029")))
+        root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#0B1020"), Color.parseColor("#07080D"), Color.parseColor("#160C22")))
+        val sw = resources.displayMetrics.widthPixels
+        val sh = resources.displayMetrics.heightPixels
+        for ((pos, c) in listOf(Triple(-sw * 0.1f, -sh * 0.25f, sw * 0.5f) to "#592B4BFF", Triple(sw * 0.62f, sh * 0.55f, sw * 0.5f) to "#478A2BE2", Triple(sw * 0.36f, -sh * 0.3f, sw * 0.38f) to "#2E00C2FF")) {
+            val (x, y, d) = pos
+            root.addView(View(this).apply {
+                background = GradientDrawable().apply {
+                    gradientType = GradientDrawable.RADIAL_GRADIENT; gradientRadius = d / 2f
+                    colors = intArrayOf(Color.parseColor(c), Color.TRANSPARENT)
+                }
+                translationX = x; translationY = y
+            }, FrameLayout.LayoutParams(d.toInt(), d.toInt()))
+        }
 
         bgPhoto = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         bgShade = View(this).apply { setBackgroundColor(Color.parseColor("#D009090C")) }
         root.addView(bgPhoto, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root.addView(bgShade, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        sidebar = buildSidebar()
-        row.addView(sidebar, LinearLayout.LayoutParams(dp(230), ViewGroup.LayoutParams.MATCH_PARENT).apply { setMargins(dp(22), dp(22), dp(10), dp(22)) })
-
         val mainCol = ScrollView(this).apply { isFillViewport = true; isVerticalScrollBarEnabled = false }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(20), dp(34), dp(30))
-            clipChildren = false; clipToPadding = false
+            setPadding(dp(CONTENT_LEFT), dp(24), dp(CONTENT_RIGHT), dp(30))
         }
-        clock = TextView(this).apply {
-            setTextColor(Color.parseColor("#C9D1DB")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); gravity = Gravity.END
-        }
-        content.addView(clock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) })
-        content.addView(buildHero(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(232)))
+        // greeting and clock
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        greeting = TextView(this).apply { setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f); typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL) }
+        top.addView(greeting, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        clock = TextView(this).apply { setTextColor(Color.parseColor("#C9D1DB")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f); typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL) }
+        top.addView(clock)
+        content.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(16) })
 
-        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), dp(22), 0, dp(10)) }
-        head.addView(TextView(this).apply { text = "Your Apps"; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f); typeface = Typeface.DEFAULT_BOLD })
-        head.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        head.addView(pillButton("Choose apps") { showChooseApps() })
-        head.addView(View(this), LinearLayout.LayoutParams(dp(10), 1))
-        head.addView(pillButton("Reorder") { Toast.makeText(this, "Hold Select (or press ☰) on an app to move or hide it", Toast.LENGTH_LONG).show() })
-        content.addView(head)
+        content.addView(buildHero(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (sh * 0.44f).toInt()))
 
-        grid = GridLayout(this).apply { columnCount = 4 }
-        content.addView(grid)
+        content.addView(sectionTitle2("Your Apps"))
+        grid = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(6), dp(8), dp(6), dp(8)) }
+        appsScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; isSmoothScrollingEnabled = true; addView(grid) }
+        content.addView(appsScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        inputsTitle = sectionTitle2("Inputs")
+        content.addView(inputsTitle)
+        inputsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(6), dp(4), dp(6), dp(8)) }
+        content.addView(inputsRow)
+
         mainCol.addView(content)
-        row.addView(mainCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
-        root.addView(row)
-        Glass.unclip(row)
+        root.addView(mainCol, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        sidebar = buildSidebar()
+        root.addView(sidebar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(22) })
+        Glass.unclip(content)
         setContentView(root)
         showSlide(0)
+    }
+
+    private lateinit var greeting: TextView
+    private lateinit var appsScroll: android.widget.HorizontalScrollView
+    private lateinit var inputsTitle: TextView
+    private lateinit var inputsRow: LinearLayout
+
+    private fun sectionTitle2(t: String) = TextView(this).apply {
+        text = t; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f); typeface = Typeface.DEFAULT_BOLD
+        setPadding(dp(6), dp(22), 0, dp(6))
+    }
+
+    private fun rebuildInputs() {
+        inputsRow.removeAllViews()
+        val list = Inputs.list(this)
+        inputsTitle.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+        inputsRow.visibility = inputsTitle.visibility
+        for (inp in list) {
+            inputsRow.addView(pillButton(inp.label) { if (!Inputs.open(this, inp)) toast("This TV didn't open ${inp.label}") }.apply {
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); typeface = Typeface.DEFAULT_BOLD; setPadding(dp(24), dp(11), dp(24), dp(11))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(14) })
+        }
     }
 
     override fun onResume() {
@@ -148,6 +187,7 @@ class HomeActivity : Activity() {
         main.post(tick)
         main.postDelayed(turn, 7_000)
         rebuildGrid()
+        rebuildInputs()
         applyBackground()
         showSlide(slide)
         if (firstShow) { firstShow = false; hero.post { hero.requestFocus() } }
@@ -187,54 +227,67 @@ class HomeActivity : Activity() {
 
     private fun buildSidebar(): LinearLayout {
         val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = Glass.sheet(this@HomeActivity, 22)
-            setPadding(dp(14), dp(18), dp(14), dp(18))
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+            background = Glass.sheet(this@HomeActivity, 36)
+            setPadding(dp(12), dp(20), dp(12), dp(20))
         }
-        val profile = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        // profile: a round gradient avatar with your initial
+        val avatar = TextView(this).apply {
+            text = profileName().take(1).uppercase(); gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f); typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#4CC2FF"), Color.parseColor("#7A5CFF"))).apply { shape = GradientDrawable.OVAL }
             isFocusable = true; isClickable = true
-            background = navBg(false)
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            setOnClickListener { openSettings() }
-            setOnFocusChangeListener { v, f -> v.background = navBg(f) }
+            setOnClickListener { showSettings() }
+            setOnFocusChangeListener { v, f -> v.foreground = if (f) GradientDrawable().apply { shape = GradientDrawable.OVAL; setStroke(dp(3), Color.WHITE) } else null; railFocus() }
         }
-        profile.addView(ImageView(this).apply { setImageResource(R.drawable.badge) }, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(10) })
-        profile.addView(TextView(this).apply {
-            text = profileName(); setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = Typeface.DEFAULT_BOLD
-            maxLines = 1; ellipsize = TextUtils.TruncateAt.END
-        })
-        bar.addView(profile, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(14) })
-
-        bar.addView(navItem("Home", true) { scrollTopAndFocus() })
-        bar.addView(navItem("Inputs", false) { showInputs() })
-        bar.addView(navItem("Live TV", false) { openLttv("home") })
-        bar.addView(navItem("Search", false) { openLttv("search") })
-        bar.addView(navItem("All Apps", false) { showAllApps() })
-        bar.addView(navItem("Store", false) { showStore() })
-        bar.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
-        bar.addView(navItem("Settings", false) { showSettings() })
+        bar.addView(avatar, LinearLayout.LayoutParams(dp(40), dp(40)).apply { bottomMargin = dp(18) })
+        bar.addView(navItem(R.drawable.ic_search, "Search", false) { openLttv("search") })
+        bar.addView(navItem(R.drawable.ic_home, "Home", true) { scrollTopAndFocus() })
+        bar.addView(navItem(R.drawable.ic_live, "Live TV", false) { openLttv("home") })
+        bar.addView(navItem(R.drawable.ic_inputs, "Inputs", false) { showInputs() })
+        bar.addView(navItem(R.drawable.ic_apps, "All Apps", false) { showAllApps() })
+        bar.addView(navItem(R.drawable.ic_store, "Store", false) { showStore() })
+        bar.addView(navItem(R.drawable.ic_settings, "Settings", false) { showSettings() })
         return bar
     }
 
-    private fun navItem(label: String, selected: Boolean, onClick: () -> Unit): TextView {
-        val t = TextView(this)
-        t.text = label
-        t.setTextColor(if (selected) Color.parseColor("#09090C") else Color.parseColor("#C3CAD4"))
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-        t.typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-        t.setPadding(dp(16), dp(12), dp(14), dp(12))
-        t.isFocusable = true; t.isClickable = true
-        t.background = if (selected) Glass.surface(this, 14, strong = true) else navBg(false)
-        if (selected) t.setTextColor(Color.WHITE)
-        t.setOnClickListener { onClick() }
-        t.setOnFocusChangeListener { v, f ->
-            v.background = if (f) navBg(true) else if (selected) Glass.surface(this, 14, strong = true) else navBg(false)
-            (v as TextView).setTextColor(if (f) Color.parseColor("#09090C") else if (selected) Color.WHITE else Color.parseColor("#C3CAD4"))
-            v.typeface = if (f || selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+    private val railLabels = mutableListOf<TextView>()
+    private var railOpen = false
+
+    /** Labels show next to the icons while you're in the rail (it opens over the page), and hide when you leave. */
+    private fun railFocus() = sidebar.post {
+        val open = sidebar.hasFocus()
+        railOpen = open
+        for (l in railLabels) l.visibility = if (open) View.VISIBLE else View.GONE
+        sidebar.background = Glass.sheet(this, 36).also { if (open) it.alpha = 255 }
+        sidebar.elevation = if (open) dp(12).toFloat() else 0f
+    }
+
+    private fun navItem(icon: Int, label: String, selected: Boolean, onClick: () -> Unit): LinearLayout {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            isFocusable = true; isClickable = true
+            setPadding(dp(11), dp(11), dp(11), dp(11))
         }
-        t.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) }
-        return t
+        val img = ImageView(this).apply { setImageResource(icon) }
+        val name = TextView(this).apply {
+            text = label; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(14), 0, dp(10), 0); visibility = View.GONE
+        }
+        railLabels += name
+        item.addView(img, LinearLayout.LayoutParams(dp(24), dp(24)))
+        item.addView(name)
+        fun paint(f: Boolean) {
+            val light = f || (selected && !railOpen)
+            item.background = if (light) GradientDrawable().apply { cornerRadius = dp(26).toFloat(); setColor(Color.WHITE) } else null
+            val c = if (light) Color.parseColor("#0A0B10") else Color.parseColor("#C9D1DB")
+            img.setColorFilter(c); name.setTextColor(if (f) Color.parseColor("#0A0B10") else Color.WHITE)
+        }
+        paint(false)
+        item.setOnClickListener { onClick() }
+        item.setOnFocusChangeListener { _, f -> paint(f); railFocus() }
+        item.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) }
+        return item
     }
 
     private fun navBg(active: Boolean): android.graphics.drawable.Drawable =
@@ -243,7 +296,7 @@ class HomeActivity : Activity() {
     private fun profileName(): String = prefs.getString("profile", null) ?: "LTTV"
 
     private fun scrollTopAndFocus() {
-        (grid.getChildAt(0) as? ViewGroup)?.getChildAt(0)?.requestFocus() ?: hero.requestFocus()
+        hero.requestFocus()
     }
 
     // ---- featured banner ------------------------------------------------------------------------
@@ -271,17 +324,17 @@ class HomeActivity : Activity() {
         heroBadge = ImageView(this).apply { setImageResource(R.drawable.badge); alpha = 0.9f; scaleType = ImageView.ScaleType.FIT_CENTER }
         hero.addView(heroBadge, FrameLayout.LayoutParams(dp(150), dp(150), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = dp(56) })
 
-        val text = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(38), dp(30), dp(38), dp(26)) }
+        val text = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(48), dp(30), dp(48), dp(40)) }
         heroLabel = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f); typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.18f }
-        heroTitle = TextView(this).apply { setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 42f); typeface = Typeface.create("sans-serif", Typeface.BOLD) }
-        heroSub = TextView(this).apply { setTextColor(Color.parseColor("#D0D6DE")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setPadding(0, dp(4), 0, dp(14)) }
-        heroButton = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = Typeface.DEFAULT_BOLD; setPadding(dp(20), dp(9), dp(22), dp(9)) }
+        heroTitle = TextView(this).apply { setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 50f); typeface = Typeface.create("sans-serif", Typeface.BOLD); letterSpacing = -0.02f }
+        heroSub = TextView(this).apply { setTextColor(Color.parseColor("#E3E7EE")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f); setPadding(0, dp(6), 0, dp(20)); maxWidth = dp(520) }
+        heroButton = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f); typeface = Typeface.DEFAULT_BOLD; setPadding(dp(26), dp(12), dp(28), dp(12)) }
         text.addView(heroLabel); text.addView(heroTitle); text.addView(heroSub)
         text.addView(heroButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         hero.addView(text, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         heroDots = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        hero.addView(heroDots, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(40); bottomMargin = dp(16) })
+        hero.addView(heroDots, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(50); bottomMargin = dp(22) })
         return hero
     }
 
@@ -289,19 +342,19 @@ class HomeActivity : Activity() {
         slide = ((i % slides.size) + slides.size) % slides.size
         val s = slides[slide]
         val focused = hero.isFocused
-        hero.background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.parseColor(s.top), Color.parseColor("#101218"))).apply { cornerRadius = dp(16).toFloat() }
-        hero.foreground = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setStroke(dp(if (focused) 3 else 1), Color.parseColor(if (focused) "#FFFFFF" else "#40FFFFFF")) }
+        hero.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor(s.top), Color.parseColor(s.top), Color.parseColor("#2A1450"))).apply { cornerRadius = dp(28).toFloat() }
+        hero.foreground = GradientDrawable().apply { cornerRadius = dp(28).toFloat(); setStroke(dp(if (focused) 4 else 1), Color.parseColor(if (focused) "#FFFFFF" else "#29FFFFFF")) }
         val photo = lttv?.let { Art.drawable(this, "$it/slide$slide") }
         heroPhoto.setImageDrawable(photo)
         heroShade.visibility = if (photo != null) View.VISIBLE else View.GONE
         heroBadge.visibility = if (photo != null) View.GONE else View.VISIBLE
-        heroLabel.text = "LTTV"
+        heroLabel.text = "ON LTTV"
         heroLabel.setTextColor(Color.parseColor(s.accent))
         heroTitle.text = s.title
         heroSub.text = s.sub
         heroButton.text = "▶  Open ${s.title}"
         heroButton.setTextColor(if (focused) Color.parseColor("#09090C") else Color.WHITE)
-        heroButton.background = Glass.surface(this, 22, focused)
+        heroButton.background = if (focused) GradientDrawable().apply { cornerRadius = dp(30).toFloat(); setColor(Color.WHITE) } else Glass.surface(this, 30)
         heroDots.removeAllViews()
         for (n in slides.indices) heroDots.addView(View(this).apply {
             background = GradientDrawable().apply { cornerRadius = dp(4).toFloat(); setColor(if (n == slide) Color.WHITE else Color.parseColor("#55FFFFFF")) }
@@ -464,19 +517,19 @@ class HomeActivity : Activity() {
         grid.removeAllViews()
         var toFocus: View? = null
 
-        grid.addView(addAppsTile())
         for (a in apps) {
             val tileView = tile(a)
             grid.addView(tileView)
             if (a.key == had) toFocus = tileView.getChildAt(0)
         }
+        grid.addView(addAppsTile())
         focusKey = null
         Glass.unclip(grid)
         toFocus?.let { v -> v.post { v.requestFocus() } }
     }
 
-    // 4 tiles that always fit the space next to the sidebar (they used to run off the edge)
-    private val tileW get() = ((resources.displayMetrics.widthPixels - dp(230 + 32 + 52) - 4 * dp(16)) / 4).coerceAtMost(dp(220))
+    // 6 wide tiles across, like the design (the row scrolls for more)
+    private val tileW get() = (resources.displayMetrics.widthPixels - dp(CONTENT_LEFT + CONTENT_RIGHT + 12) - 5 * dp(TILE_GAP)) / 6
     private val tileH get() = tileW * 9 / 16
 
     private fun tile(app: App): LinearLayout {
@@ -504,13 +557,17 @@ class HomeActivity : Activity() {
         }
         card.setOnClickListener { open(app) }
         card.setOnLongClickListener { showOptions(app); true }
+        val label = tileLabel(app.label)
         card.setOnFocusChangeListener { v, f ->
             v.background = cardBg(f)
-            v.foreground = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setStroke(dp(if (f) 3 else 1), Color.parseColor(if (f) "#FFFFFF" else "#33FFFFFF")) }
+            v.foreground = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setStroke(dp(if (f) 4 else 1), Color.parseColor(if (f) "#FFFFFF" else "#26FFFFFF")) }
+            v.elevation = if (f) dp(14).toFloat() else 0f
+            label.visibility = if (f) View.VISIBLE else View.INVISIBLE
             Glass.lift(v, f)
         }
-        card.foreground = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setStroke(dp(1), Color.parseColor("#33FFFFFF")) }
-        box.addView(card, FrameLayout.LayoutParams(tileW, tileH))
+        card.foreground = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setStroke(dp(1), Color.parseColor("#26FFFFFF")) }
+        box.addView(card, LinearLayout.LayoutParams(tileW, tileH))
+        box.addView(label)
         return box
     }
 
@@ -522,26 +579,34 @@ class HomeActivity : Activity() {
             setOnClickListener { showStore() }
             setOnFocusChangeListener { v, f ->
                 v.background = cardBg(f)
-                v.animate().scaleX(if (f) 1.07f else 1f).scaleY(if (f) 1.07f else 1f).setDuration(140).start()
+                v.foreground = if (f) GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setStroke(dp(4), Color.WHITE) } else null
+                ((v.parent as? ViewGroup)?.getChildAt(1))?.visibility = if (f) View.VISIBLE else View.INVISIBLE
+                Glass.lift(v, f)
             }
         }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         col.addView(TextView(this).apply { text = "＋"; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f) })
         col.addView(TextView(this).apply { text = "Store"; setTextColor(Color.parseColor("#C9D1DB")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f); setPadding(0, dp(4), 0, 0) })
         card.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        box.addView(card, FrameLayout.LayoutParams(tileW, tileH))
+        box.addView(card, LinearLayout.LayoutParams(tileW, tileH))
+        box.addView(tileLabel("Store"))
         return box
+    }
+
+    private fun tileLabel(t: String) = TextView(this).apply {
+        text = t; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f); typeface = Typeface.DEFAULT_BOLD
+        maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(dp(2), dp(10), 0, 0); visibility = View.INVISIBLE
     }
 
     private fun tileBox() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; clipChildren = false
-        layoutParams = GridLayout.LayoutParams().apply { setMargins(dp(8), dp(8), dp(8), dp(8)) }
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(TILE_GAP) }
     }
 
     private fun cardBg(focused: Boolean) = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
         if (focused) intArrayOf(Color.parseColor("#59FFFFFF"), Color.parseColor("#2EFFFFFF"))
         else intArrayOf(Color.parseColor("#26FFFFFF"), Color.parseColor("#0DFFFFFF"))).apply {
-        cornerRadius = dp(14).toFloat()
+        cornerRadius = dp(18).toFloat()
     }
 
     private fun pillButton(label: String, onClick: () -> Unit) = TextView(this).apply {
@@ -830,6 +895,9 @@ class HomeActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private companion object {
+        const val CONTENT_LEFT = 120
+        const val CONTENT_RIGHT = 40
+        const val TILE_GAP = 22
         val LTTV_PACKAGES = listOf("tv.lttv.app.debug", "tv.lttv.app")
     }
 }
