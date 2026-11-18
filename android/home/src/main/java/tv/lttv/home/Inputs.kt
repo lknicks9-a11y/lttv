@@ -45,24 +45,19 @@ object Inputs {
         else -> "Input"
     }
 
-    /** Switches the TV to this input. Returns false if the TV wouldn't do it. */
-    fun open(a: Activity, input: Input): Boolean {
-        val uri = if (input.passthrough) TvContract.buildChannelUriForPassthroughInput(input.id)
-                  else TvContract.buildChannelsUriForInput(input.id)
-        val tries = listOf(
-            Intent(Intent.ACTION_VIEW, uri),
-            Intent(Intent.ACTION_VIEW, uri).setPackage("com.amazon.tv.livetv"),
-            Intent(Intent.ACTION_VIEW, uri).setPackage("com.android.tv"),
-        )
-        for (i in tries) {
-            try { a.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true } catch (_: Exception) { }
-        }
-        return false
-    }
+    /** Shows this input full screen on LTTV Home's own input screen (Fire TV keeps its switcher to Amazon apps). */
+    fun open(a: Activity, input: Input): Boolean = try {
+        a.startActivity(Intent(a, InputActivity::class.java)
+            .putExtra(InputActivity.EXTRA_ID, input.id)
+            .putExtra(InputActivity.EXTRA_LABEL, input.label)
+            .putExtra(InputActivity.EXTRA_PASSTHROUGH, input.passthrough))
+        true
+    } catch (_: Exception) { false }
 
     /** Fire TV's own inputs screen, if this isn't a TV with inputs we can list. */
     fun openSystemInputs(a: Activity): Boolean {
         val tries = listOf(
+            Intent("com.amazon.tv.action.NAVIGATE_TO_INPUTS"),
             Intent("com.amazon.tv.settings.v2.TV_INPUTS"),
             Intent("com.amazon.tv.settings.INPUTS"),
             Intent(Settings.ACTION_SETTINGS),

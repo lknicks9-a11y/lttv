@@ -61,4 +61,15 @@ object Glass {
     }
 
     fun row(c: Context) = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+
+    /** Lets focused tiles grow past their row / grid without their borders being cut off. */
+    fun unclip(v: android.view.View) {
+        if (v is android.view.ViewGroup) {
+            if (v !is android.widget.ScrollView && v !is android.widget.HorizontalScrollView) {
+                v.clipChildren = false
+                v.clipToPadding = false
+            } else v.clipToPadding = false
+            for (i in 0 until v.childCount) unclip(v.getChildAt(i))
+        }
+    }
 }

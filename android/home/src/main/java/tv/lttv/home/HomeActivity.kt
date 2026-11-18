@@ -138,6 +138,7 @@ class HomeActivity : Activity() {
         mainCol.addView(content)
         row.addView(mainCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
         root.addView(row)
+        Glass.unclip(row)
         setContentView(root)
         showSlide(0)
     }
@@ -470,6 +471,7 @@ class HomeActivity : Activity() {
             if (a.key == had) toFocus = tileView.getChildAt(0)
         }
         focusKey = null
+        Glass.unclip(grid)
         toFocus?.let { v -> v.post { v.requestFocus() } }
     }
 
@@ -559,8 +561,21 @@ class HomeActivity : Activity() {
 
     private fun showOverlay(v: View) {
         closeOverlay()
-        root.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        overlayPage = v
+        val page = withHomeButton(v) { closeOverlay(); hero.post { hero.requestFocus() } }
+        Glass.unclip(v)
+        root.addView(page, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        overlayPage = page
+    }
+
+    /** Every page has a Home button (top right) that goes straight back to the home screen. */
+    private fun withHomeButton(v: View, goHome: () -> Unit): FrameLayout {
+        val f = FrameLayout(this)
+        f.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        val home = pillButton("⌂  Home") { goHome() }.apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setPadding(dp(20), dp(10), dp(20), dp(10)) }
+        f.addView(home, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply {
+            topMargin = dp(28); rightMargin = dp(48)
+        })
+        return f
     }
 
     private fun closeOverlay() {
@@ -711,8 +726,10 @@ class HomeActivity : Activity() {
         col.addView(sectionTitle("Home screen"))
         col.addView(settingsGrid(home))
         page.addView(col)
-        root.addView(page, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        settingsPage = page
+        Glass.unclip(page)
+        val withHome = withHomeButton(page) { closeSettings(); hero.post { hero.requestFocus() } }
+        root.addView(withHome, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        settingsPage = withHome
         page.post { ((col.getChildAt(2) as? GridLayout)?.getChildAt(0))?.requestFocus() }
     }
 

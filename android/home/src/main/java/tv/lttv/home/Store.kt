@@ -39,6 +39,15 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
 
     data class Mine(val name: String, val pkgs: List<String>, val repo: String, val asset: String, val about: String, val color: String)
     data class Popular(val name: String, val pkg: String, val color: String)
+    /** Apps whose makers publish the app file themselves: installed right here, no Appstore. */
+    data class Direct(val name: String, val pkg: String, val about: String, val color: String, val github: String? = null, val listing: String? = null, val file: Regex? = null)
+
+    private val direct = listOf(
+        Direct("Kodi", "org.xbmc.kodi", "Media center for your own files and add-ons", "#17B2E7", listing = "https://mirrors.kodi.tv/releases/android/arm/", file = Regex("""kodi-[\w.\-]+-armeabi-v7a\.apk""")),
+        Direct("VLC", "org.videolan.vlc", "Plays any video or music file", "#FF8800", listing = "https://download.videolan.org/pub/videolan/vlc-android/last/", file = Regex("""VLC-Android-[\d.]+-armeabi-v7a\.apk""")),
+        Direct("Jellyfin", "org.jellyfin.androidtv", "Your own movie server, on the TV", "#7B4AD8", github = "jellyfin/jellyfin-androidtv"),
+        Direct("Moonlight", "com.limelight", "Stream games from your PC", "#2F3542", github = "moonlight-stream/moonlight-android"),
+    )
 
     private val mine = listOf(
         Mine("LTTV", listOf("tv.lttv.app.debug", "tv.lttv.app"), "lttv", "lttv.apk", "Live TV and sports from your playlists", "#2563EB"),
@@ -52,7 +61,7 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
     private val popular = listOf(
         Popular("Netflix", "com.netflix.ninja", "#B00710"), Popular("YouTube", "com.amazon.firetv.youtube", "#CC0000"),
         Popular("Prime Video", "com.amazon.avod", "#1A98FF"), Popular("Disney+", "com.disney.disneyplus", "#113CCF"),
-        Popular("Hulu", "com.hulu.plus", "#1CE783"), Popular("Max", "com.wbd.stream", "#002BE7"),
+        Popular("Hulu", "com.hulu.plus", "#1CE783"), Popular("HBO Max", "com.wbd.stream", "#002BE7"),
         Popular("Peacock", "com.peacocktv.peacockandroid", "#222222"), Popular("Paramount+", "com.cbs.ott", "#0064FF"),
         Popular("Apple TV", "com.apple.atve.amazon.appletv", "#333333"), Popular("YouTube TV", "com.amazon.firetv.youtube.tv", "#CC0000"),
         Popular("Sling TV", "com.sling", "#0A7AFF"), Popular("ESPN", "com.espn.gtv", "#C8102E"),
@@ -74,14 +83,17 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
         head.addView(Glass.button(a, "Install from a link") { linkDialog() })
         head.addView(View(a), LinearLayout.LayoutParams(dp(10), 1))
         head.addView(Glass.button(a, "Amazon Appstore") { openAppstore(null) })
+        head.setPadding(0, 0, dp(150), 0) // room for the Home button
         col.addView(head)
 
         col.addView(section("Your apps"))
         col.addView(grid(mine.map { m -> tile(m.name, m.about, m.color, installedPkg(m.pkgs) != null) { mineMenu(m) } }))
+        col.addView(section("Install right here"))
+        col.addView(grid(direct.map { d -> tile(d.name, if (installed(d.pkg)) "Installed · press to update" else d.about, d.color, false) { directAction(d) } }))
         col.addView(section("Popular apps"))
         col.addView(grid(popular.map { p -> tile(p.name, if (installed(p.pkg)) "Installed" else "Get it on the Appstore", p.color, installed(p.pkg)) { popularAction(p) } }))
         col.addView(Glass.text(a, 13f, "#8A93A3").apply {
-            text = "Your apps install straight from GitHub. Popular apps open their Amazon Appstore page. \"Install from a link\" works like Downloader."
+            text = "Your apps and \"Install right here\" apps download and install inside LTTV Home, straight from their makers. Netflix, Hulu, Disney+ and other big apps are only offered by Amazon on Fire TV, so those open their install page. \"Install from a link\" works like Downloader."
             setPadding(dp(8), dp(18), 0, 0)
         })
         scroll.addView(col)
@@ -150,6 +162,67 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
     }
 
     // ---- popular apps -------------------------------------------------------------------------
+    private fun directAction(d: Direct) {
+        if (installed(d.pkg)) {
+            AlertDialog.Builder(a, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(d.name)
+                .setItems(arrayOf("Open", "Update to the newest version")) { _, w -> if (w == 0) launch(d.pkg) else resolveAndInstall(d) }
+                .show()
+        } else resolveAndInstall(d)
+    }
+
+    /** Finds the maker's newest app file (GitHub release or their download folder), best fit for this TV. */
+    private fun resolveAndInstall(d: Direct) {
+        Toast.makeText(a, "Finding the newest ${d.name}…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val url = try { if (d.github != null) fromGithub(d.github) else fromListing(d.listing!!, d.file!!) } catch (_: Exception) { null }
+            main.post { if (url != null) install(url, d.name) else toast("Couldn't find ${d.name}'s download right now. Try again later.") }
+        }.start()
+    }
+
+    private fun fetchText(url: String, accept: String? = null): String {
+        var u = URL(url); var hops = 0
+        while (true) {
+            val c = u.openConnection() as HttpURLConnection
+            c.instanceFollowRedirects = false; c.connectTimeout = 15_000; c.readTimeout = 20_000
+            c.setRequestProperty("User-Agent", "LTTV-Home")
+            if (accept != null) c.setRequestProperty("Accept", accept)
+            val code = c.responseCode
+            if (code in 300..399 && hops++ < 8) { u = URL(u, c.getHeaderField("Location")); c.disconnect(); continue }
+            if (code != 200) throw Exception("HTTP $code")
+            return c.inputStream.bufferedReader().use { it.readText() }.also { c.disconnect() }
+        }
+    }
+
+    private fun abiScore(name: String): Int {
+        val n = name.lowercase()
+        if (n.contains("x86")) return -1
+        val abis = Build.SUPPORTED_ABIS.map { it.lowercase() }
+        abis.forEachIndexed { i, abi -> if (n.contains(abi.replace("-", "_")) || n.contains(abi)) return 100 - i }
+        if (n.contains("universal")) return 50
+        if (n.contains("arm64") || n.contains("armeabi") || n.contains("arm")) return -1 // another processor's build
+        return 40
+    }
+
+    private fun fromGithub(repo: String): String? {
+        val j = org.json.JSONObject(fetchText("https://api.github.com/repos/$repo/releases/latest", "application/vnd.github+json"))
+        val assets = j.optJSONArray("assets") ?: return null
+        val apks = (0 until assets.length()).map { assets.getJSONObject(it) }
+            .filter { it.optString("name").endsWith(".apk", true) && !it.optString("name").contains("debug", true) }
+        return apks.filter { abiScore(it.optString("name")) >= 0 }.maxByOrNull { abiScore(it.optString("name")) }?.optString("browser_download_url")
+    }
+
+    private fun fromListing(base: String, file: Regex): String? {
+        val html = fetchText(base)
+        val names = file.findAll(html).map { it.value }.toSet()
+        // newest version: compare the numbers in the file names
+        fun ver(n: String) = Regex("""\d+""").findAll(n).map { it.value.toInt() }.toList()
+        val best = names.maxWithOrNull { x, y ->
+            val a1 = ver(x); val b1 = ver(y)
+            (0 until maxOf(a1.size, b1.size)).map { (a1.getOrElse(it) { 0 }).compareTo(b1.getOrElse(it) { 0 }) }.firstOrNull { it != 0 } ?: 0
+        } ?: return null
+        return base + best
+    }
+
     private fun popularAction(p: Popular) {
         if (installed(p.pkg)) launch(p.pkg) else openAppstore(p.pkg)
     }

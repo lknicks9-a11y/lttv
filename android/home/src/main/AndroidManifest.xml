@@ -9,6 +9,7 @@
 
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.software.live_tv" android:required="false" />
 
     <!-- The home screen lists the apps installed on the TV so it can open them (Android 11+ needs this). -->
     <queries>
@@ -34,6 +35,13 @@
 
         <!-- Pick "LTTV Home" in Launcher Manager Mini (Fire OS has no home-app setting),
              or open it from the app list / a remote app button. -->
+        <activity
+            android:name=".InputActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density" />
+
         <activity
             android:name=".HomeActivity"
             android:exported="true"
