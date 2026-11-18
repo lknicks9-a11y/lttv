@@ -323,12 +323,15 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         if (resumeOnStart) player.resume()
         resumeOnStart = false
+        if (::webView.isInitialized) webView.evaluateJavascript("window.dispatchEvent(new Event('lttv-shown'))", null)
     }
 
     override fun onStop() {
         // Fire TV guidelines: stop playback when the app is no longer visible.
         resumeOnStart = player.isActive()
         player.pause()
+        // The timeout screen's songs stop too — they never play outside the app.
+        if (::webView.isInitialized) webView.evaluateJavascript("window.dispatchEvent(new Event('lttv-hidden'))", null)
         for (t in tiles) t?.stop() // Multiview tiles restart from the page when it comes back
         super.onStop()
     }

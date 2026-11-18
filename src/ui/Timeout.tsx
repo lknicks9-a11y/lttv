@@ -348,6 +348,13 @@ export function setMusicOn(on: boolean) {
 }
 
 /** Your songs, one after another, on a loop, fading in and out with the screen. */
+let appShown = true;
+if (typeof window !== 'undefined') {
+  window.addEventListener('lttv-hidden', () => (appShown = false));
+  window.addEventListener('lttv-shown', () => (appShown = true));
+}
+const shownNow = () => appShown && !(typeof document !== 'undefined' && document.hidden);
+
 function useMusic(tracks: string[], silent = false, firstSongs = 0) {
   const [on, setOn] = useState(musicOn);
   useEffect(() => {
@@ -355,8 +362,25 @@ function useMusic(tracks: string[], silent = false, firstSongs = 0) {
     window.addEventListener('lttv-timeout-music', f);
     return () => window.removeEventListener('lttv-timeout-music', f);
   }, []);
+  // Only while the app is on screen: leaving it (Home, another app) stops the songs; coming back starts them again.
+  const [shown, setShown] = useState(() => typeof document === 'undefined' || !document.hidden);
   useEffect(() => {
-    if (!on || silent) return;
+    const hide = () => setShown(false);
+    const show = () => setShown(!document.hidden);
+    const vis = () => setShown(!document.hidden);
+    window.addEventListener('lttv-hidden', hide);
+    window.addEventListener('lttv-shown', show);
+    window.addEventListener('pagehide', hide);
+    document.addEventListener('visibilitychange', vis);
+    return () => {
+      window.removeEventListener('lttv-hidden', hide);
+      window.removeEventListener('lttv-shown', show);
+      window.removeEventListener('pagehide', hide);
+      document.removeEventListener('visibilitychange', vis);
+    };
+  }, []);
+  useEffect(() => {
+    if (!on || silent || !shown) return;
     // No songs of your own: LTTV's built-in beat.
     if (!tracks.length) return startBeat();
     const a = new Audio();
@@ -406,12 +430,19 @@ function useMusic(tracks: string[], silent = false, firstSongs = 0) {
     return () => {
       a.removeEventListener('ended', next);
       a.removeEventListener('error', next);
+      // Leaving the app: stop at once (a fade wouldn't finish while the app is in the background).
+      if (!shownNow()) {
+        window.clearInterval(fade);
+        a.pause();
+        a.removeAttribute('src');
+        return;
+      }
       ramp(0, () => {
         a.pause();
         a.removeAttribute('src');
       });
     };
-  }, [on, silent, firstSongs, tracks.join('|')]);
+  }, [on, silent, shown, firstSongs, tracks.join('|')]);
 }
 
 /** The pictures cross-fading behind `children` (the words). Only two pictures are ever on screen at once. */
