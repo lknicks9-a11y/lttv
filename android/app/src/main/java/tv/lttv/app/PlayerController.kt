@@ -258,6 +258,8 @@ class PlayerController(
             /* handleAudioFocus = */ audioFocus,
         )
         p.volume = volume
+        // Shows and movies with several voices start in English (not whichever dub the file lists first).
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setPreferredAudioLanguages("en", "eng", "en-US").build()
         // Multiview tiles never ask the TV to switch its refresh rate (several games asking for 30 / 60 Hz judders).
         if (!audioFocus) p.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
         p.repeatMode = Player.REPEAT_MODE_ONE // VOD-style test streams loop; live streams never end

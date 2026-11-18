@@ -982,7 +982,23 @@ export async function findVersions(it: VodItem): Promise<VodVersion[]> {
     return normTitle(cleanTitle(itemName(x))) === key && (!year || !y || y === year);
   });
   if (!same.some((x) => itemId(x) === itemId(it))) same.unshift(it);
-  return same.map((x) => ({ item: x, quality: qualityOf(itemName(x)) })).sort((a, b) => b.quality.rank - a.quality.rank);
+  // English copies only (US audio): copies in another language's category, or tagged as dubbed / subtitled
+  // ("FR - …", "… (VOSTFR)", "MULTI"), are left out so a show never starts in a dubbed voice.
+  let englishCats: Set<string> | null = null;
+  try {
+    englishCats = new Set((await loadCategories(it.kind === 'movie' ? 'movies' : 'shows')).filter((c) => isEnglishCategory(c.name)).map((c) => c.key));
+  } catch {
+    englishCats = null;
+  }
+  const english = (x: VodItem) => {
+    const n = itemName(x);
+    const cat = x.kind === 'movie' ? x.m.categoryId : x.s.categoryId;
+    return isEnglishCategory(n) && !FOREIGN_TAG.test(n) && !/\b(multi|dub(bed)?|latino|vose?)\b/i.test(n) && (!englishCats || !cat || englishCats.has(`${x.playlistId}:${cat}`));
+  };
+  const eng = same.filter(english);
+  const pool = eng.length ? eng : same;
+  // The copy you opened first, then the best quality.
+  return pool.map((x) => ({ item: x, quality: qualityOf(itemName(x)) })).sort((a, b) => b.quality.rank - a.quality.rank || (itemId(b.item) === itemId(it) ? 1 : 0) - (itemId(a.item) === itemId(it) ? 1 : 0));
 }
 
 /** A while after start-up, get Movies & Shows ready in the background so opening them is instant. */
