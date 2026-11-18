@@ -55,11 +55,11 @@ async function cached<T>(k: string, ttl: number, load: () => Promise<T>): Promis
 const SERVICES: { label: string; re: RegExp }[] = [
   { label: 'Netflix', re: /^netflix$/i },
   { label: 'Hulu', re: /^hulu$/i },
-  { label: 'Max', re: /^(max|hbo max)$/i },
-  { label: 'Disney+', re: /^disney\s*\+$/i },
+  { label: 'HBO Max', re: /^(max|hbo max)$/i },
+  { label: 'Disney+', re: /^disney\s*(\+|plus)$/i },
   { label: 'Prime Video', re: /^(amazon )?prime video$/i },
-  { label: 'Apple TV+', re: /^apple tv\s*\+$/i },
-  { label: 'Paramount+', re: /^paramount\s*\+$/i },
+  { label: 'Apple TV', re: /^apple tv\s*(\+|plus)?$/i },
+  { label: 'Paramount+', re: /^paramount\s*(\+|plus)( with showtime| premium| essential)?$/i },
   { label: 'Peacock', re: /^peacock( premium)?$/i },
 ];
 
@@ -81,6 +81,8 @@ const GENRES: { label: string; re: RegExp }[] = [
 export interface WmTitle {
   title: string;
   year?: number;
+  /** movie or show (lists that mix both say which). */
+  kind?: 'movie' | 'show';
 }
 export interface WmRow {
   id: string;
@@ -169,4 +171,84 @@ async function fetchRows(kind: Kind, key: string, cacheKey: string, onRow?: (row
 /** Forget cached lists (a new key, or "Refresh now"). */
 export async function clearWatchmodeCache() {
   for (const k of ['watchmode:rows:movies', 'watchmode:rows:shows']) await repo.setKv(k, null).catch(() => undefined);
+}
+
+// ---- One streaming service's home (Movies & Shows → a service) ----
+
+export interface WmServiceRow extends WmRow {
+  /** Show these as a ranked "Top 10". */
+  ranked?: boolean;
+}
+
+const SERVICE_GENRES = ['Comedies', 'Dramas', 'Action & Adventure', 'Thrillers & Mysteries', 'Crime', 'Sci-Fi & Fantasy', 'Kids & Family', 'Animation', 'Documentaries', 'Reality'];
+
+async function listMixed(types: string, extra: string): Promise<WmTitle[]> {
+  const j = (await call(`/list-titles/?types=${types}&regions=US&languages=en&sort_by=popularity_desc&limit=250${extra}`)) as { titles?: { title?: string; year?: number; type?: string }[] };
+  return (j.titles ?? []).filter((t) => t.title).map((t) => ({ title: t.title!, year: t.year || undefined, kind: t.type === 'movie' ? 'movie' : 'show' }));
+}
+
+const serviceJobs = new Map<string, Promise<WmServiceRow[]>>();
+
+/**
+ * Which titles are on one service in the US, as that service's home rows: Top 10 shows, Popular, Movies,
+ * New, then genres (about 14 Watchmode requests, kept on the device for 3 days).
+ */
+export async function serviceRows(label: string, onRow?: (rows: WmServiceRow[]) => void): Promise<WmServiceRow[]> {
+  const key = watchmodeKey();
+  if (!key) return [];
+  const svc = SERVICES.find((x) => x.label === label);
+  if (!svc) return [];
+  const cacheKey = `watchmode:svc:${label}`;
+  const hit = await repo.getKv<{ at: number; key: string; rows: WmServiceRow[] }>(cacheKey).catch(() => undefined);
+  const fresh = hit && hit.key === key.slice(-6) && hit.rows.length;
+  if (fresh && Date.now() - hit!.at < LIST_TTL) return hit!.rows;
+  const running = serviceJobs.get(label);
+  if (running) return fresh ? hit!.rows : running;
+  const job = (async () => {
+    const sources = await cached<Named[]>('watchmode:sources', META_TTL, async () => (await call('/sources/?regions=US&types=sub')) as Named[]);
+    const genres = await cached<Named[]>('watchmode:genres', META_TTL, async () => (await call('/genres/')) as Named[]);
+    const ids = sources.filter((x) => svc.re.test(x.name)).map((x) => x.id);
+    if (!ids.length) return [];
+    const src = `&source_ids=${ids.join(',')}`;
+    const since = new Date(Date.now() - 120 * 86400_000);
+    const ymd = `${since.getFullYear()}${String(since.getMonth() + 1).padStart(2, '0')}${String(since.getDate()).padStart(2, '0')}`;
+    const both = 'movie,tv_series,tv_miniseries';
+    const plan: { id: string; title: string; types: string; extra: string; ranked?: boolean }[] = [
+      { id: 'top-shows', title: `Top 10 Shows on ${label} Today`, types: 'tv_series,tv_miniseries', extra: src, ranked: true },
+      { id: 'popular', title: `Popular on ${label}`, types: both, extra: src },
+      { id: 'new', title: `New on ${label}`, types: both, extra: `${src}&release_date_start=${ymd}` },
+      { id: 'top-movies', title: `Top 10 Movies on ${label} Today`, types: 'movie', extra: src, ranked: true },
+    ];
+    for (const g of GENRES.filter((x) => SERVICE_GENRES.includes(x.label))) {
+      const gids = genres.filter((x) => g.re.test(x.name)).map((x) => x.id);
+      if (gids.length) plan.push({ id: `genre:${g.label}`, title: g.label, types: both, extra: `${src}&genres=${gids.join(',')}` });
+    }
+    const got: (WmServiceRow | null)[] = plan.map(() => null);
+    let next = 0;
+    let firstError: Error | null = null;
+    const lane = async () => {
+      while (next < plan.length) {
+        const i = next++;
+        const p = plan[i];
+        try {
+          got[i] = { id: p.id, title: p.title, ranked: p.ranked, titles: await listMixed(p.types, p.extra) };
+          onRow?.(got.filter((x): x is WmServiceRow => !!x));
+        } catch (e) {
+          firstError ??= e as Error;
+          if (i < 2 && !got.some(Boolean)) next = plan.length;
+        }
+      }
+    };
+    await Promise.all([lane(), lane(), lane()]);
+    const rows = got.filter((x): x is WmServiceRow => !!x);
+    if (!rows.length && firstError) throw firstError;
+    if (rows.length) await repo.setKv(cacheKey, { at: Date.now(), key: key.slice(-6), rows }).catch(() => undefined);
+    return rows;
+  })().finally(() => serviceJobs.delete(label));
+  serviceJobs.set(label, job);
+  if (fresh) {
+    job.catch(() => undefined);
+    return hit!.rows;
+  }
+  return job;
 }

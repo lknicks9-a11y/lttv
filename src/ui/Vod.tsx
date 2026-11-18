@@ -20,7 +20,7 @@ import { isForeignScript } from '../core/lang';
 import { updateSettings } from '../app/state';
 import { usePlayerStatus, PlayerBadge } from './Home';
 import { APP_MODE } from '../app/appmode';
-import { STREAMING_SERVICES, loadServiceItems, type StreamingService } from '../app/vod';
+import { STREAMING_SERVICES, loadServiceHome, type ServiceHome, type StreamingService } from '../app/vod';
 
 
 const PAGE = 48;
@@ -164,17 +164,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
         ) : view.mode === 'category' ? (
           <CategoryGrid kind={kind} cat={view.cat} onOpen={setOpen} />
         ) : view.mode === 'service' ? (
-          <>
-            <ServiceRow kind={kind} sel={view.svc.id} onPick={pickService} />
-            <CategoryGrid
-              key={view.svc.id}
-              kind={kind}
-              cat={{ key: `svc:${view.svc.id}`, id: view.svc.id, name: view.svc.label, playlistId: '' } as VodCat}
-              load={() => loadServiceItems(kind, view.svc.id)}
-              emptyNote={`Nothing from ${view.svc.label} in your provider's ${kind === 'movies' ? 'movies' : 'shows'} yet. Add a Watchmode key in Settings → Movies & Shows to match more titles.`}
-              onOpen={setOpen}
-            />
-          </>
+          <ServicePage key={view.svc.id} svc={view.svc} onOpen={setOpen} onPick={pickService} />
         ) : (
           <>
             <ServiceRow kind={kind} onPick={pickService} />
@@ -358,6 +348,86 @@ function TopCard({ it, rank, wide, autofocus, onFocus, onOpen }: { it: VodItem; 
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One streaming service's page, in that service's colors and card shape: its name up top, Shows / Movies,
+ * a big featured title, Top 10 rows and genre rows — what's on the service (Watchmode) that your provider has.
+ */
+function ServicePage({ svc, onOpen, onPick }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void }) {
+  const [home, setHome] = useState<ServiceHome | null>(null);
+  const [err, setErr] = useState('');
+  const [filter, setFilter] = useState<'all' | 'shows' | 'movies'>('all');
+  const [shown, setShown] = useState(3);
+  useEffect(() => {
+    let alive = true;
+    loadServiceHome(svc.id, (h) => alive && setHome(h)).catch((e) => alive && setErr((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [svc.id]);
+  const rows = useMemo(() => (home?.rows ?? [])
+    .map((r) => ({ ...r, items: filter === 'all' ? r.items : r.items.filter((it) => (filter === 'movies') === (it.kind === 'movie')) }))
+    .filter((r) => r.items.length >= (r.ranked ? 3 : 4)), [home, filter]);
+  useEffect(() => {
+    if (shown >= rows.length) return;
+    const t = setTimeout(() => setShown((n) => n + 3), 150);
+    return () => clearTimeout(t);
+  }, [shown, rows.length]);
+  const featured = rows.find((r) => !r.ranked)?.items.slice(0, 8) ?? rows[0]?.items.slice(0, 8) ?? [];
+  const p = svc.page;
+  return (
+    <div class={`svc-page svc-${p.cards}`} style={{ '--svc-top': p.top, '--svc-bottom': p.bottom, '--svc-accent': p.accent } as Record<string, string>}>
+      <div class="svc-head">
+        <div class="svc-wordmark">{svc.label}</div>
+        <div class="row gap svc-tabs" data-group="svc-tabs" data-hlock>
+          {(['all', 'shows', 'movies'] as const).map((f) => (
+            <button type="button" class={`f svc-tab ${filter === f ? 'is-on' : ''}`} onClick={() => { setFilter(f); setShown(3); }}>{f === 'all' ? 'Home' : f === 'shows' ? 'TV Shows' : 'Movies'}</button>
+          ))}
+          <button type="button" class="f svc-tab svc-switch" onClick={() => onPick(null)}>All services</button>
+        </div>
+      </div>
+      {featured.length > 0 && <Hero key={filter} items={featured} onOpen={onOpen} />}
+      {rows.slice(0, shown).map((r, ri) => (
+        <section class={`vod-row svc-row ${r.ranked ? 'svc-ranked' : ''}`} key={`${filter}:${r.id}`}>
+          <h2 class="vod-row-title">{r.title}</h2>
+          <LazyStrip id={`svc-${r.id}`} count={r.items.length}>
+            {(n) => r.items.slice(0, n).map((it, i) => (r.ranked || p.cards === 'poster'
+              ? <ItemCard it={it} rank={r.ranked ? i + 1 : undefined} autofocus={!featured.length && ri === 0 && i === 0} onOpen={onOpen} />
+              : <WideCard it={it} autofocus={!featured.length && ri === 0 && i === 0} onOpen={onOpen} />))}
+          </LazyStrip>
+        </section>
+      ))}
+      {(!home || home.loading) && !err && <div class="muted row gap vod-loading"><span class="spinner" /> Loading {svc.label}…</div>}
+      {err && <p class="error-text">Couldn’t load {svc.label}: {err}</p>}
+      {home && !home.loading && !rows.length && (
+        <Empty icon="search" title={`Nothing from ${svc.label} in your provider yet`}>
+          <p>{home.noKey ? 'Add a free Watchmode key in Settings → Movies & Shows so LTTV knows which titles are on each service.' : 'Your provider doesn’t have this service’s titles.'}</p>
+        </Empty>
+      )}
+      {home && !home.loading && home.noKey && rows.length > 0 && <p class="muted svc-note">Showing your provider’s {svc.label} categories. Add a Watchmode key in Settings → Movies & Shows for {svc.label}’s full Top 10, new releases and genres.</p>}
+    </div>
+  );
+}
+
+/** A wide tile (the services that use landscape art): the poster until you land on it, then the wide picture. */
+function WideCard({ it, onOpen, autofocus }: { it: VodItem; onOpen: (it: VodItem) => void; autofocus?: boolean }) {
+  const [focused, setFocused] = useState(false);
+  const name = itemName(it);
+  const year = it.kind === 'movie' ? it.m.year : it.s.year;
+  const art = useArt(it.kind, name, year, focused);
+  const poster = it.kind === 'movie' ? it.m.poster : it.s.poster;
+  const wide = it.kind === 'series' ? it.s.backdrop ?? art?.backdrop : art?.backdrop;
+  const img = wide ? pic(wide, 'backdrop') : pic(poster, 'poster');
+  return (
+    <button type="button" class="f vod-card svc-wide" data-autofocus={autofocus ? '' : undefined} onFocus={() => setFocused(true)} onClick={() => onOpen(it)}>
+      <div class={`svc-wide-img ${wide ? '' : 'is-poster'}`} style={img ? { backgroundImage: `url("${img}")` } : undefined}>
+        {!img && <span class="svc-wide-fallback">{cleanTitle(name) || name}</span>}
+      </div>
+      <div class="svc-wide-name">{tt(cleanTitle(name) || name)}</div>
+      <div class="vod-meta muted">{[it.kind === 'movie' ? 'Movie' : 'Series', year].filter(Boolean).join(' · ')}</div>
+    </button>
   );
 }
 

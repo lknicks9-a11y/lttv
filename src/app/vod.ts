@@ -16,7 +16,7 @@ import { parseVodList } from './importer';
 import { continueList, type ResumeEntry, type SeriesRef, type VodGenre } from '../core/vod';
 export { continueList, type ResumeEntry, type SeriesRef };
 import { getState, repo, setState, subscribe } from './state';
-import { watchmodeKey, watchmodeRows, type WmRow, type WmTitle } from './watchmode';
+import { serviceRows, watchmodeKey, watchmodeRows, type WmRow, type WmTitle } from './watchmode';
 import type { PlaylistSource } from '../core/types';
 
 export interface VodSource {
@@ -717,17 +717,19 @@ export interface StreamingService {
   fg: string;
   /** Your provider's categories for this service ("NETFLIX MOVIES", "EN | Disney+ Series"…). */
   cat: RegExp;
+  /** The service's page: its colors and the card shape its app uses (tall posters or wide tiles). */
+  page: { top: string; bottom: string; accent: string; cards: 'poster' | 'wide' };
 }
 
 export const STREAMING_SERVICES: StreamingService[] = [
-  { id: 'Netflix', label: 'Netflix', bg: '#1a0a0b', fg: '#ff3b47', cat: /netflix/i },
-  { id: 'Prime Video', label: 'Prime Video', bg: '#0b1a2a', fg: '#4fb6ff', cat: /\b(amazon|prime)\b/i },
-  { id: 'Disney+', label: 'Disney+', bg: '#0b1440', fg: '#9fc3ff', cat: /disney/i },
-  { id: 'Hulu', label: 'Hulu', bg: '#0b2215', fg: '#3ee07f', cat: /\bhulu\b/i },
-  { id: 'Max', label: 'Max', bg: '#120d3a', fg: '#b2a4ff', cat: /\b(hbo|max)\b/i },
-  { id: 'Apple TV+', label: 'Apple TV+', bg: '#1b1b1f', fg: '#f2f2f2', cat: /\bapple\b/i },
-  { id: 'Paramount+', label: 'Paramount+', bg: '#0a1838', fg: '#5aa0ff', cat: /paramount/i },
-  { id: 'Peacock', label: 'Peacock', bg: '#1c1406', fg: '#ffc94d', cat: /peacock/i },
+  { id: 'Netflix', label: 'Netflix', bg: '#1a0a0b', fg: '#ff3b47', cat: /netflix/i, page: { top: '#141414', bottom: '#0b0b0b', accent: '#e50914', cards: 'poster' } },
+  { id: 'Prime Video', label: 'Prime Video', bg: '#0b1a2a', fg: '#4fb6ff', cat: /\b(amazon|prime)\b/i, page: { top: '#0f171e', bottom: '#0a1016', accent: '#1a98ff', cards: 'wide' } },
+  { id: 'Disney+', label: 'Disney+', bg: '#0b1440', fg: '#9fc3ff', cat: /disney/i, page: { top: '#1a1d3a', bottom: '#090b1c', accent: '#3f8cff', cards: 'wide' } },
+  { id: 'Hulu', label: 'Hulu', bg: '#0b2215', fg: '#3ee07f', cat: /\bhulu\b/i, page: { top: '#101418', bottom: '#07090b', accent: '#1ce783', cards: 'wide' } },
+  { id: 'HBO Max', label: 'HBO Max', bg: '#120d3a', fg: '#b2a4ff', cat: /\b(hbo|max)\b/i, page: { top: '#1b1347', bottom: '#07051a', accent: '#8b6bff', cards: 'wide' } },
+  { id: 'Apple TV', label: 'Apple TV', bg: '#1b1b1f', fg: '#f2f2f2', cat: /\bapple\b/i, page: { top: '#1c1c1e', bottom: '#000000', accent: '#ffffff', cards: 'wide' } },
+  { id: 'Paramount+', label: 'Paramount+', bg: '#0a1838', fg: '#5aa0ff', cat: /paramount/i, page: { top: '#0a2470', bottom: '#020a24', accent: '#0064ff', cards: 'poster' } },
+  { id: 'Peacock', label: 'Peacock', bg: '#1c1406', fg: '#ffc94d', cat: /peacock/i, page: { top: '#141414', bottom: '#000000', accent: '#f5c518', cards: 'wide' } },
 ];
 
 /**
@@ -756,6 +758,70 @@ export async function loadServiceItems(kind: VodKind, id: string): Promise<VodIt
   const lists = await Promise.all(own.map((c) => catItems(kind, c).catch(() => [] as VodItem[])));
   for (const l of lists) out.push(...l);
   return dedupe(out);
+}
+
+export interface ServiceRowOut extends VodRow {
+  ranked?: boolean;
+}
+export interface ServiceHome {
+  rows: ServiceRowOut[];
+  loading: boolean;
+  /** No Watchmode key: rows come from your provider's categories for this service only. */
+  noKey: boolean;
+}
+
+/**
+ * A streaming service's home (Movies & Shows → Hulu…): Watchmode says what's on the service in the US
+ * (Top 10, Popular, New, genres); each row shows the titles your provider has. Your provider's own
+ * categories for the service come last. Without a Watchmode key only those categories are shown.
+ */
+export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => void): Promise<ServiceHome> {
+  const svc = STREAMING_SERVICES.find((x) => x.id === id);
+  if (!svc) return { rows: [], loading: false, noKey: !watchmodeKey() };
+  const noKey = !watchmodeKey();
+  const [mCats, sCats] = await Promise.all([loadCategories('movies').catch(() => [] as VodCat[]), loadCategories('shows').catch(() => [] as VodCat[])]);
+  const mEng = mCats.filter((c) => isEnglishCategory(c.name));
+  const sEng = sCats.filter((c) => isEnglishCategory(c.name));
+  // The provider's own categories for this service ("NETFLIX MOVIES", "Hulu Series"…), one row each.
+  const ownRows = async (): Promise<ServiceRowOut[]> => {
+    const own = [...sEng.filter((c) => svc.cat.test(c.name)).map((c) => ['shows', c] as const), ...mEng.filter((c) => svc.cat.test(c.name)).map((c) => ['movies', c] as const)].slice(0, 10);
+    const lists = await Promise.all(own.map(([k, c]) => catItems(k, c).catch(() => [] as VodItem[])));
+    return own
+      .map(([, c], i) => ({ id: `cat:${c.key}`, title: c.name.replace(/^[A-Z]{2,3}\s*[|:-]\s*/, '').trim(), items: dedupe(lists[i]).slice(0, ROW_MAX) }))
+      .filter((r) => r.items.length > 0);
+  };
+  if (noKey) {
+    const rows = await ownRows();
+    const h = { rows, loading: false, noKey };
+    onUpdate(h);
+    return h;
+  }
+  const [matchMovie, matchShow] = await Promise.all([libraryMatcher('movies', mEng), libraryMatcher('shows', sEng)]);
+  const match = (t: WmTitle) => (t.kind === 'movie' ? matchMovie(t) : t.kind === 'show' ? matchShow(t) : matchShow(t) ?? matchMovie(t));
+  const build = (wm: { id: string; title: string; titles: WmTitle[]; ranked?: boolean }[], loading: boolean, extra: ServiceRowOut[] = []): ServiceHome => {
+    const rows: ServiceRowOut[] = [];
+    for (const r of wm) {
+      const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, r.ranked ? 10 : ROW_MAX);
+      if (items.length >= (r.ranked ? 3 : 4)) rows.push({ id: r.id, title: r.title, items, ranked: r.ranked });
+    }
+    return { rows: [...rows, ...extra], loading, noKey };
+  };
+  let last = 0;
+  let wm: Awaited<ReturnType<typeof serviceRows>> = [];
+  try {
+    wm = await serviceRows(svc.id, (partial) => {
+      if (Date.now() - last < 900) return;
+      last = Date.now();
+      onUpdate(build(partial, true));
+    });
+  } catch (e) {
+    console.warn('Watchmode lists for', svc.id, 'unavailable:', (e as Error).message);
+  }
+  onUpdate(build(wm, true));
+  const own = await ownRows();
+  const done = build(wm, false, own.map((r) => ({ ...r, title: `${r.title} · from your provider` })));
+  onUpdate(done);
+  return done;
 }
 
 /** Items of one category (for "Browse"). */
@@ -790,7 +856,7 @@ export async function findVersions(it: VodItem): Promise<VodVersion[]> {
 }
 
 /** A while after start-up, get Movies & Shows ready in the background so opening them is instant. */
-export function prefetchVodHomes() {
+export function prefetchVodHomes(delayMs = 45_000) {
   setTimeout(() => {
     const st = getState();
     if (!st.vodAvail?.movies && !st.vodAvail?.shows) return;
@@ -801,5 +867,5 @@ export function prefetchVodHomes() {
         await loadHome(kind, () => undefined).catch(() => undefined);
       }
     })();
-  }, 45_000);
+  }, delayMs);
 }

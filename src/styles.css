@@ -2059,3 +2059,24 @@ button.lp-row:hover { background: rgba(255, 255, 255, 0.06); }
 .vod-svc:focus, .vod-svc.focused { transform: scale(1.07); border-color: rgba(255,255,255,.85); box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 14px 34px rgba(0,0,0,.5); outline: none; }
 .vod-svc.is-on { border-color: var(--svc-fg); box-shadow: 0 0 0 2px var(--svc-fg), 0 8px 24px rgba(0,0,0,.35); }
 .vod-svc-all { --svc-fg: #fff; background: rgba(255,255,255,.08); }
+
+/* A streaming service's page: its colors, its name, tabs, featured title, Top 10 and genre rows. */
+.svc-page { margin: -8px -8px 0; padding: 4px 8px 40px; border-radius: 22px; background: linear-gradient(180deg, var(--svc-top) 0%, var(--svc-bottom) 70%); min-height: 100%; }
+.svc-page .vod-row-title { color: #fff; }
+.svc-head { display: flex; align-items: center; gap: 36px; padding: 18px 12px 14px; }
+.svc-wordmark { font-weight: 900; font-size: 2.6rem; letter-spacing: -.03em; color: var(--svc-accent); text-shadow: 0 2px 18px rgba(0,0,0,.45); }
+.svc-tabs { gap: 10px; }
+.svc-tab { padding: 10px 20px; border-radius: 999px; background: rgba(255,255,255,.06); color: rgba(255,255,255,.75); font-weight: 700; font-size: 1.05rem; border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.svc-tab.is-on { color: #fff; background: rgba(255,255,255,.14); box-shadow: inset 0 -3px 0 var(--svc-accent); }
+.svc-tab:focus, .svc-tab.focused { background: #fff; color: #000; outline: none; transform: scale(1.05); }
+.svc-switch { margin-left: 18px; }
+.svc-page .vod-play-btn { background: var(--svc-accent); color: #000; }
+.svc-page .vod-hero-badge { background: var(--svc-accent); color: #000; }
+.svc-ranked .vod-rank { -webkit-text-stroke-color: var(--svc-accent); }
+.svc-wide { width: 300px; }
+.svc-wide-img { width: 300px; height: 169px; border-radius: 12px; background: rgba(255,255,255,.06) center/cover no-repeat; display: grid; place-items: center; box-shadow: 0 8px 22px rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.08); }
+.svc-wide-img.is-poster { background-position: center 22%; }
+.svc-wide-fallback { padding: 12px; text-align: center; font-weight: 800; color: #fff; }
+.svc-wide-name { margin-top: 8px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-wide:focus .svc-wide-img, .svc-wide.focused .svc-wide-img { outline: 3px solid #fff; outline-offset: 3px; transform: scale(1.04); }
+.svc-note { padding: 10px 12px; }

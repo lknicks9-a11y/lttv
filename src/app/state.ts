@@ -27,6 +27,7 @@ import { setHqLogos } from '../core/logos';
 import { isEventChannel } from '../core/events';
 import { addProviderProgrammes, initProviderGuide, wantProviderGuide } from './provider-guide';
 import { guessKind } from './player';
+import { APP_MODE } from './appmode';
 import { xtreamAlternates } from '../core/xtream';
 
 
@@ -412,6 +413,15 @@ export async function reloadAll() {
   }
   setHqLogos(settings.hqLogos !== false);
   applyTheme(settings); // your theme from the first moment, not after everything has loaded
+  // Movies & Shows needs no channel lineup or TV guide: just your playlists (their movie and show lists are
+  // read when you open them). Skipping the lineup makes it open in a moment, even with a huge provider.
+  if (APP_MODE === 'movies') {
+    setState({ loadingPhase: 'Reading your playlists' });
+    const [playlists, epgSources, customizations] = await Promise.all([repo.listPlaylists(), repo.listEpgSources(), repo.getCustomizations()]);
+    await initProfiles(repo, customizations, currentAccount().name);
+    setState({ settings, playlists, epgSources, customizations, ready: true, loadingPhase: undefined });
+    return;
+  }
   setState({ loadingPhase: 'Reading your playlists and guide channels' });
   const data = await loadSources(repo);
   lastData = data;
@@ -936,12 +946,13 @@ export async function refreshAll(opts: { onlyStale?: boolean } = {}) {
     }
     // A guide whose listings run out within 12 hours is refreshed early (at most once an hour), so the lineup stays current.
     const runningOut = (e: EpgSource) => !!opts.onlyStale && hours > 0 && !!e.coverageEnd && e.coverageEnd < now + 12 * 3600_000 && now - (e.lastAttemptAt ?? 0) > 3600_000;
-    for (const s of await repo.listEpgSources()) {
+    for (const s of APP_MODE === 'movies' ? [] : await repo.listEpgSources()) {
       if (!(s.enabled && s.kind === 'url' && (stale(s.lastAttemptAt ?? s.lastRefreshAt) || runningOut(s))) || tooSoon(s.id)) continue;
       lastTry.set(s.id, now);
       changed = (await refreshEpg(s, undefined, { quiet })) || changed;
     }
-    if (changed) {
+    if (changed && APP_MODE === 'movies') await reloadAll();
+    else if (changed) {
       // A full re-match can be too much for a TV stick with a huge lineup: then match what's missing.
       await rematch(state.settings).catch(() => matchMissingChannels(state.settings).catch(() => undefined));
       await reloadAll();

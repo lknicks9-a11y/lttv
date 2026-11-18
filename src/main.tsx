@@ -84,7 +84,9 @@ async function boot() {
   if (APP_MODE !== 'movies') void startLiveSports();
   startUpdateChecks();
   startVodDetection();
-  prefetchVodHomes();
+  // Movies & Shows lives in its own app now: LTTV doesn't read the movie library in the background (that lagged
+  // live TV); Movies & Shows gets its pages ready right away instead.
+  if (APP_MODE === 'movies') prefetchVodHomes(1_500);
   // A section asked for by LTTV Home (?screen=home|sports|search|settings) opens there and skips autoplay.
   const wanted = new URLSearchParams(location.search).get('screen');
   const opened = wanted && OPENABLE.includes(wanted as Screen) && !getState().onboarding ? (wanted as Screen) : null;
