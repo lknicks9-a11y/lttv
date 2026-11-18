@@ -55,8 +55,15 @@ object Glass {
     }
 
     /** Focus animation shared by tiles: lift + scale. */
+    /** LTTV's glass block: dark see-through with a light edge; white when you're on it. */
+    fun block(c: Context, focused: Boolean) = if (focused) GradientDrawable().apply {
+        cornerRadius = dp(c, 16).toFloat(); setColor(Color.WHITE)
+    } else GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#24FFFFFF"), Color.parseColor("#0DFFFFFF"))).apply {
+        cornerRadius = dp(c, 16).toFloat(); setStroke(dp(c, 1), Color.parseColor("#33FFFFFF"))
+    }
+
     fun lift(v: View, f: Boolean) {
-        v.animate().scaleX(if (f) 1.06f else 1f).scaleY(if (f) 1.06f else 1f).setDuration(140).start()
+        v.animate().scaleX(if (f) 1.05f else 1f).scaleY(if (f) 1.05f else 1f).setDuration(140).start()
         v.translationZ = if (f) dp(v.context, 10).toFloat() else 0f
     }
 

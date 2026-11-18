@@ -51,7 +51,6 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
 
     private val mine = listOf(
         Mine("LTTV", listOf("tv.lttv.app.debug", "tv.lttv.app"), "lttv", "lttv.apk", "Live TV and sports from your playlists", "#2563EB"),
-        Mine("Movies & Shows", listOf("tv.lttv.movies.debug", "tv.lttv.movies"), "lttv", "lttv-movies.apk", "Pick a streaming service, watch from your provider", "#DC2626"),
         Mine("League Pass", listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), "lttv", "lttv-leaguepass.apk", "Every NBA game, team broadcasts first", "#EA580C"),
         Mine("Blitz", listOf("tv.lttv.blitz.debug", "tv.lttv.blitz"), "lttv", "lttv-blitz.apk", "Every NFL game this week", "#16A34A"),
         Mine("LTTube", listOf("com.lttube.tv"), "lttube-firetv", "LTTube-TV.apk", "Ad-free YouTube", "#FF0033"),

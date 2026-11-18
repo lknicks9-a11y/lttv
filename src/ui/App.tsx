@@ -60,8 +60,8 @@ function TopBar() {
   const items = NAV.filter((n) => {
     if (APP_MODE === 'movies') return n.id === 'movies' || n.id === 'shows' || n.id === 'search' || n.id === 'settings';
     if (APP_MODE !== 'lttv' && n.id !== 'movies' && n.id !== 'shows') return true;
-    // Fire TV: movies and shows are their own app. The computer keeps them in LTTV.
-    if (n.id === 'movies' || n.id === 'shows') return isNative && APP_MODE === 'lttv' ? false : n.id === 'movies' ? vod.movies : vod.shows;
+    // Movies and Shows are part of LTTV again (shown when your provider has them).
+    if (n.id === 'movies' || n.id === 'shows') return n.id === 'movies' ? vod.movies : vod.shows;
     return true;
   });
   const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen;

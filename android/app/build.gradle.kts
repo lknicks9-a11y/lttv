@@ -54,11 +54,6 @@ android {
             dimension = "app"
             buildConfigField("String", "APP_MODE", "\"lttv\"")
         }
-        create("movies") {
-            dimension = "app"
-            applicationId = "tv.lttv.movies"
-            buildConfigField("String", "APP_MODE", "\"movies\"")
-        }
         create("leaguepass") {
             dimension = "app"
             applicationId = "tv.lttv.leaguepass"
