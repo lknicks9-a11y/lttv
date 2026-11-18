@@ -14,12 +14,23 @@ import java.io.FileNotFoundException
  * signature permission: only apps signed with LTTV's key can read it.
  */
 class ShareProvider : ContentProvider() {
-    companion object { const val FILE = "shared-setup.json" }
+    companion object {
+        const val FILE = "shared-setup.json"
+        const val SHARED_DIR = "shared"
+    }
 
     override fun onCreate() = true
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (BuildConfig.APP_MODE != "lttv") throw FileNotFoundException("Only LTTV shares its setup")
+        val path = uri.path?.trimStart('/') ?: ""
+        // League Pass' timeout photos and songs, kept by LTTV (so they show with the computer off too).
+        if (path.startsWith("timeout")) {
+            if (path.contains("..")) throw FileNotFoundException(path)
+            val f = File(File(context!!.filesDir, SHARED_DIR), path)
+            if (!f.isFile) throw FileNotFoundException(path)
+            return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
+        }
         val f = File(context!!.filesDir, FILE)
         if (!f.isFile) throw FileNotFoundException("LTTV isn't set up yet")
         return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)

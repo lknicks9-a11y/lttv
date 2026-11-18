@@ -61,6 +61,30 @@ class NativeBridge(private val activity: MainActivity) {
         } catch (_: Exception) { }
     }
 
+    /**
+     * LTTV keeps a copy of League Pass' timeout photos and songs for League Pass / Blitz (sent in pieces).
+     * `path` is "timeout.json" or "timeout/<name>"; the first piece replaces the file, later ones add to it.
+     */
+    @JavascriptInterface
+    fun putSharedFile(path: String, base64: String, append: Boolean): Boolean {
+        if (BuildConfig.APP_MODE != "lttv" || path.contains("..") || !path.startsWith("timeout")) return false
+        return try {
+            val f = java.io.File(java.io.File(activity.filesDir, ShareProvider.SHARED_DIR), path)
+            f.parentFile?.mkdirs()
+            java.io.FileOutputStream(f, append).use { it.write(android.util.Base64.decode(base64, android.util.Base64.DEFAULT)) }
+            true
+        } catch (_: Exception) { false }
+    }
+
+    /** Which shared timeout files LTTV already kept (name -> size), so only new ones are sent. */
+    @JavascriptInterface
+    fun sharedFileSizes(): String {
+        val dir = java.io.File(java.io.File(activity.filesDir, ShareProvider.SHARED_DIR), "timeout")
+        val o = org.json.JSONObject()
+        dir.listFiles()?.forEach { o.put(it.name, it.length()) }
+        return o.toString()
+    }
+
     /** The other apps: LTTV's provider setup, or "" if LTTV isn't installed / set up yet. */
     @JavascriptInterface
     fun sharedSetup(): String {

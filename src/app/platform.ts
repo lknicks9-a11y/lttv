@@ -47,6 +47,9 @@ export interface NativeBridge {
   sharedSetup?(): string;
   /** Starts another LTTV app (leaguepass, blitz, movies); false if it isn't installed. */
   openApp?(which: string): boolean;
+  /** LTTV: keep a file for League Pass / Blitz (base64 pieces) and list what's kept. */
+  putSharedFile?(path: string, base64: string, append: boolean): boolean;
+  sharedFileSizes?(): string;
 }
 
 declare global {

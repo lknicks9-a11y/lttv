@@ -5,6 +5,7 @@ import { h, Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { native, openRemote, proxiedUrl } from '../app/platform';
 import { getState, updateSettings } from '../app/state';
+import { APP_MODE } from '../app/appmode';
 import { TIMEOUT_ART, startBeat, teamArt } from './timeoutart';
 import type { GameTeam } from '../core/schedule';
 
@@ -50,6 +51,11 @@ let lastTvStatus = '';
 /** What happened the last time the Fire TV looked for the files (shown in Settings). */
 export const timeoutTvStatus = () => lastTvStatus;
 async function loadOnTv(): Promise<TimeoutMedia> {
+  // League Pass / Blitz (their own apps): the copy LTTV keeps on this TV — no computer needed, nothing to download.
+  if (APP_MODE !== 'lttv') {
+    const shared = await fromLttv();
+    if (shared) return shared;
+  }
   const base = (getState().settings.timeoutMedia ?? '').trim().replace(/\/+$/, '');
   let list: Listing | null = null;
   let reached = false;
@@ -117,7 +123,63 @@ async function loadOnTv(): Promise<TimeoutMedia> {
   const songs = firstSongsFirst(list.audio.filter((n) => urls.has(n)));
   const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), names: list.images.filter((n) => urls.has(n)), audio: songs.flatMap((n) => urls.get(n) ?? []), firstSongs: songs.filter(isFirstSong).length };
   lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.`;
+  if (APP_MODE === 'lttv') void shareWithApps(list, names.filter((n) => urls.has(n)), cache, key).catch(() => undefined);
   return got;
+}
+
+// ---- Sharing the kept files with League Pass and Blitz (their own apps on this TV) ----
+const sharedName = (n: string) => `timeout/${encodeURIComponent(n)}`;
+
+/** LTTV: hands its kept photos and songs to League Pass / Blitz (only new or changed files are sent). */
+async function shareWithApps(list: Listing, names: string[], cache: Cache, key: (n: string) => string) {
+  const put = native?.putSharedFile;
+  if (!put) return;
+  let have: Record<string, number> = {};
+  try {
+    have = JSON.parse(native!.sharedFileSizes?.() || '{}') as Record<string, number>;
+  } catch {
+    /* none yet */
+  }
+  for (const n of names) {
+    const hit = await cache.match(key(n));
+    if (!hit) continue;
+    const blob = await hit.blob();
+    if (have[encodeURIComponent(n)] === blob.size) continue;
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    const CHUNK = 384 * 1024;
+    for (let i = 0; i < buf.length || i === 0; i += CHUNK) {
+      let bin = '';
+      const part = buf.subarray(i, Math.min(buf.length, i + CHUNK));
+      for (let j = 0; j < part.length; j += 8192) bin += String.fromCharCode(...part.subarray(j, j + 8192));
+      if (!put.call(native, sharedName(n), btoa(bin), i > 0)) return;
+      await new Promise((r) => setTimeout(r, 15)); // let the TV breathe between pieces
+      if (buf.length === 0) break;
+    }
+  }
+  const kept = { images: list.images.filter((n) => names.includes(n)), audio: list.audio.filter((n) => names.includes(n)) };
+  put.call(native, 'timeout.json', btoa(unescape(encodeURIComponent(JSON.stringify(kept)))), false);
+}
+
+/** League Pass / Blitz: the photos and songs LTTV kept, straight from LTTV's files. */
+async function fromLttv(): Promise<TimeoutMedia | null> {
+  try {
+    const r = await fetch('/lttv-shared/timeout.json', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const list = (await r.json()) as Listing;
+    if (!list.images?.length && !list.audio?.length) return null;
+    const url = (n: string) => `/lttv-shared/${encodeURIComponent(sharedName(n)).replace('%2F', '/')}`;
+    const songs = firstSongsFirst(list.audio ?? []);
+    lastTvStatus = `${list.images.length} pictures and ${songs.length} songs from LTTV.`;
+    return { images: list.images.map(url), names: list.images, audio: songs.map(url), firstSongs: songs.filter(isFirstSong).length };
+  } catch {
+    return null;
+  }
+}
+
+/** LTTV on the TV: keep League Pass' photos and songs up to date in the background, for League Pass / Blitz. */
+export function keepTimeoutForApps() {
+  if (APP_MODE !== 'lttv' || !native?.putSharedFile) return;
+  setTimeout(() => void loadOnTv().catch(() => undefined), 20_000);
 }
 /** A big photo is shrunk to TV size before it is kept (a 10 MB picture would choke a Fire TV Stick). */
 async function tvSized(name: string, blob: Blob): Promise<Blob> {

@@ -68,7 +68,8 @@ async function boot() {
     toast('Could not open local storage: ' + (e as Error).message, 'error', 10000);
     return;
   }
-  if (pulled) setTimeout(() => void refreshAll(), 300);
+  // Quietly (no pop-ups): only playlists this app hasn't read yet.
+  if (pulled) setTimeout(() => void refreshAll({ onlyStale: true }), 300);
   const s = getState().settings;
   applyTheme(s);
   // First launch: mandatory onboarding (sign in → profile → playlist).

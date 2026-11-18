@@ -124,8 +124,8 @@ class HomeActivity : Activity() {
         recRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(6), dp(6), dp(6), dp(10)) }
         col.addView(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; addView(recRow) })
         col.addView(sectionTitle2("Apps"))
-        grid = GridLayout(this).apply { columnCount = 4; setPadding(dp(2), 0, dp(2), 0) }
-        col.addView(grid)
+        grid = GridLayout(this).apply { columnCount = 4; setPadding(0, 0, 0, 0) }
+        col.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.START })
         scroll.addView(col)
         root.addView(scroll, FrameLayout.LayoutParams(contentW + dp(12), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = left - dp(6); topMargin = (sh * 0.13f).toInt() })
         buildRecommended()
@@ -218,8 +218,6 @@ class HomeActivity : Activity() {
             "Live TV" to { openLttv("guide") },
             "Sports" to { openLttv("sports") },
             "Movies & Shows" to { openLttv("movies") },
-            "League Pass" to { openLttv("app:leaguepass") },
-            "Blitz" to { openLttv("app:blitz") },
             "Search" to { openLttv("search") },
             "Store" to { showStore() },
             "All Apps" to { showAllApps() },
@@ -485,13 +483,9 @@ class HomeActivity : Activity() {
                 Glass.lift(v, f)
             }
         }
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-        col.addView(ImageView(this).apply { setImageResource(R.drawable.ic_store); setColorFilter(Color.WHITE) }, LinearLayout.LayoutParams(tileH * 34 / 100, tileH * 34 / 100).apply { gravity = Gravity.CENTER_HORIZONTAL })
-        col.addView(TextView(this).apply {
-            text = "Store"; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = Fonts.bold
-            gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0)
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        card.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        card.clipToOutline = true
+        card.addView(ImageView(this).apply { setImageResource(R.drawable.rec_store); scaleType = ImageView.ScaleType.CENTER_CROP },
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         box.addView(card, LinearLayout.LayoutParams(tileW, tileH))
         box.addView(tileLabel("Store"))
         return box

@@ -114,6 +114,8 @@ class MainActivity : AppCompatActivity() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val url = request.url
                 if (url.host == HOST && (url.path ?: "").startsWith("/api/")) return api.handle(url)
+                // League Pass / Blitz: the timeout photos and songs LTTV kept (read from LTTV's shared files).
+                if (url.host == HOST && (url.path ?: "").startsWith("/lttv-shared/")) return sharedFromLttv((url.path ?: "").removePrefix("/lttv-shared/"))
                 return assets.shouldInterceptRequest(url)
             }
 
@@ -344,6 +346,23 @@ class MainActivity : AppCompatActivity() {
 }
 
 /** Serves the bundled web UI from assets/www. */
+/** A file LTTV shares with the other LTTV apps (signature-protected), or null if LTTV doesn't have it. */
+private fun MainActivity.sharedFromLttv(path: String): WebResourceResponse? {
+    if (BuildConfig.APP_MODE == "lttv" || path.contains("..")) return null
+    val mime = when (path.substringAfterLast('.', "").lowercase()) {
+        "json" -> "application/json"; "jpg", "jpeg" -> "image/jpeg"; "png" -> "image/png"; "webp" -> "image/webp"; "gif" -> "image/gif"
+        "mp3" -> "audio/mpeg"; "m4a", "aac" -> "audio/mp4"; "wav" -> "audio/wav"; "ogg" -> "audio/ogg"; "flac" -> "audio/flac"
+        else -> "application/octet-stream"
+    }
+    for (pkg in listOf("tv.lttv.app.debug", "tv.lttv.app")) {
+        try {
+            val stream = contentResolver.openInputStream(android.net.Uri.parse("content://$pkg.share/${android.net.Uri.encode(path, "/")}")) ?: continue
+            return WebResourceResponse(mime, null, 200, "OK", mapOf("Cache-Control" to "no-cache", "Access-Control-Allow-Origin" to "*"), stream)
+        } catch (_: Exception) { }
+    }
+    return WebResourceResponse("text/plain", null, 404, "Not Found", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
+}
+
 class WwwPathHandler(private val activity: MainActivity) : WebViewAssetLoader.PathHandler {
     override fun handle(path: String): WebResourceResponse? {
         val clean = path.trimStart('/').ifEmpty { "index.html" }
