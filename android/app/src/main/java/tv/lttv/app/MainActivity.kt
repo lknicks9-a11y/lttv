@@ -339,7 +339,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val HOST = "appassets.androidplatform.net"
-        val SCREENS = setOf("home", "sports", "movies", "shows", "channels", "search", "settings")
+        val SCREENS = setOf("home", "guide", "sports", "movies", "shows", "channels", "search", "settings")
     }
 }
 

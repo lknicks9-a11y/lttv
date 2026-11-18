@@ -13,6 +13,7 @@ import { native, isNative } from '../app/platform';
 import { Button, Icon, Modal } from './common';
 import { LogoMark, Wordmark } from './Logo';
 import { clock } from './fmt';
+const TopPicksScreen = lazy(() => import('./TopPicks').then((m) => m.TopPicksScreen));
 const GuideScreen = lazy(() => import('./Guide').then((m) => m.GuideScreen));
 const ChannelsScreen = lazy(() => import('./Channels').then((m) => m.ChannelsScreen));
 const ChannelMenu = lazy(() => import('./Channels').then((m) => m.ChannelMenu));
@@ -36,8 +37,10 @@ import { SidebarProfile, WhoIsWatching } from './Profiles';
 import { needsProfilePick, onProfilesChanged } from '../app/profiles';
 
 
+// Like YouTube TV: Home · Live · Sports · Channels in the middle; search and settings as round buttons on the right.
 const NAV: { id: Screen; label: string; icon: string }[] = [
-  { id: 'home', label: 'Live TV', icon: 'guide' },
+  { id: 'home', label: 'Home', icon: 'home' },
+  { id: 'guide', label: 'Live', icon: 'guide' },
   { id: 'sports', label: 'Sports', icon: 'sports' },
   { id: 'movies', label: 'Movies', icon: 'movie' },
   { id: 'shows', label: 'Shows', icon: 'shows' },
@@ -45,6 +48,7 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
+const ROUND: Screen[] = ['search', 'settings'];
 
 /** The menu: a glass pill of sections across the top, the brand on the left, who's watching and the time on the right. */
 function TopBar() {
@@ -59,7 +63,10 @@ function TopBar() {
     if (n.id === 'movies' || n.id === 'shows') return isNative && APP_MODE === 'lttv' ? false : n.id === 'movies' ? vod.movies : vod.shows;
     return true;
   });
-  const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen === 'guide' ? 'home' : screen;
+  const active = screen === 'matches' || screen === 'wizard' || screen === 'sources' ? 'settings' : screen;
+  // Movies & Shows keeps its own menu (Movies, Shows, Search, Settings) in the middle.
+  const middle = APP_MODE === 'movies' ? items : items.filter((n) => !ROUND.includes(n.id));
+  const round = APP_MODE === 'movies' ? [] : items.filter((n) => ROUND.includes(n.id));
   return (
     <header class="topbar" data-group="topbar" data-zone="h">
       <div class="brand" aria-label="LTTV">
@@ -67,7 +74,7 @@ function TopBar() {
         <Wordmark class="brand-text" />
       </div>
       <nav class="tabs" aria-label="Main">
-        {items.map((n) => (
+        {middle.map((n) => (
           <button
             type="button"
             class={`f tab ${active === n.id ? 'active' : ''}`}
@@ -81,10 +88,15 @@ function TopBar() {
         ))}
       </nav>
       <div class="top-right">
+        <span class="top-clock">{clock(now)}</span>
         <UpdatePill />
+        {round.map((n) => (
+          <button type="button" class={`f tab tab-round ${active === n.id ? 'active' : ''}`} aria-label={n.label} onClick={() => navigate(n.id)}>
+            <Icon name={n.icon} size="1.45rem" />
+          </button>
+        ))}
         <SidebarProfile />
         {!isTV && <FullscreenButton />}
-        <span class="top-clock">{clock(now)}</span>
       </div>
     </header>
   );
@@ -233,7 +245,8 @@ function Screens() {
   }, [screen]);
   return (
     <main class="content" ref={ref} data-group="content" data-zone>
-      {(screen === 'home' || screen === 'guide') && <GuideScreen />}
+      {screen === 'home' && (APP_MODE === 'lttv' ? <TopPicksScreen /> : <GuideScreen />)}
+      {screen === 'guide' && <GuideScreen />}
       {screen === 'sports' && <ScreenGuard screen={screen}><SportsScreen /></ScreenGuard>}
       {screen === 'movies' && <ScreenGuard screen={screen}><VodScreen kind="movies" /></ScreenGuard>}
       {screen === 'shows' && <ScreenGuard screen={screen}><VodScreen kind="shows" /></ScreenGuard>}
@@ -322,7 +335,7 @@ function MainApp() {
     const offKeys = onAppKey((k) => {
       const s = getState();
       if (k === 'guide') {
-        navigate('home');
+        navigate('guide');
         return true;
       }
       if (k === 'chup' || k === 'chdown') {

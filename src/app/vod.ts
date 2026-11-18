@@ -760,7 +760,19 @@ export async function loadServiceItems(kind: VodKind, id: string): Promise<VodIt
   return dedupe(out);
 }
 
-export interface ServiceRowOut extends VodRow {
+/** A title on a streaming service (from Watchmode), and your provider's copy of it when it has one. */
+export interface SvcItem {
+  title: string;
+  year?: number;
+  kind: 'movie' | 'show';
+  tmdb?: number;
+  /** Your provider's copy: plays from here. Without it the title is shown but isn't playable. */
+  match?: VodItem;
+}
+export interface ServiceRowOut {
+  id: string;
+  title: string;
+  items: SvcItem[];
   ranked?: boolean;
 }
 export interface ServiceHome {
@@ -770,10 +782,13 @@ export interface ServiceHome {
   noKey: boolean;
 }
 
+const SVC_ROW_MAX = 40;
+const fromVod = (it: VodItem): SvcItem => ({ title: cleanTitle(itemName(it)) || itemName(it), year: Number(it.kind === 'movie' ? it.m.year : it.s.year) || undefined, kind: it.kind === 'movie' ? 'movie' : 'show', match: it });
+
 /**
- * A streaming service's home (Movies & Shows → Hulu…): Watchmode says what's on the service in the US
- * (Top 10, Popular, New, genres); each row shows the titles your provider has. Your provider's own
- * categories for the service come last. Without a Watchmode key only those categories are shown.
+ * A streaming service's home (Movies & Shows → Hulu…): everything Watchmode lists on that service in the US —
+ * Top 10, Popular, New and genres — each title marked with your provider's copy when it has one (so it plays).
+ * Without a Watchmode key, your provider's own categories for the service are shown instead.
  */
 export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => void): Promise<ServiceHome> {
   const svc = STREAMING_SERVICES.find((x) => x.id === id);
@@ -782,44 +797,58 @@ export async function loadServiceHome(id: string, onUpdate: (h: ServiceHome) => 
   const [mCats, sCats] = await Promise.all([loadCategories('movies').catch(() => [] as VodCat[]), loadCategories('shows').catch(() => [] as VodCat[])]);
   const mEng = mCats.filter((c) => isEnglishCategory(c.name));
   const sEng = sCats.filter((c) => isEnglishCategory(c.name));
-  // The provider's own categories for this service ("NETFLIX MOVIES", "Hulu Series"…), one row each.
-  const ownRows = async (): Promise<ServiceRowOut[]> => {
+  if (noKey) {
     const own = [...sEng.filter((c) => svc.cat.test(c.name)).map((c) => ['shows', c] as const), ...mEng.filter((c) => svc.cat.test(c.name)).map((c) => ['movies', c] as const)].slice(0, 10);
     const lists = await Promise.all(own.map(([k, c]) => catItems(k, c).catch(() => [] as VodItem[])));
-    return own
-      .map(([, c], i) => ({ id: `cat:${c.key}`, title: c.name.replace(/^[A-Z]{2,3}\s*[|:-]\s*/, '').trim(), items: dedupe(lists[i]).slice(0, ROW_MAX) }))
+    const rows = own
+      .map(([, c], i) => ({ id: `cat:${c.key}`, title: c.name.replace(/^[A-Z]{2,3}\s*[|:-]\s*/, '').trim(), items: dedupe(lists[i]).slice(0, SVC_ROW_MAX).map(fromVod) }))
       .filter((r) => r.items.length > 0);
-  };
-  if (noKey) {
-    const rows = await ownRows();
     const h = { rows, loading: false, noKey };
     onUpdate(h);
     return h;
   }
-  const [matchMovie, matchShow] = await Promise.all([libraryMatcher('movies', mEng), libraryMatcher('shows', sEng)]);
-  const match = (t: WmTitle) => (t.kind === 'movie' ? matchMovie(t) : t.kind === 'show' ? matchShow(t) : matchShow(t) ?? matchMovie(t));
-  const build = (wm: { id: string; title: string; titles: WmTitle[]; ranked?: boolean }[], loading: boolean, extra: ServiceRowOut[] = []): ServiceHome => {
+  // Show Watchmode's lists right away; your provider's copies are matched in as its library loads.
+  let match: ((t: WmTitle) => VodItem | undefined) | null = null;
+  let wm: Awaited<ReturnType<typeof serviceRows>> = [];
+  const build = (loading: boolean): ServiceHome => {
     const rows: ServiceRowOut[] = [];
+    const seenTop = new Set<string>();
     for (const r of wm) {
-      const items = dedupe(r.titles.map(match).filter((x): x is VodItem => !!x)).slice(0, r.ranked ? 10 : ROW_MAX);
-      if (items.length >= (r.ranked ? 3 : 4)) rows.push({ id: r.id, title: r.title, items, ranked: r.ranked });
+      const items: SvcItem[] = [];
+      const seen = new Set<string>();
+      for (const t of r.titles) {
+        const k = `${t.kind}:${normTitle(t.title)}:${t.year ?? ''}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        items.push({ title: t.title, year: t.year, kind: t.kind ?? 'show', tmdb: t.tmdb, match: match?.(t) });
+        if (items.length >= (r.ranked ? 10 : SVC_ROW_MAX)) break;
+      }
+      // Rows after the first few skip what the Top 10s already showed, so each row adds something new.
+      const fresh = r.ranked || r.id === 'popular' ? items : items.filter((x) => !seenTop.has(`${x.kind}:${normTitle(x.title)}`));
+      if (r.ranked) for (const x of items) seenTop.add(`${x.kind}:${normTitle(x.title)}`);
+      if (fresh.length >= 4) rows.push({ id: r.id, title: r.title, items: fresh, ranked: r.ranked });
     }
-    return { rows: [...rows, ...extra], loading, noKey };
+    return { rows, loading, noKey };
   };
   let last = 0;
-  let wm: Awaited<ReturnType<typeof serviceRows>> = [];
   try {
     wm = await serviceRows(svc.id, (partial) => {
+      wm = partial;
       if (Date.now() - last < 900) return;
       last = Date.now();
-      onUpdate(build(partial, true));
+      onUpdate(build(true));
     });
   } catch (e) {
     console.warn('Watchmode lists for', svc.id, 'unavailable:', (e as Error).message);
   }
-  onUpdate(build(wm, true));
-  const own = await ownRows();
-  const done = build(wm, false, own.map((r) => ({ ...r, title: `${r.title} · from your provider` })));
+  onUpdate(build(true));
+  try {
+    const [matchMovie, matchShow] = await Promise.all([libraryMatcher('movies', mEng), libraryMatcher('shows', sEng)]);
+    match = (t: WmTitle) => (t.kind === 'movie' ? matchMovie(t) : t.kind === 'show' ? matchShow(t) : matchShow(t) ?? matchMovie(t));
+  } catch {
+    /* no library: titles show, nothing plays */
+  }
+  const done = build(false);
   onUpdate(done);
   return done;
 }

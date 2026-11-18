@@ -194,7 +194,7 @@ export interface Settings {
   /** Your computer's address on the home network, where the Fire TV finds your timeout pictures and music. */
   timeoutMedia?: string;
   /** A built-in look, or an NBA city theme ('nba-bos'). */
-  theme: 'glass' | 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast' | `nba-${string}`;
+  theme: 'skyglass' | 'glass' | 'a7' | 'autosix' | 'autumn' | 'luxury' | 'aero' | 'dark' | 'darker' | 'contrast' | `nba-${string}`;
   /** The Frutiger Aero look was introduced (switched on once for existing setups). */
   aeroIntroduced?: boolean;
   startupScreen: StartupScreen;
@@ -230,6 +230,8 @@ export interface Settings {
   captions?: boolean;
   /** Your own Watchmode API key: Movies & Shows home rows from Watchmode (US, English). */
   watchmodeKey?: string;
+  /** Your own TMDB API key: sharp posters and backdrops for Movies & Shows (optional). */
+  tmdbKey?: string;
   /** SD movies / episodes: 'sharp' = not blown up to full screen (default), 'full' = fill the screen. */
   sdPicture?: 'sharp' | 'full';
   /** Streams you chose for My TV numbers (they win over the automatic pick, and follow you to other providers by name / call sign). */
@@ -267,7 +269,7 @@ export const DEFAULT_SETTINGS: Settings = {
   epgKeepPastHours: 3,
   fuzzyAutoApprove: 0,
   accent: '#4cc2ff',
-  theme: 'glass',
+  theme: 'skyglass',
   startupScreen: 'home',
   autoplayLastChannel: false,
   playbackRetries: 3,

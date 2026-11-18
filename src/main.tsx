@@ -17,7 +17,7 @@ import { pullFromLttv, startSharing } from './app/share';
 import { preloadProfiles } from './app/profiles';
 import './styles.css';
 
-const OPENABLE: Screen[] = ['home', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'];
+const OPENABLE: Screen[] = ['home', 'guide', 'sports', 'movies', 'shows', 'channels', 'search', 'settings'];
 
 async function boot() {
   document.documentElement.classList.toggle('tv', isTV);

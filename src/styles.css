@@ -2298,3 +2298,99 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
   background: radial-gradient(80% 70% at 50% 40%, #1d2030, #08080a 70%); }
 .needs-lttv h1 { font-size: 3.4rem; font-weight: 900; letter-spacing: -.03em; margin: 0; }
 .needs-lttv p { font-size: 1.4rem; color: rgba(255,255,255,.8); margin: 0; }
+
+/* ================= Sky Glass: YouTube TV's layout with a glossy Frutiger Aero feel (Figma "LTTV — Home" / "LTTV — Live") ================= */
+:root[data-theme='skyglass'] {
+  --bg: #04101f; --bg-2: #06162b; --panel: rgba(255,255,255,.09); --panel-2: rgba(255,255,255,.13); --panel-3: rgba(255,255,255,.2); --line: rgba(255,255,255,.16);
+  --text: #f4f9ff; --text-2: #cfe3f5; --muted: #9fb8cf; --accent: #4cc2ff; --accent-soft: rgba(76,194,255,.22);
+  --radius: 1.1rem; --radius-sm: 0.85rem;
+  --focus: 0 0 0 0.2rem #fff, 0 0.8rem 2.4rem rgba(46,168,255,.5);
+  --glass: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.06) 50%, rgba(255,255,255,.04) 51%, rgba(255,255,255,.08));
+  --glass-line: rgba(255,255,255,.2);
+  --gloss: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,.04) 48%, transparent 50%);
+}
+[data-theme='skyglass'] body { letter-spacing: -0.006em; }
+[data-theme='skyglass'] .backdrop { background:
+  radial-gradient(60rem 40rem at -6% -18%, rgba(46,168,255,.42), transparent 70%),
+  radial-gradient(48rem 32rem at 92% -14%, rgba(61,224,200,.24), transparent 70%),
+  radial-gradient(70rem 40rem at 45% 120%, rgba(20,80,180,.4), transparent 70%),
+  radial-gradient(3.2rem 3.2rem at 86% 14%, rgba(255,255,255,.0) 60%, rgba(190,235,255,.28) 72%, rgba(255,255,255,.0) 74%),
+  radial-gradient(1.6rem 1.6rem at 91% 26%, rgba(255,255,255,.0) 60%, rgba(190,235,255,.3) 72%, rgba(255,255,255,.0) 74%),
+  radial-gradient(4.4rem 4.4rem at 78% 94%, rgba(255,255,255,.0) 60%, rgba(190,235,255,.22) 72%, rgba(255,255,255,.0) 74%),
+  linear-gradient(180deg, #0a2a4a 0%, #06162b 45%, #030a16 100%); }
+/* top bar: logo left, a glass pill of tabs in the middle (white glossy for the one you're on), time + round buttons + you on the right */
+[data-theme='skyglass'] .tabs { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4); padding: .35rem; box-shadow: inset 0 1px 0 rgba(255,255,255,.22); }
+[data-theme='skyglass'] .tabs .tab .icon { display: none; }
+[data-theme='skyglass'] .tab { font-size: 1.3rem; font-weight: 650; color: rgba(255,255,255,.88); padding: 0 1.7rem; height: 3.1rem; }
+[data-theme='skyglass'] .tab.active { background: linear-gradient(180deg, #fff, #dcebfa); color: #06162b; box-shadow: 0 .3rem 1.2rem rgba(46,168,255,.45); }
+[data-theme='skyglass'] .tab:focus { background: linear-gradient(180deg, #fff, #cfe6ff); color: #06162b; box-shadow: 0 0 0 .16rem #fff, 0 .4rem 1.6rem rgba(46,168,255,.6); }
+[data-theme='skyglass'] .tab-round { width: 3.1rem; padding: 0; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); }
+[data-theme='skyglass'] .top-clock { color: var(--text-2); font-weight: 600; font-size: 1.2rem; }
+/* live guide: what's on (left) and the preview (right), then the glass grid */
+[data-theme='skyglass'] .guide-top { grid-template-columns: minmax(0, 1fr) 34rem; height: 19.5rem; }
+[data-theme='skyglass'] .guide-preview { order: 2; border-radius: 1.3rem; overflow: hidden; border: 1.5px solid rgba(255,255,255,.35); box-shadow: 0 1rem 2.6rem rgba(26,128,255,.4); }
+[data-theme='skyglass'] .guide-info { order: 1; justify-content: center; gap: .55rem; }
+[data-theme='skyglass'] .guide-info-title { font-size: 3.4rem; font-weight: 850; letter-spacing: -.03em; line-height: 1.02; }
+[data-theme='skyglass'] .guide-info-meta { color: var(--text-2); font-weight: 600; }
+[data-theme='skyglass'] .guide-info-meta .accent { color: #ff5a5a; font-weight: 800; }
+[data-theme='skyglass'] .guide-info .progress { max-width: 11rem; height: .38rem; }
+[data-theme='skyglass'] .guide-info .progress > * { background: linear-gradient(90deg, #ff3b3b, #ff7a5c); }
+[data-theme='skyglass'] .guide-hint { display: none; }
+[data-theme='skyglass'] .guide-head h2 { font-size: 1.4rem; }
+[data-theme='skyglass'] .guide-row { border-bottom: 0; }
+[data-theme='skyglass'] .guide-ch { background: linear-gradient(135deg, rgba(76,194,255,.28), rgba(6,22,43,.85)); background-image: var(--gloss), linear-gradient(135deg, rgba(76,194,255,.28), rgba(6,22,43,.85)); border: 1px solid rgba(255,255,255,.22); border-radius: 1rem; margin: .3rem .55rem .3rem 0; }
+[data-theme='skyglass'] .prog { top: .3rem; bottom: .3rem; border-radius: 1rem; background-color: rgba(255,255,255,.1); background-image: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05)); border: 1px solid rgba(255,255,255,.15); padding: .45rem 1.1rem; }
+[data-theme='skyglass'] .prog-title { font-size: 1.15rem; font-weight: 600; }
+[data-theme='skyglass'] .prog.past { opacity: .55; }
+[data-theme='skyglass'] .guide-grid.active .prog.cursor, [data-theme='skyglass'] .prog.cursor:focus { background: linear-gradient(180deg, #fff, #e2f1ff); color: #06162b; border-color: #fff; box-shadow: 0 .5rem 1.8rem rgba(46,168,255,.5); }
+[data-theme='skyglass'] .guide-grid.active .prog.cursor .prog-time { color: #2a4a68; }
+[data-theme='skyglass'] .prog-progress { background: linear-gradient(90deg, #ff3b3b, #ff7a5c); height: .22rem; }
+[data-theme='skyglass'] .now-line, [data-theme='skyglass'] .now-marker-top { background: #ff3b3b; }
+[data-theme='skyglass'] .chip { border-radius: .9rem; background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06)); border: 1px solid rgba(255,255,255,.2); }
+[data-theme='skyglass'] .chip.chip-active { background: linear-gradient(180deg, #e9f6ff, #bfe3ff); color: #06162b; border-color: rgba(255,255,255,.9); }
+
+/* ---- Home: Top picks for you (all themes; Sky Glass is the default) ---- */
+.ytt-home { overflow-y: auto; padding-bottom: 3rem; }
+.ytt-row-title { font-size: 1.45rem; font-weight: 750; margin: 1.6rem 0 .8rem; }
+.ytt-home > .ytt-row-title:first-child { margin-top: .4rem; }
+.ytt-strip { display: flex; gap: 1.5rem; overflow-x: auto; overflow-y: visible; padding: .6rem .5rem 1rem; margin: 0 -.5rem; scrollbar-width: none; align-items: flex-start; }
+.ytt-strip::-webkit-scrollbar { display: none; }
+.ytt-card-wrap { flex: 0 0 auto; width: 22rem; display: flex; flex-direction: column; gap: .35rem; }
+.ytt-card-wrap.is-big { width: 27rem; }
+.ytt-card { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid rgba(255,255,255,.2); border-radius: 1.15rem; overflow: hidden; padding: 0; cursor: pointer;
+  background: linear-gradient(135deg, var(--c1), var(--c2)); box-shadow: 0 .6rem 1.4rem rgba(0,0,0,.4); transition: transform .16s ease, box-shadow .16s ease; }
+.ytt-card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ytt-card-logo { position: absolute; inset: 0; display: grid; place-items: center; }
+.ytt-card-logo .ch-logo, .ytt-card-logo img { max-width: 55%; max-height: 55%; transform: scale(1.5); filter: drop-shadow(0 .3rem .8rem rgba(0,0,0,.35)); }
+.ytt-gloss { position: absolute; left: 0; right: 0; top: 0; height: 48%; background: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,.02)); pointer-events: none; }
+.ytt-live { position: absolute; left: .8rem; bottom: 1.1rem; font-size: .8rem; font-weight: 900; letter-spacing: .04em; padding: .2rem .5rem; border-radius: .35rem; background: linear-gradient(180deg, #ff4d4d, #d10f1f); color: #fff; }
+.ytt-progress { position: absolute; left: 0; right: 0; bottom: 0; height: .32rem; background: rgba(255,255,255,.25); }
+.ytt-progress span { display: block; height: 100%; background: linear-gradient(90deg, #ff3b3b, #ff7a5c); }
+.ytt-card:focus { outline: none; transform: scale(1.05); box-shadow: 0 0 0 .26rem #fff, 0 1rem 2.6rem rgba(46,168,255,.55); }
+.ytt-meta { font-size: .95rem; font-weight: 650; color: var(--text-2); margin-top: .35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ytt-title { font-size: 1.35rem; font-weight: 750; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.is-big .ytt-title { font-size: 1.65rem; }
+.ytt-sub { color: var(--text-2); font-size: .95rem; }
+.ytt-chips { display: flex; gap: .7rem; flex-wrap: nowrap; overflow-x: auto; padding: 1rem .5rem .4rem; margin: 0 -.5rem; scrollbar-width: none; }
+.ytt-chip { flex: none; display: inline-flex; align-items: center; gap: .5rem; padding: .7rem 1.35rem; border-radius: .9rem; font-weight: 650; font-size: 1.1rem; color: var(--text);
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06)); border: 1px solid rgba(255,255,255,.2); cursor: pointer; }
+.ytt-chip.is-on { background: linear-gradient(180deg, #e9f6ff, #bfe3ff); color: #06162b; border-color: rgba(255,255,255,.9); }
+.ytt-chip:focus { outline: none; box-shadow: 0 0 0 .18rem #fff, 0 .5rem 1.4rem rgba(46,168,255,.5); transform: scale(1.04); }
+.ytt-ch { flex: none; position: relative; width: 15rem; aspect-ratio: 16 / 9; border-radius: 1rem; border: 1px solid rgba(255,255,255,.2); overflow: hidden; display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(135deg, var(--c1), var(--c2)); transition: transform .16s ease; }
+.ytt-ch .ch-logo, .ytt-ch img { transform: scale(1.3); }
+.ytt-ch:focus { outline: none; transform: scale(1.06); box-shadow: 0 0 0 .24rem #fff, 0 .8rem 2rem rgba(46,168,255,.5); }
+.ytt-more { margin-top: 1.6rem; }
+
+/* Service pages: full catalogs */
+.svcx-pw { position: relative; display: flex !important; align-items: center; gap: .9vw; padding: 0 .8vw; }
+.svcx-pw-blur { position: absolute; inset: -20%; background: center / cover no-repeat; filter: blur(22px) saturate(1.3) brightness(.6); }
+.svcx-pw-poster { position: relative; height: 84%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: .3vw; box-shadow: 0 .4vh 1.2vh rgba(0,0,0,.5); }
+.svcx-pw-name { position: relative; font-weight: 800; font-size: 1.05vw; line-height: 1.15; text-align: left; text-shadow: 0 .2vw .8vw rgba(0,0,0,.7); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.svcx-unavail { font-size: .95vw; font-weight: 700; color: rgba(255,255,255,.7); }
+.svcx-pill-me { position: absolute; right: 4.6vw; top: 3.4vh; }
+.svcx-info .svcx-info-img { height: 16rem; margin: -.5rem -.5rem 1rem; border-radius: .8rem; background: center / cover no-repeat; }
+.svcx-info-note { font-weight: 700; }
+/* Detail pages: "More like this" posters no longer cut off when they grow on focus */
+.modal .vod-strip, .vod-detail .vod-strip { padding: 1.1rem .9rem 1.5rem; margin: 0 -.9rem; }
+.modal .vod-row { overflow: visible; }

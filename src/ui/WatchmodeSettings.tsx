@@ -3,6 +3,7 @@ import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import { updateSettings, useApp, toast } from '../app/state';
 import { clearWatchmodeCache, testWatchmodeKey } from '../app/watchmode';
+import { testTmdbKey } from '../app/tmdb';
 import { resetVodHome } from '../app/vod';
 import { Button } from './common';
 
@@ -43,6 +44,41 @@ export function WatchmodeSettings() {
         {saved && <Button icon="refresh" disabled={busy} onClick={() => void clearWatchmodeCache().then(() => { resetVodHome(); toast('Movies & Shows lists will refresh next time you open them.', 'success'); })}>Refresh lists now</Button>}
       </div>
       <p class="hint">Your key stays on this device (and in your account if you sign in); it isn’t built into the app.</p>
+      <TmdbKey />
     </div>
+  );
+}
+
+/** Optional TMDB key: sharp posters and wide pictures for every title on the service pages. */
+function TmdbKey() {
+  const saved = useApp((s) => s.settings.tmdbKey ?? '');
+  const [key, setKey] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const save = async () => {
+    const k = key.trim();
+    setBusy(true);
+    setMsg(null);
+    try {
+      if (k) await testTmdbKey(k);
+      await updateSettings({ tmdbKey: k || undefined });
+      setMsg({ ok: true, text: k ? 'Key works — service pages now use TMDB’s pictures.' : 'Key removed.' });
+    } catch (e) {
+      setMsg({ ok: false, text: `That key didn’t work: ${(e as Error).message}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <h4 class="settings-sub">Pictures (optional)</h4>
+      <p class="hint">A free TMDB API key (themoviedb.org → Settings → API) gives every movie and show on the service pages a sharp poster and a wide picture, and loads them quickly.</p>
+      <label class="field">
+        <span>TMDB API key</span>
+        <input class="f input" type="password" autoComplete="off" spellcheck={false} value={key} placeholder="Paste your key" onInput={(e) => setKey((e.target as HTMLInputElement).value)} />
+      </label>
+      {msg && <p class={msg.ok ? 'ok-text' : 'error-text'}>{msg.text}</p>}
+      <Button icon="check" disabled={busy} onClick={() => void save()}>{busy ? 'Checking…' : 'Save & test'}</Button>
+    </>
   );
 }

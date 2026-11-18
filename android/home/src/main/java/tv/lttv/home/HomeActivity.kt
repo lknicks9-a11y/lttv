@@ -48,7 +48,7 @@ class HomeActivity : Activity() {
     private data class Slide(val title: String, val sub: String, val top: String, val accent: String, val screen: String)
 
     private val slides = listOf(
-        Slide("Live TV", "Every channel from your playlists, with the guide", "#0E3A5C", "#4CC2FF", "home"),
+        Slide("Live TV", "Every channel from your playlists, with the guide", "#0E3A5C", "#4CC2FF", "guide"),
         Slide("Sports", "Today's games, live scores and the channel they're on", "#0F4A2E", "#4ADE80", "sports"),
         Slide("Movies & Shows", "Pick a streaming service and watch from your provider", "#5C1420", "#FF6B6B", "movies"),
         Slide("League Pass", "Every NBA game, team broadcasts first", "#5C2A0A", "#FF8A1F", "app:leaguepass"),
@@ -243,7 +243,7 @@ class HomeActivity : Activity() {
         bar.addView(avatar, LinearLayout.LayoutParams(dp(40), dp(40)).apply { bottomMargin = dp(18) })
         bar.addView(navItem(R.drawable.ic_search, "Search", false) { openLttv("search") })
         bar.addView(navItem(R.drawable.ic_home, "Home", true) { scrollTopAndFocus() })
-        bar.addView(navItem(R.drawable.ic_live, "Live TV", false) { openLttv("home") })
+        bar.addView(navItem(R.drawable.ic_live, "Live TV", false) { openLttv("guide") })
         bar.addView(navItem(R.drawable.ic_inputs, "Inputs", false) { showInputs() })
         bar.addView(navItem(R.drawable.ic_apps, "All Apps", false) { showAllApps() })
         bar.addView(navItem(R.drawable.ic_store, "Store", false) { showStore() })

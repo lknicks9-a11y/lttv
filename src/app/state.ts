@@ -411,6 +411,12 @@ export async function reloadAll() {
     await repo.saveSettings(settings);
     await repo.setKv('glassIntroduced', true).catch(() => undefined);
   }
+  // Sky Glass (YouTube TV's layout with a glossy Aero look) is switched on once when it arrives; Settings → Theme switches back.
+  if (!(await repo.getKv<boolean>('skyglassIntroduced').catch(() => true))) {
+    settings = { ...settings, theme: 'skyglass' };
+    await repo.saveSettings(settings);
+    await repo.setKv('skyglassIntroduced', true).catch(() => undefined);
+  }
   setHqLogos(settings.hqLogos !== false);
   applyTheme(settings); // your theme from the first moment, not after everything has loaded
   // Movies & Shows needs no channel lineup or TV guide: just your playlists (their movie and show lists are

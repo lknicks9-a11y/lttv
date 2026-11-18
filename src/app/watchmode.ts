@@ -83,6 +83,8 @@ export interface WmTitle {
   year?: number;
   /** movie or show (lists that mix both say which). */
   kind?: 'movie' | 'show';
+  /** TMDB's id for the title (for its pictures). */
+  tmdb?: number;
 }
 export interface WmRow {
   id: string;
@@ -180,11 +182,11 @@ export interface WmServiceRow extends WmRow {
   ranked?: boolean;
 }
 
-const SERVICE_GENRES = ['Comedies', 'Dramas', 'Action & Adventure', 'Thrillers & Mysteries', 'Crime', 'Sci-Fi & Fantasy', 'Kids & Family', 'Animation', 'Documentaries', 'Reality'];
+const SERVICE_GENRES = ['Comedies', 'Dramas', 'Action & Adventure', 'Thrillers & Mysteries', 'Crime', 'Horror', 'Sci-Fi & Fantasy', 'Kids & Family', 'Animation', 'Romance', 'Documentaries', 'Reality'];
 
 async function listMixed(types: string, extra: string): Promise<WmTitle[]> {
-  const j = (await call(`/list-titles/?types=${types}&regions=US&languages=en&sort_by=popularity_desc&limit=250${extra}`)) as { titles?: { title?: string; year?: number; type?: string }[] };
-  return (j.titles ?? []).filter((t) => t.title).map((t) => ({ title: t.title!, year: t.year || undefined, kind: t.type === 'movie' ? 'movie' : 'show' }));
+  const j = (await call(`/list-titles/?types=${types}&regions=US&languages=en&sort_by=popularity_desc&limit=250${extra}`)) as { titles?: { title?: string; year?: number; type?: string; tmdb_id?: number }[] };
+  return (j.titles ?? []).filter((t) => t.title).map((t) => ({ title: t.title!, year: t.year || undefined, kind: t.type === 'movie' ? 'movie' : 'show', tmdb: t.tmdb_id || undefined }));
 }
 
 const serviceJobs = new Map<string, Promise<WmServiceRow[]>>();
@@ -198,7 +200,7 @@ export async function serviceRows(label: string, onRow?: (rows: WmServiceRow[]) 
   if (!key) return [];
   const svc = SERVICES.find((x) => x.label === label);
   if (!svc) return [];
-  const cacheKey = `watchmode:svc:${label}`;
+  const cacheKey = `watchmode:svc2:${label}`;
   const hit = await repo.getKv<{ at: number; key: string; rows: WmServiceRow[] }>(cacheKey).catch(() => undefined);
   const fresh = hit && hit.key === key.slice(-6) && hit.rows.length;
   if (fresh && Date.now() - hit!.at < LIST_TTL) return hit!.rows;
