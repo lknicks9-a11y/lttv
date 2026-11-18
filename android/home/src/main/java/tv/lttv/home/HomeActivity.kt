@@ -130,6 +130,7 @@ class HomeActivity : Activity() {
         buildRecommended()
         Glass.unclip(col)
         root.addView(menuScroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP or Gravity.START).apply { leftMargin = side - dp(10); topMargin = (sh * 0.17f).toInt() })
+        homeContent = scroll
         homeLayers += scroll; homeLayers += menuScroll
         setContentView(root)
     }
@@ -254,11 +255,18 @@ class HomeActivity : Activity() {
         val open = sidebar.hasFocus()
         if (open == menuOpen) { menuPainters.forEach { it() }; return@post }
         menuOpen = open
+        if (closedMenuW == 0) closedMenuW = sidebar.width
         for (l in menuLabels) l.visibility = if (open) View.VISIBLE else View.GONE
         sidebar.background = if (open) GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.parseColor("#F2121214"), Color.parseColor("#EB1A1A1E"))).apply { cornerRadius = dp(18).toFloat(); setStroke(dp(1), Color.parseColor("#33FFFFFF")) } else null
         sidebar.elevation = if (open) dp(16).toFloat() else 0f
         menuPainters.forEach { it() }
+        // Like YouTube: the open menu slides the page over to the right instead of covering it.
+        if (open) sidebar.post { homeContent?.animate()?.translationX((sidebar.width - closedMenuW).coerceAtLeast(0).toFloat() + dp(16))?.setDuration(180)?.start() }
+        else homeContent?.animate()?.translationX(0f)?.setDuration(180)?.start()
     }
+
+    private var homeContent: View? = null
+    private var closedMenuW = 0
 
     private fun menuItem(label: String, icon: Int, selected: Boolean, onClick: () -> Unit): LinearLayout {
         val item = LinearLayout(this).apply {
