@@ -1,5 +1,5 @@
 // Settings → Movies & Shows: your Watchmode API key (home rows from Watchmode's US, English lists).
-import { h } from 'preact';
+import { h, Fragment } from 'preact';
 import { useState } from 'preact/hooks';
 import { updateSettings, useApp, toast } from '../app/state';
 import { clearWatchmodeCache, testWatchmodeKey } from '../app/watchmode';
