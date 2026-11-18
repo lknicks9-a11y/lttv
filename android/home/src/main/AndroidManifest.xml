@@ -23,6 +23,14 @@
         </intent>
         <package android:name="tv.lttv.app" />
         <package android:name="tv.lttv.app.debug" />
+        <package android:name="tv.lttv.app" />
+        <package android:name="tv.lttv.app.debug" />
+        <package android:name="tv.lttv.movies" />
+        <package android:name="tv.lttv.movies.debug" />
+        <package android:name="tv.lttv.leaguepass" />
+        <package android:name="tv.lttv.leaguepass.debug" />
+        <package android:name="tv.lttv.blitz" />
+        <package android:name="tv.lttv.blitz.debug" />
     </queries>
 
     <application

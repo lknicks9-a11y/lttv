@@ -83,7 +83,8 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
         head.addView(Glass.button(a, "Install from a link") { linkDialog() })
         head.addView(View(a), LinearLayout.LayoutParams(dp(10), 1))
         head.addView(Glass.button(a, "Amazon Appstore") { openAppstore(null) })
-        head.setPadding(0, 0, dp(150), 0) // room for the Home button
+        head.addView(View(a), LinearLayout.LayoutParams(dp(10), 1))
+        head.addView(Glass.button(a, "⌂  Home") { onClose() })
         col.addView(head)
 
         col.addView(section("Your apps"))
@@ -121,7 +122,7 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
         }
         val badge = TextView(a).apply {
             text = name.take(1); gravity = Gravity.CENTER; setTextColor(Color.WHITE)
-            textSize = 22f; typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textSize = 22f; typeface = Fonts.bold
             background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(Color.parseColor(color)) }
         }
         box.addView(badge, LinearLayout.LayoutParams(dp(54), dp(54)))

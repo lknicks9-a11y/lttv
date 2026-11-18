@@ -37,7 +37,7 @@ object Glass {
     fun text(c: Context, sp: Float, color: String = "#FFFFFF", bold: Boolean = false) = TextView(c).apply {
         setTextColor(Color.parseColor(color))
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
-        typeface = if (bold) Typeface.create("sans-serif-medium", Typeface.NORMAL) else Typeface.DEFAULT
+        typeface = if (bold) Fonts.bold else Fonts.regular
     }
 
     /** A glass pill button that turns solid white when focused. */
