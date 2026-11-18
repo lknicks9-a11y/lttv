@@ -50,7 +50,6 @@ class HomeActivity : Activity() {
     private val slides = listOf(
         Slide("Live TV", "Every channel from your playlists, with the guide", "#0E3A5C", "#4CC2FF", "guide"),
         Slide("Sports", "Today's games, live scores and the channel they're on", "#0F4A2E", "#4ADE80", "sports"),
-        Slide("Movies & Shows", "In LTTV, from your provider", "#5C1420", "#FF6B6B", "movies"),
         Slide("League Pass", "Every NBA game, team broadcasts first", "#5C2A0A", "#FF8A1F", "app:leaguepass"),
         Slide("Blitz", "Every NFL game this week", "#0A3A22", "#3DDC84", "app:blitz"),
     )
@@ -146,7 +145,6 @@ class HomeActivity : Activity() {
     private val recs = listOf(
         Rec("Live TV", R.drawable.rec_live, "guide"),
         Rec("LTTube", R.drawable.rec_lttube, "app:lttube"),
-        Rec("Movies & Shows", R.drawable.rec_movies, "movies"),
         Rec("League Pass", R.drawable.rec_leaguepass, "app:leaguepass"),
         Rec("Blitz", R.drawable.rec_blitz, "app:blitz"),
     )
@@ -775,6 +773,7 @@ class HomeActivity : Activity() {
     private fun showSettings() {
         if (settingsPage != null) return
         val tv = listOf(
+            Setting("Amazon Home", "Leave LTTV Home for Fire TV's own home", "⌂") { openAmazonHome() },
             Setting("Network", "Wi-Fi and internet", "📶") { system(Settings.ACTION_WIFI_SETTINGS) },
             Setting("Display & Sounds", "Resolution, screen, audio", "🖥") { system(Settings.ACTION_DISPLAY_SETTINGS, Settings.ACTION_SOUND_SETTINGS) },
             Setting("Applications", "Installed apps, storage, data", "▦") { system(Settings.ACTION_APPLICATION_SETTINGS, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS) },
@@ -791,10 +790,6 @@ class HomeActivity : Activity() {
             Setting("Store", "Your apps, Appstore apps, install from a link", "⬇") { showStore() },
             Setting("TV inputs", "HDMI and antenna (on Fire TV smart TVs)", "⎆") { showInputs() },
             Setting("Reset Your Apps order", "Back to the default order", "↺") { prefs.edit().remove("order").apply(); toast("Order reset"); rebuildGrid() },
-            Setting("Amazon Home", "Open the original home screen", "⌂") {
-                val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage("com.amazon.tv.launcher").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try { startActivity(i) } catch (_: Exception) { toast("Not available") }
-            },
             Setting("LTTV Settings", "Playlists, guide, profiles", "★") { openLttv("settings") },
         )
         val page = ScrollView(this).apply { background = pageBg(); isFillViewport = true; isClickable = true; clipToPadding = false }
@@ -809,6 +804,39 @@ class HomeActivity : Activity() {
         root.addView(page, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         settingsPage = page
         settingsFirst = (col.getChildAt(2) as? GridLayout)?.getChildAt(0)
+        // Moving around Settings stays on its tiles: Right goes to the next tile (the next row's first at the
+        // end of a row), Left to the one before, Up / Down a row — never to something hidden behind the page.
+        val tiles = mutableListOf<View>()
+        val rows = mutableListOf<List<View>>()
+        for (i in 0 until col.childCount) (col.getChildAt(i) as? GridLayout)?.let { g ->
+            val l = (0 until g.childCount).map { g.getChildAt(it) }
+            tiles += l
+            rows += l.chunked(SETTINGS_COLS)
+        }
+        fun rowOf(v: View) = rows.indexOfFirst { v in it }
+        fun inRow(r: Int, c: Int) = rows.getOrNull(r)?.let { it[c.coerceAtMost(it.size - 1)] }
+        val homeBtn = (col.getChildAt(0) as? ViewGroup)?.getChildAt(0)
+        tiles.forEachIndexed { i, t ->
+            t.setOnKeyListener { _, code, ev ->
+                if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener code in listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)
+                val target = when (code) {
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> tiles.getOrNull(i + 1) ?: t
+                    KeyEvent.KEYCODE_DPAD_LEFT -> tiles.getOrNull(i - 1) ?: homeBtn ?: t
+                    KeyEvent.KEYCODE_DPAD_DOWN -> rowOf(t).let { r -> inRow(r + 1, rows[r].indexOf(t)) } ?: t
+                    KeyEvent.KEYCODE_DPAD_UP -> rowOf(t).let { r -> inRow(r - 1, rows[r].indexOf(t)) } ?: homeBtn ?: t
+                    else -> return@setOnKeyListener false
+                }
+                target.requestFocus()
+                // keep the tile on screen
+                val r = android.graphics.Rect(); target.getDrawingRect(r)
+                try { page.offsetDescendantRectToMyCoords(target, r); page.smoothScrollTo(0, (r.top - dp(140)).coerceAtLeast(0)) } catch (_: Exception) {}
+                true
+            }
+        }
+        homeBtn?.setOnKeyListener { _, code, ev ->
+            if (code == KeyEvent.KEYCODE_DPAD_DOWN || code == KeyEvent.KEYCODE_DPAD_RIGHT) { if (ev.action == KeyEvent.ACTION_DOWN) tiles.firstOrNull()?.requestFocus(); true }
+            else code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_LEFT
+        }
         updateFocusLock()
         page.post { settingsFirst?.requestFocus() }
     }
@@ -820,7 +848,7 @@ class HomeActivity : Activity() {
     }
 
     private fun settingsGrid(items: List<Setting>) = GridLayout(this).apply {
-        columnCount = 4; setPadding(0, dp(8), 0, dp(8))
+        columnCount = SETTINGS_COLS; setPadding(0, dp(8), 0, dp(8))
         for (x in items) addView(settingTile(x))
     }
 
@@ -842,6 +870,29 @@ class HomeActivity : Activity() {
 
     private fun sectionTitle(text: String) = TextView(this).apply {
         this.text = text; setTextColor(Color.parseColor("#E6EAF0")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f); typeface = Fonts.bold; setPadding(dp(12), dp(22), 0, dp(2))
+    }
+
+    /**
+     * Fire TV's own home screen. Asking for "a home screen" brings back LTTV Home (it's the one set), so this opens
+     * Amazon's home directly. Press Home on the remote to come back to LTTV Home.
+     */
+    private fun openAmazonHome() {
+        val pkg = "com.amazon.tv.launcher"
+        val tries = mutableListOf<Intent>()
+        for (cls in listOf("com.amazon.tv.launcher.ui.HomeActivity_vNext", "com.amazon.tv.launcher.ui.HomeActivity", "com.amazon.tv.launcher.ui.DebugHomeActivity"))
+            tries += Intent(Intent.ACTION_MAIN).setComponent(ComponentName(pkg, cls))
+        // whatever other home screens the TV has (not this one)
+        try {
+            for (ri in packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)) {
+                val a = ri.activityInfo ?: continue
+                if (a.packageName != packageName) tries += Intent(Intent.ACTION_MAIN).setComponent(ComponentName(a.packageName, a.name))
+            }
+        } catch (_: Exception) {}
+        packageManager.getLaunchIntentForPackage(pkg)?.let { tries += it }
+        for (i in tries) {
+            try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)); toast("Fire TV home — press Home on the remote to come back"); return } catch (_: Exception) {}
+        }
+        toast("Couldn't open Fire TV's home on this TV")
     }
 
     private fun system(vararg actions: String) {
@@ -924,6 +975,7 @@ class HomeActivity : Activity() {
         const val CONTENT_LEFT = 120
         const val CONTENT_RIGHT = 40
         const val TILE_GAP = 22
+        const val SETTINGS_COLS = 4
         val LTTV_PACKAGES = listOf("tv.lttv.app.debug", "tv.lttv.app")
     }
 }
