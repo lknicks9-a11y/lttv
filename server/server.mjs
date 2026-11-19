@@ -496,8 +496,25 @@ const SLOW_COMMANDS = new Set(['games']);
 const TIMEOUT_DIRS = [join(root, 'timeout'), join(root, 'windows', 'timeout'), join(homedir(), 'Documents', 'LTTV Timeout')].flatMap((d) => [d, join(d, 'timeout')]);
 const TIMEOUT_TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.avif': 'image/avif', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.wav': 'audio/wav' };
 const extOf = (n) => n.slice(n.lastIndexOf('.')).toLowerCase();
-/** Every picture and song in those folders: name -> file. The same file copied twice (same name or same size and type) counts once. */
+/**
+ * The pictures and songs of ONE timeout folder: the first of those places that has any. Before, every place was
+ * added together, so an old copy of the folder (from an earlier unzip, or Documents) added songs you'd removed.
+ * Hidden files ("._song.mp3", ".DS_Store" copies) don't count.
+ */
+let lastTimeoutDir = '';
 function timeoutFiles(dirs = TIMEOUT_DIRS) {
+  for (const dir of dirs) {
+    const files = timeoutFilesIn([dir]);
+    if (files.size) {
+      lastTimeoutDir = dir;
+      return files;
+    }
+  }
+  lastTimeoutDir = dirs[0] ?? '';
+  return new Map();
+}
+/** Every picture and song in these folders: name -> file. The same file copied twice (same name or same size and type) counts once. */
+function timeoutFilesIn(dirs) {
   const files = new Map();
   const seen = new Set();
   for (const dir of dirs) {
@@ -505,10 +522,11 @@ function timeoutFiles(dirs = TIMEOUT_DIRS) {
     try {
       // Files in the folder, and in folders inside it (a folder per team: "knicks/1.jpg").
       for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.name.startsWith('.')) continue;
         if (e.isFile() && TIMEOUT_TYPES[extOf(e.name)]) names.push(e.name);
         else if (e.isDirectory() && e.name.toLowerCase() !== 'timeout') {
           try {
-            for (const n of readdirSync(join(dir, e.name))) if (TIMEOUT_TYPES[extOf(n)]) names.push(`${e.name}/${n}`);
+            for (const n of readdirSync(join(dir, e.name))) if (!n.startsWith('.') && TIMEOUT_TYPES[extOf(n)]) names.push(`${e.name}/${n}`);
           } catch {
             /* unreadable */
           }
@@ -544,7 +562,7 @@ export function timeoutList(dirs = TIMEOUT_DIRS) {
   const kind = (n) => TIMEOUT_TYPES[extOf(n)].split('/')[0];
   // A version per file: a picture replaced under the same name is copied to the TV again.
   const v = Object.fromEntries(names.map((n) => [n, `${files.get(n).size}-${files.get(n).mtime}`]));
-  return { images: names.filter((n) => kind(n) === 'image'), audio: names.filter((n) => kind(n) === 'audio'), v };
+  return { images: names.filter((n) => kind(n) === 'image'), audio: names.filter((n) => kind(n) === 'audio'), v, dir: lastTimeoutDir };
 }
 /** One of those files, by its plain name only (no paths). */
 export function serveTimeout(res, name, dirs = TIMEOUT_DIRS) {

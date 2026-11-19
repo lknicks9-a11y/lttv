@@ -46,7 +46,9 @@ async function load(): Promise<TimeoutMedia> {
 // ---- Fire TV: copy the files from the computer once and keep them on the stick, so the timeout screen also works
 // with the computer off. They are refreshed whenever the computer can be reached.
 const LIST_KEY = 'lttvTimeoutList';
-type Listing = { images: string[]; audio: string[]; v?: Record<string, string> };
+type Listing = { images: string[]; audio: string[]; v?: Record<string, string>; dir?: string };
+/** Which folder on the computer the files came from (shown so you can tell which one it's reading). */
+const fromDir = (l: Listing | null | undefined) => (l?.dir ? ` Folder: ${l.dir}` : '');
 let lastTvStatus = '';
 /** What happened the last time the Fire TV looked for the files (shown in Settings). */
 export const timeoutTvStatus = () => lastTvStatus;
@@ -85,7 +87,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
   if (typeof caches === 'undefined') {
     // No storage for them here: play straight from the computer.
     const url = (n: string) => proxiedUrl(`${base}/timeout/${encodeURIComponent(n)}`);
-    lastTvStatus = reached ? `Found ${list.images.length} pictures and ${list.audio.length} songs on the computer.` : 'The computer isn’t reachable.';
+    lastTvStatus = reached ? `Found ${list.images.length} pictures and ${list.audio.length} songs on the computer.${fromDir(list)}` : 'The computer isn’t reachable.';
     if (APP_MODE === 'lttv' && reached) {
       const l = list;
       void shareWithApps(l, names, async (n) => {
@@ -130,7 +132,7 @@ async function loadOnTv(): Promise<TimeoutMedia> {
   }
   const songs = firstSongsFirst(list.audio.filter((n) => urls.has(n)));
   const got = { images: list.images.flatMap((n) => urls.get(n) ?? []), names: list.images.filter((n) => urls.has(n)), audio: songs.flatMap((n) => urls.get(n) ?? []), firstSongs: songs.filter(isFirstSong).length };
-  lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.`;
+  lastTvStatus = `${got.images.length} pictures and ${got.audio.length} songs ${reached ? 'copied from the computer' : 'kept on this TV (computer not reachable right now)'}.${reached ? fromDir(list) : ''}`;
   if (APP_MODE === 'lttv') void shareWithApps(list, names.filter((n) => urls.has(n)), async (n) => (await cache.match(key(n)))?.blob() ?? null).catch(() => undefined);
   return got;
 }
@@ -215,7 +217,7 @@ async function passMedia(): Promise<TimeoutMedia | null> {
     try {
       const { stream } = await openRemote(`${base}/timeout.json`, AbortSignal.timeout?.(4000));
       const j = JSON.parse(await new Response(stream).text()) as Partial<Listing>;
-      folder = { images: j.images ?? [], audio: j.audio ?? [] };
+      folder = { images: j.images ?? [], audio: j.audio ?? [], dir: j.dir };
     } catch {
       folder = null;
     }
@@ -243,7 +245,7 @@ async function passMedia(): Promise<TimeoutMedia | null> {
     from = shared?.audio.length ? 'LTTV’s copy on this TV' : 'your phone';
   } else return null;
   const songs = firstSongsFirst(audio);
-  lastTvStatus = `${images.length} pictures and ${songs.length} songs (songs from ${from}).`;
+  lastTvStatus = `${images.length} pictures and ${songs.length} songs (songs from ${from}).${fromDir(folder)}`;
   return { images: images.map(urlOf), names: images, audio: songs.map(urlOf), firstSongs: songs.filter(isFirstSong).length };
 }
 
