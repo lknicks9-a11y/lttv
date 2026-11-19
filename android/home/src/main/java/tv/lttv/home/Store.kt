@@ -37,7 +37,8 @@ import java.net.URL
  */
 class Store(private val a: Activity, private val onClose: () -> Unit) {
 
-    data class Mine(val name: String, val pkgs: List<String>, val repo: String, val asset: String, val about: String, val color: String)
+    /** tag: the release the app comes from (null = the repo's latest). */
+    data class Mine(val name: String, val pkgs: List<String>, val repo: String, val asset: String, val about: String, val color: String, val tag: String? = null)
     data class Popular(val name: String, val pkg: String, val color: String)
     /** Apps whose makers publish the app file themselves: installed right here, no Appstore. */
     data class Direct(val name: String, val pkg: String, val about: String, val color: String, val github: String? = null, val listing: String? = null, val file: Regex? = null)
@@ -54,6 +55,7 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
         Mine("League Pass", listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), "lttv", "lttv-leaguepass.apk", "Every NBA game, team broadcasts first", "#EA580C"),
         Mine("Blitz", listOf("tv.lttv.blitz.debug", "tv.lttv.blitz"), "lttv", "lttv-blitz.apk", "Every NFL game this week", "#16A34A"),
         Mine("LTTube", listOf("com.lttube.tv"), "lttube-firetv", "LTTube-TV.apk", "Ad-free YouTube", "#FF0033"),
+        Mine("LT Music", listOf("com.lttube.music"), "lttube-firetv", "LTMusic.apk", "Ad-free YouTube Music, with lyrics", "#C026D3", tag = "music"),
         Mine("LTTV Home", listOf("tv.lttv.home"), "lttv", "lttv-home.apk", "This home screen", "#7C3AED"),
     )
 
@@ -157,7 +159,7 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
 
     private fun mineMenu(m: Mine) {
         val pkg = installedPkg(m.pkgs)
-        val url = "https://github.com/lknicks9-a11y/${m.repo}/releases/latest/download/${m.asset}"
+        val url = "https://github.com/lknicks9-a11y/${m.repo}/releases/" + (if (m.tag != null) "download/${m.tag}" else "latest/download") + "/${m.asset}"
         val items = mutableListOf<Pair<String, () -> Unit>>()
         if (pkg != null) items += "Open" to { launch(pkg) }
         items += (if (pkg != null) "Update to the latest version" else "Install") to { install(url, m.name) }

@@ -147,6 +147,7 @@ class HomeActivity : Activity() {
         Rec("LTTube", R.drawable.rec_lttube, "app:lttube"),
         Rec("League Pass", R.drawable.rec_leaguepass, "app:leaguepass"),
         Rec("Blitz", R.drawable.rec_blitz, "app:blitz"),
+        Rec("LT Music", R.drawable.rec_ltmusic, "app:ltmusic"),
     )
 
     private fun buildRecommended() {
@@ -416,6 +417,13 @@ class HomeActivity : Activity() {
                 if (!openOtherApp("LTTube", listOf("com.lttube.tv"), null)) {
                     toast("LTTube isn't installed yet — installing it now")
                     Store(this) {}.install("https://github.com/lknicks9-a11y/lttube-firetv/releases/latest/download/LTTube-TV.apk", "LTTube")
+                }
+                return
+            }
+            "app:ltmusic" -> {
+                if (!openOtherApp("LT Music", listOf("com.lttube.music"), null)) {
+                    toast("LT Music isn't installed yet — installing it now")
+                    Store(this) {}.install("https://github.com/lknicks9-a11y/lttube-firetv/releases/download/music/LTMusic.apk", "LT Music")
                 }
                 return
             }
