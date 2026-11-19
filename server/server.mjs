@@ -503,15 +503,23 @@ const extOf = (n) => n.slice(n.lastIndexOf('.')).toLowerCase();
  */
 let lastTimeoutDir = '';
 function timeoutFiles(dirs = TIMEOUT_DIRS) {
+  // The folder you changed most recently wins (the one you're actually using), not just the first one found —
+  // an old copy elsewhere (beside LTTV, or Documents) no longer plays songs you've already removed.
+  let best = null;
+  let bestTime = -1;
   for (const dir of dirs) {
     const files = timeoutFilesIn([dir]);
-    if (files.size) {
-      lastTimeoutDir = dir;
-      return files;
+    if (!files.size) continue;
+    let newest = 0;
+    for (const f of files.values()) newest = Math.max(newest, f.mtime);
+    try { newest = Math.max(newest, Math.round(statSync(dir).mtimeMs)); } catch { /* fine */ }
+    if (newest > bestTime) {
+      bestTime = newest;
+      best = { dir, files };
     }
   }
-  lastTimeoutDir = dirs[0] ?? '';
-  return new Map();
+  lastTimeoutDir = best?.dir ?? dirs[0] ?? '';
+  return best?.files ?? new Map();
 }
 /** Every picture and song in these folders: name -> file. The same file copied twice (same name or same size and type) counts once. */
 function timeoutFilesIn(dirs) {
