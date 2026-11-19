@@ -10,7 +10,15 @@ import { NBA_TV_SCHEDULE_URL, nbaTonightFor, parseNbaTvSchedule, type NbaListing
  * up to game time are picked up). The last good copy is kept if a read fails.
  */
 const NBA_TV_EVERY = 6 * 3600_000;
-let nbaTv: { at: number; list: NbaListing[] } | undefined;
+const NBA_TV_KEY = 'lttvNbaTv';
+let nbaTv: { at: number; list: NbaListing[] } | undefined = (() => {
+  try {
+    const o = JSON.parse(localStorage.getItem(NBA_TV_KEY) || 'null') as { at: number; list: NbaListing[] } | null;
+    return o && Array.isArray(o.list) && o.list.length ? o : undefined;
+  } catch {
+    return undefined;
+  }
+})();
 let nbaTvReading: Promise<void> | undefined;
 let nbaTvTimer = 0;
 function readNbaTv(): Promise<void> {
@@ -20,7 +28,15 @@ function readNbaTv(): Promise<void> {
       const list = parseNbaTvSchedule(await new Response(stream).text());
       if (list.length) {
         nbaTv = { at: Date.now(), list };
-        for (const [k, e] of cache) if (k.startsWith('nba|')) for (const g of e.games) g.nbaTonight = nbaTonightFor(g, list);
+        try {
+          localStorage.setItem(NBA_TV_KEY, JSON.stringify(nbaTv));
+        } catch {
+          /* fine */
+        }
+        for (const [k, e] of cache) if (k.startsWith('nba|')) {
+          e.games = e.games.map((g) => ({ ...g, nbaTonight: nbaTonightFor(g, list) }));
+          notify(k, e.games);
+        }
       }
     } catch {
       /* keep the last copy */
@@ -30,10 +46,35 @@ function readNbaTv(): Promise<void> {
   })();
   return nbaTvReading;
 }
-async function nbaTvSchedule(): Promise<NbaListing[] | undefined> {
+/** The NBA TV list we have now (never waits): a stale or missing one is read in the background. */
+function nbaTvNow(): NbaListing[] | undefined {
   if (!nbaTvTimer) nbaTvTimer = window.setInterval(() => void readNbaTv(), NBA_TV_EVERY);
-  if (!nbaTv || Date.now() - nbaTv.at > NBA_TV_EVERY) await readNbaTv();
+  if (!nbaTv || Date.now() - nbaTv.at > NBA_TV_EVERY) void readNbaTv();
   return nbaTv?.list;
+}
+
+/** Screens showing a schedule hear when it changes in the background (NBA TV list arrived). */
+const listeners = new Map<string, Set<(g: Game[]) => void>>();
+function notify(k: string, games: Game[]) {
+  for (const f of listeners.get(k) ?? []) f(games);
+}
+
+/** Last schedule per league/day, kept across launches so League Pass and Blitz show games at once. */
+const SAVED_KEY = 'lttvGames:';
+function saved(k: string): Entry | undefined {
+  try {
+    const o = JSON.parse(localStorage.getItem(SAVED_KEY + k) || 'null') as Entry | null;
+    return o && Array.isArray(o.games) ? o : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function save(k: string, e: Entry) {
+  try {
+    localStorage.setItem(SAVED_KEY + k, JSON.stringify(e));
+  } catch {
+    /* storage full: just not remembered */
+  }
 }
 
 interface Entry {
@@ -106,21 +147,29 @@ function ttl(games: Game[], day: string, today: string): number {
 export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: string, force = false, group?: string): Promise<Game[]> {
   const league = scheduleLeague(leagueId)!;
   const k = `${leagueId}|${day}${group === undefined ? '' : '|' + group}`;
-  const hit = cache.get(k);
+  let hit = cache.get(k);
+  if (!hit) {
+    hit = saved(k);
+    if (hit) cache.set(k, hit);
+  }
   if (hit && !force && Date.now() - hit.at < ttl(hit.games, day, today)) return hit.games;
   const running = inflight.get(k);
   if (running) return running;
   const p = (async () => {
+    // The NBA TV list is fetched alongside, never waited for: games show as soon as the scoreboard is in.
+    if (leagueId === 'nba') nbaTvNow();
     const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase(), group), AbortSignal.timeout?.(20_000));
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
     if (leagueId === 'nba' && games.length) {
-      const list = await nbaTvSchedule();
+      const list = nbaTv?.list;
       if (list) for (const g of games) g.nbaTonight = nbaTonightFor(g, list);
     }
     const logo = parseLeagueLogo(json);
     if (logo) leagueLogos.set(leagueId, logo);
-    cache.set(k, { at: Date.now(), games });
+    const entry = { at: Date.now(), games };
+    cache.set(k, entry);
+    save(k, entry);
     learnLogos(games);
     return games;
   })();
@@ -135,7 +184,20 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
 /** Games for a league/day, refreshed while live games are on. */
 export function useGames(leagueId: ScheduleLeagueId, day: string, today: string, group?: string): { games: Game[]; loading: boolean; error?: string; reload: () => void } {
   const key = `${leagueId}|${day}${group === undefined ? '' : '|' + group}`;
-  const [state, setState] = useState<{ games: Game[]; loading: boolean; error?: string }>(() => ({ games: cache.get(key)?.games ?? [], loading: true }));
+  const [state, setState] = useState<{ games: Game[]; loading: boolean; error?: string }>(() => {
+    if (!cache.has(key)) {
+      const s = saved(key);
+      if (s) cache.set(key, s);
+    }
+    return { games: cache.get(key)?.games ?? [], loading: true };
+  });
+  useEffect(() => {
+    const f = (games: Game[]) => setState((s) => ({ ...s, games }));
+    const set = listeners.get(key) ?? new Set();
+    set.add(f);
+    listeners.set(key, set);
+    return () => void set.delete(f);
+  }, [key]);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
