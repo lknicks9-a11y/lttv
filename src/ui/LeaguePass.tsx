@@ -37,7 +37,7 @@ interface PassCfg {
 }
 const PASSES: Record<'nba' | 'nfl', PassCfg> = {
   nba: { league: 'nba', sport: 'basketball', path: 'basketball/nba', name: 'League Pass', accent: '#ffa04d', days: 1, extras: [{ label: 'NBA TV', re: /\bnba\s?tv\b/i }] },
-  nfl: { league: 'nfl', sport: 'football', path: 'football/nfl', name: 'Blitz', accent: '#3ddc84', days: 6, extras: [{ label: 'NFL RedZone', re: /\bred\s?zone\b/i }, { label: 'NFL Network', re: /\bnfl\s?(network|net|nw)\b/i }] },
+  nfl: { league: 'nfl', sport: 'football', path: 'football/nfl', name: 'Blitz', accent: '#3ddc84', days: 6, extras: [{ label: 'NFL RedZone', re: /\bred\s?zone\b/i }, { label: 'NFL Network', re: /\bnfl\s?(network|net|nw|n)\b|\bnfln\b/i }] },
 };
 /** The playlist's best channel(s) for an always-on network: English / US and HD first. */
 function extraChannels(lineup: LineupChannel[], re: RegExp): LineupChannel[] {
@@ -45,7 +45,7 @@ function extraChannels(lineup: LineupChannel[], re: RegExp): LineupChannel[] {
     const t = `${c.group ?? ''} ${c.name}`;
     return (/\b(US|USA|EN)\b/i.test(t) ? 4 : 0) + (/\b(F?HD|RAW)\b|ᴴᴰ|ᴿᴬᵂ/i.test(t) ? 2 : 0) - (/\b(4K|UHD|SD|ES|LAT|FR|DE|IT|PT|AR|MX|ESPA\w*)\b/i.test(t) ? 3 : 0);
   };
-  return lineup.filter((c) => !c.hidden && re.test(c.name)).sort((a, b) => score(b) - score(a) || a.number - b.number).slice(0, 2);
+  return lineup.filter((c) => !c.hidden && re.test(c.name)).sort((a, b) => score(b) - score(a) || a.number - b.number).slice(0, 5);
 }
 
 /** Box score for a game, refreshed every 30 seconds while it's live. */
@@ -369,7 +369,9 @@ export function LeaguePass() {
   const [bar, setBar] = useState(true);
   const game = games.find((g) => g.id === selected) ?? games.find((g) => feedsOf(g).some((f) => f.key === playing)) ?? games[0];
   const gameFeeds = feedsOf(game);
-  const extraOn = extras.find((f) => f.key === playing);
+  // A network card you picked (its streams show under the picture even before one plays).
+  const [selNet, setSelNet] = useState<string | null>(null);
+  const extraOn = extras.find((f) => f.key === playing) ?? (selNet ? extras.find((f) => f.label.startsWith(selNet)) : undefined);
   // "On" covers the always-on networks too (RedZone has no game of its own).
   const onThisGame = gameFeeds.some((f) => f.key === playing) || !!extraOn;
   const nbaBox = useBox(cfg.league === 'nba' ? game : undefined, cfg.path, parseBoxScore);
@@ -498,6 +500,7 @@ export function LeaguePass() {
   /** A team broadcast picked while it's off the air: League Pass's own screen shows instead of the provider's slide. */
   const [off, setOff] = useState<{ gameId: string; key: string } | null>(null);
   const watch = (g: Game, key?: string) => {
+    setSelNet(null);
     setSelected(g.id);
     const f = feedsOf(g);
     const k = key ?? (f.some((x) => x.key === playing) ? playing : f[0]?.key);
@@ -716,12 +719,12 @@ export function LeaguePass() {
               <button
                 type="button"
                 class={`f lp-card lp-net ${on ? 'current' : ''}`}
-                onClick={() => { setOff(null); if (f.key !== playing) void tune(f.key, { fullscreen: false }); }}
+                onClick={() => { setOff(null); setSelNet(netOf(f.label)); if (!(extraOn && netOf(extraOn.label) === netOf(f.label) && extraOn.key === playing)) void tune(f.key, { fullscreen: false }); }}
                 aria-label={`${netOf(f.label)}, always on`}
               >
                 <span class="lp-live">24/7</span>
                 <span class="lp-net-name">{netOf(f.label)}</span>
-                <span class="lp-when">{f.sub}</span>
+                <span class="lp-when">{extras.filter((x) => netOf(x.label) === netOf(f.label)).length} stream{extras.filter((x) => netOf(x.label) === netOf(f.label)).length === 1 ? '' : 's'} · always on</span>
               </button>
             </div>
           );
