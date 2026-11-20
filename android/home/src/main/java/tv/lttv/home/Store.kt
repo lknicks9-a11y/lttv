@@ -154,6 +154,12 @@ class Store(private val a: Activity, private val onClose: () -> Unit) {
         return out
     }
 
+    /** Where to get the newest build of one of our own apps (null: not one of ours). */
+    fun updateUrlFor(pkg: String): Pair<String, String>? {
+        val m = mine.firstOrNull { pkg in it.pkgs } ?: return null
+        return ("https://github.com/lknicks9-a11y/${m.repo}/releases/" + (if (m.tag != null) "download/${m.tag}" else "latest/download") + "/${m.asset}") to m.name
+    }
+
     private fun installed(pkg: String) = try { a.packageManager.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
     private fun installedPkg(pkgs: List<String>) = pkgs.firstOrNull { installed(it) }
 

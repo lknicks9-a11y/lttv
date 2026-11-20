@@ -210,11 +210,32 @@ class HomeActivity : Activity() {
         }
     }
 
+    private var backHeld = false
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Back: a press stays in LTTV Home (closes a page, back to the top); hold it to go to Fire TV's own home.
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.repeatCount == 0) { backHeld = false; event.startTracking() }
+            return true
+        }
         if (keyCode == KeyEvent.KEYCODE_MENU) {
             (currentFocus?.tag as? App)?.let { showOptions(it); return true }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) { backHeld = true; openAmazonHome(); return true }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (!backHeld && event.isTracking && !event.isCanceled) @Suppress("DEPRECATION") onBackPressed()
+            backHeld = false
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     // ---- the menu: a list on the left --------------------------------------------------------------
@@ -446,11 +467,35 @@ class HomeActivity : Activity() {
         try { startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { toast("Settings isn't available") }
     }
 
+    /** Our own apps update straight from their releases; anything else opens its page in Amazon's Appstore. */
+    private fun updateApp(app: App) {
+        val ours = Store(this) {}.updateUrlFor(app.pkg)
+        if (ours != null) { Store(this) {}.install(ours.first, ours.second); return }
+        for (u in listOf("amzn://apps/android?p=${app.pkg}", "market://details?id=${app.pkg}")) {
+            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return } catch (_: Exception) {}
+        }
+        toast("Couldn't open the Appstore for ${app.label}")
+    }
+
+    /** The app's page in Fire TV's own Settings (Applications → Manage → this app). */
+    private fun appSettings(pkg: String) {
+        val uri = Uri.parse("package:$pkg")
+        for (settingsPkg in listOf("com.amazon.tv.settings.v2", "com.amazon.tv.settings", null)) {
+            val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (settingsPkg != null) i.setPackage(settingsPkg)
+            if (i.resolveActivity(packageManager) == null) continue
+            try { startActivity(i); return } catch (_: Exception) {}
+        }
+        system(Settings.ACTION_APPLICATION_SETTINGS, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
+    }
+
     private fun showOptions(app: App) {
         val movable = app.pkg != lttv
         val idx = apps.indexOfFirst { it.pkg == app.pkg }
         val items = mutableListOf<Pair<String, () -> Unit>>()
         items += "Open" to { open(app) }
+        items += "Update app" to { updateApp(app) }
+        items += "App settings" to { appSettings(app.pkg) }
         fun move(to: Int) {
             val list = apps.toMutableList()
             val a = list.removeAt(idx); list.add(to.coerceIn(0, list.size), a)
@@ -462,9 +507,6 @@ class HomeActivity : Activity() {
         if (app.pkg in hiddenApps()) items += "Show on Home" to { setHidden(app.pkg, false); toast("${app.label} is back on Home"); rebuildGrid() }
         else items += "Hide from Home" to { setHidden(app.pkg, true); toast("Hidden. Show it again from Choose apps"); rebuildGrid() }
         items += "Set a photo for this app" to { showPhotos() }
-        items += "App info" to {
-            try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.pkg}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
-        }
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle(app.label)
             .setItems(items.map { it.first }.toTypedArray()) { _, w -> items[w].second() }
@@ -781,7 +823,7 @@ class HomeActivity : Activity() {
     private fun showSettings() {
         if (settingsPage != null) return
         val tv = listOf(
-            Setting("Amazon Home", "Leave LTTV Home for Fire TV's own home", "⌂") { openAmazonHome() },
+            Setting("Amazon Home", "Hold OK (or hold Back anywhere) to go to Fire TV's home", "⌂") { toast("Hold OK to go to Fire TV's home") },
             Setting("Network", "Wi-Fi and internet", "📶") { system(Settings.ACTION_WIFI_SETTINGS) },
             Setting("Display & Sounds", "Resolution, screen, audio", "🖥") { system(Settings.ACTION_DISPLAY_SETTINGS, Settings.ACTION_SOUND_SETTINGS) },
             Setting("Applications", "Installed apps, storage, data", "▦") { system(Settings.ACTION_APPLICATION_SETTINGS, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS) },
@@ -826,6 +868,12 @@ class HomeActivity : Activity() {
         val homeBtn = (col.getChildAt(0) as? ViewGroup)?.getChildAt(0)
         tiles.forEachIndexed { i, t ->
             t.setOnKeyListener { _, code, ev ->
+                // Amazon Home only by holding OK, so a quick press never takes you out of LTTV Home.
+                if (i == 0 && (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER)) {
+                    if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 10) openAmazonHome()
+                    else if (ev.action == KeyEvent.ACTION_UP && ev.eventTime - ev.downTime < 500) toast("Hold OK to go to Fire TV's home")
+                    return@setOnKeyListener true
+                }
                 if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener code in listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)
                 val target = when (code) {
                     KeyEvent.KEYCODE_DPAD_RIGHT -> tiles.getOrNull(i + 1) ?: t
