@@ -35,6 +35,7 @@ function readNbaTv(): Promise<void> {
         }
         for (const [k, e] of cache) if (k.startsWith('nba|')) {
           e.games = e.games.map((g) => ({ ...g, nbaTonight: nbaTonightFor(g, list) }));
+          save(k, e);
           notify(k, e.games);
         }
       }
@@ -152,13 +153,20 @@ export async function loadGames(leagueId: ScheduleLeagueId, day: string, today: 
     hit = saved(k);
     if (hit) cache.set(k, hit);
   }
+  // NBA: which channel carries each game tonight (national games on ESPN / TNT / ABC especially) comes from the
+  // NBA TV schedule, so a remembered schedule gets tonight's channels put back on before it's used.
+  if (hit && leagueId === 'nba' && nbaTv?.list && hit.games.some((g) => !g.nbaTonight)) {
+    const list = nbaTv.list;
+    hit.games = hit.games.map((g) => ({ ...g, nbaTonight: nbaTonightFor(g, list) }));
+  }
   if (hit && !force && Date.now() - hit.at < ttl(hit.games, day, today)) return hit.games;
   const running = inflight.get(k);
   if (running) return running;
   const p = (async () => {
-    // The NBA TV list is fetched alongside, never waited for: games show as soon as the scoreboard is in.
-    if (leagueId === 'nba') nbaTvNow();
-    const { stream } = await openRemote(scoreboardUrl(league, day, scheduleBase(), group), AbortSignal.timeout?.(20_000));
+    // NBA: the list of which channel carries each game. With no copy yet, wait for it (a few seconds at most) —
+    // national games need it to get the right streams; otherwise refresh it in the background.
+    const tv = leagueId === 'nba' ? (nbaTvNow() ? Promise.resolve() : Promise.race([readNbaTv(), new Promise<void>((ok) => setTimeout(ok, 6000))])) : Promise.resolve();
+    const [{ stream }] = await Promise.all([openRemote(scoreboardUrl(league, day, scheduleBase(), group), AbortSignal.timeout?.(20_000)), tv]);
     const json = JSON.parse(await new Response(stream).text());
     const games = parseScoreboard(json, leagueId);
     if (leagueId === 'nba' && games.length) {
