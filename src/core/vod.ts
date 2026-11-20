@@ -496,10 +496,12 @@ export function parseTvmazeSchedule(json: unknown): string[] {
 export function sizedImage(src: string | undefined, use: 'poster' | 'backdrop' | 'still', tv: boolean): string | undefined {
   if (!src) return src;
   const tmdb = /^(https?:\/\/image\.tmdb\.org\/t\/p\/)[^/]+(\/.+)$/i.exec(src);
-  if (tmdb) return tmdb[1] + (use === 'poster' ? (tv ? 'w342' : 'w500') : use === 'still' ? 'w300' : tv ? 'w780' : 'w1280') + tmdb[2];
+  // Sharp on a 1080p TV: posters at 500 wide, wide pictures at 1280 (the old TV sizes looked soft once enlarged).
+  if (tmdb) return tmdb[1] + (use === 'poster' ? 'w500' : use === 'still' ? 'w780' : 'w1280') + tmdb[2];
   const apple = /^(https?:\/\/[^/]*mzstatic\.com\/.+\/)\d+x\d+(bb)?\.(jpg|png|webp)$/i.exec(src);
-  if (apple) return apple[1] + (use === 'poster' ? (tv ? '300x450bb.jpg' : '500x750bb.jpg') : tv ? '780x1170bb.jpg' : '1000x1500bb.jpg');
+  if (apple) return apple[1] + (use === 'poster' ? '500x750bb.jpg' : '1000x1500bb.jpg');
   const maze = /^(https?:\/\/static\.tvmaze\.com\/uploads\/images\/)(original_untouched|medium_portrait|medium_landscape|large_landscape)(\/.+)$/i.exec(src);
-  if (maze && tv) return maze[1] + (use === 'poster' ? 'medium_portrait' : use === 'still' ? 'medium_landscape' : 'large_landscape') + maze[3];
+  // TVmaze's "medium" poster is only 210 px wide (blurry on a TV): posters use the original, wide pictures the large size.
+  if (maze && tv) return maze[1] + (use === 'poster' ? 'original_untouched' : use === 'still' ? 'large_landscape' : 'large_landscape') + maze[3];
   return src;
 }
