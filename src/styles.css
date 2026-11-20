@@ -2423,8 +2423,14 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 .lp-card .lp-teams .team-logo { width: 2.3rem; height: 2.3rem; object-fit: contain; }
 :root.tv .lp-card .lp-teams .team-logo { width: 2.6rem; height: 2.6rem; }
 
-/* A featured title with only a tall poster: the whole poster, sharp, on the right over a soft blurred copy of it
-   (instead of the poster cropped into a wide box). */
-.vod .vod-hero-bg.is-poster, :root.tv .vod .vod-hero-bg.is-poster { inset: -10%; background-position: center; filter: blur(28px) saturate(1.2); transform: none; opacity: 0.45; -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%); mask-image: linear-gradient(90deg, transparent 0%, #000 45%); }
-.vod .vod-hero-poster.is-shown { display: block; right: 4rem; height: 86%; z-index: 1; }
-@media (max-width: 640px) { .vod .vod-hero-poster.is-shown { display: none; } }
+/* Featured picture blends into the page: soft fade on every edge and corner. */
+.vod .vod-hero-bg, .vod .vod-hero-bg.is-poster {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 88%, transparent 100%), linear-gradient(180deg, transparent 0%, #000 14%, #000 78%, transparent 100%);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 88%, transparent 100%), linear-gradient(180deg, transparent 0%, #000 14%, #000 78%, transparent 100%);
+  mask-composite: intersect; }
+/* TV: same blend drawn with the (cheap) shade on top instead of a mask: left, bottom, top and right edges. */
+:root.tv .vod .vod-hero-shade { background:
+  linear-gradient(90deg, var(--bg) 0%, var(--bg) 30%, rgba(10, 13, 18, 0.55) 45%, transparent 62%),
+  linear-gradient(0deg, var(--bg) 0%, transparent 30%),
+  linear-gradient(180deg, var(--bg) 0%, transparent 16%),
+  linear-gradient(270deg, var(--bg) 0%, transparent 12%); }

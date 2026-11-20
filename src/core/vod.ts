@@ -501,7 +501,7 @@ export function sizedImage(src: string | undefined, use: 'poster' | 'backdrop' |
   const apple = /^(https?:\/\/[^/]*mzstatic\.com\/.+\/)\d+x\d+(bb)?\.(jpg|png|webp)$/i.exec(src);
   if (apple) return apple[1] + (use === 'poster' ? '500x750bb.jpg' : '1000x1500bb.jpg');
   const maze = /^(https?:\/\/static\.tvmaze\.com\/uploads\/images\/)(original_untouched|medium_portrait|medium_landscape|large_landscape)(\/.+)$/i.exec(src);
-  // TVmaze's "medium" poster is only 210 px wide (blurry on a TV): posters use the original, wide pictures the large size.
-  if (maze && tv) return maze[1] + (use === 'poster' ? 'original_untouched' : use === 'still' ? 'large_landscape' : 'large_landscape') + maze[3];
+  // TVmaze's "medium" sizes are tiny (blurry on a TV) and not every picture has the large ones, so always the original.
+  if (maze && tv) return maze[1] + 'original_untouched' + maze[3];
   return src;
 }
