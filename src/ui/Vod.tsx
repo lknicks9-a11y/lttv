@@ -275,7 +275,8 @@ function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) 
     setD(null);
     if (it.kind === 'movie') void loadMovieDetails(it.playlistId, it.m).then(setD);
   }, [id]);
-  const backdrop = (it.kind === 'series' ? it.s.backdrop : d?.backdrop) ?? art?.backdrop;
+  // The show's own wide picture from TVmaze / TMDB first (sharp, the right shape); the provider's only if there's none.
+  const backdrop = art?.backdrop ?? (it.kind === 'series' ? it.s.backdrop : d?.backdrop);
   const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
   const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
   const genre = firstGenre((it.kind === 'series' ? it.s.genre : d?.genre) ?? art?.genre);
@@ -290,6 +291,7 @@ function Hero({ items, onOpen, top }: { items: VodItem[]; onOpen: (it: VodItem) 
     <section class="vod-hero" ref={ref} data-group="vod-hero">
       {(backdrop || poster) && <div class={`vod-hero-bg ${backdrop ? '' : 'is-poster'}`} style={{ backgroundImage: `url("${pic(backdrop, 'backdrop') ?? pic(poster, 'poster')}")` }} />}
       <div class="vod-hero-shade" />
+      {!backdrop && poster && <img class="vod-hero-poster is-shown" src={pic(poster, 'poster')} alt="" decoding="async" />}
       <div class="vod-hero-text">
         <span class="vod-hero-badge">{top ? `#${(i % items.length) + 1} Trending` : it.kind === 'movie' ? 'Featured' : 'Featured series'}</span>
         <h2 class="vod-hero-title">{cleanTitle(name) || name}</h2>
@@ -350,7 +352,8 @@ function TopCard({ it, rank, wide, autofocus, onFocus, onOpen }: { it: VodItem; 
     const t = setTimeout(() => void loadMovieDetails(it.playlistId, it.m).then(setD).catch(() => undefined), 250);
     return () => clearTimeout(t);
   }, [wide]);
-  const backdrop = (it.kind === 'series' ? it.s.backdrop : d?.backdrop) ?? art?.backdrop;
+  // The show's own wide picture from TVmaze / TMDB first (sharp, the right shape); the provider's only if there's none.
+  const backdrop = art?.backdrop ?? (it.kind === 'series' ? it.s.backdrop : d?.backdrop);
   const poster = art?.poster ?? (it.kind === 'movie' ? it.m.poster : it.s.poster);
   const plot = goodText(it.kind === 'series' ? it.s.plot : d?.plot) ?? art?.plot;
   const genre = firstGenre((it.kind === 'series' ? it.s.genre : d?.genre) ?? art?.genre);
