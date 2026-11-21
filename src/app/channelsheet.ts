@@ -7,7 +7,7 @@
  * saved on the device, so game pages open with their channels straight away.
  */
 import { useEffect, useState } from 'preact/hooks';
-import { getState, repo } from './state';
+import { finishTask, getState, repo, showTask } from './state';
 import { loadGames } from './schedule';
 import { whenStill } from './nav';
 import { SCHEDULE_LEAGUES, sportsDay, type Game } from '../core/schedule';
@@ -40,8 +40,9 @@ export function useChannelSheet(): ChannelSheet | null {
   return sheet;
 }
 
-async function build() {
+async function build(shown = false) {
   if (building) return;
+  const task = shown ? (label: string, done = false) => showTask({ id: 'channel-sheet', label, done }) : () => undefined;
   const s = getState();
   if (!s.lineup.length) return;
   building = true;
@@ -58,13 +59,19 @@ async function build() {
         /* a league whose schedule didn't load: the rest still get their channels */
       }
     }
-    if (!games.length) return;
+    if (!games.length) {
+      task('No games today to find channels for', true);
+      return;
+    }
+    task(`Finding channels for ${games.length} games…`);
     const { lineup, guide, guideVersion } = getState();
     const from = Math.min(...games.map((x) => x.g.start)) - 3600_000;
     const to = Math.max(...games.map((x) => x.g.start)) + 5 * 3600_000;
     const index = await buildGameIndexAsync(lineup, guide, from, to, guideVersion);
     const next: ChannelSheet = { day, builtAt: Date.now(), basis: basisOf(), games: {} };
+    let n = 0;
     for (const { g, sport } of games) {
+      if (++n % 10 === 0) task(`Finding channels · ${n} of ${games.length} games`);
       await whenStill();
       try {
         const picks = sheetForGame(g, sport, lineup, guide, index);
@@ -79,9 +86,18 @@ async function build() {
     sheet = next;
     await repo.setKv('channelSheet', next).catch(() => undefined);
     listeners.forEach((l) => l());
+    const confirmed = Object.values(next.games).filter((l) => l.some((p) => p.status === 'confirmed')).length;
+    task(`Today's channels are ready · ${confirmed} of ${games.length} games confirmed in the guide`, true);
   } finally {
     building = false;
+    if (shown) finishTask('channel-sheet', 6000);
   }
+}
+
+/** "Update today's channels": build the sheet right now, with progress in the corner. */
+export function buildChannelSheetNow() {
+  if (building) return;
+  void build(true);
 }
 
 /** Rebuild when it's a new sports day (3:00 AM) or the channels / guide changed. */

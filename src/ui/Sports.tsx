@@ -205,7 +205,10 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
           <h1>Sports</h1>
           <p class="muted">Choose a league to see today’s games and the best channels for each one in your lineup.</p>
         </div>
-        <Button icon="multiview" onClick={() => openMultiview()}>{mvName()}</Button>
+        <div class="row gap">
+          <Button icon="refresh" onClick={() => void import('../app/channelsheet').then((m) => m.buildChannelSheetNow())}>Update today’s channels</Button>
+          <Button icon="multiview" onClick={() => openMultiview()}>{mvName()}</Button>
+        </div>
       </header>
       <LeagueGrid onPick={onPick} />
     </section>
