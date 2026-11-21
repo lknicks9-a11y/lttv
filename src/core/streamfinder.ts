@@ -354,7 +354,7 @@ export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineu
     const name = ` ${foldText(ch.originalName)} `;
     // In the league's team group by name, or anywhere when the channel is just the team ("Calgary Flames HD").
     // (never one sitting in another league's team group: "Charlotte Hornets" under WNBA Team PPV isn't the NBA team's).
-    const justTeam = foldText(stripQuality(ch.cleanedName || ch.originalName)) === full && !Object.keys(LEAGUE_WORDS).some((l) => l !== league && inTeamGroup(ch, l));
+    const justTeam = foldText(stripQuality(ch.originalName)) === full && !/event|ppv events|live events/i.test(ch.group ?? '') && !Object.keys(LEAGUE_WORDS).some((l) => l !== league && inTeamGroup(ch, l));
     if (!justTeam && !inTeamGroup(ch, league)) continue;
     if (!mentionsFolded(name, mine)) continue;
     if (mentionsFolded(name, theirs)) continue; // a channel for this one game, not the team's channel
@@ -423,5 +423,5 @@ const NOT_A_GAME_CHANNEL = /\b(kids?|junior|jr|cartoon|disney|nick|news|radio|mu
 
 /** A channel name without country tags and picture-quality words ("US: Calgary Flames FHD" → "Calgary Flames"). */
 function stripQuality(name: string): string {
-  return name.replace(/^\s*[\[(]?[a-z]{2,3}[\])]?\s*[:|\-]\s*/i, '').replace(/\b(uhd|fhd|hd|sd|4k|hevc|h265|1080p?|720p?|backup|raw)\b/gi, ' ').replace(/[\[\]()|]/g, ' ').replace(/\s+/g, ' ').trim();
+  return name.replace(/^\s*[\[(]?[a-z]{2}[\])]?\s*[:|\-]\s*/i, '').replace(/\b(uhd|fhd|hd|sd|4k|hevc|h265|1080p?|720p?|backup|raw)\b/gi, ' ').replace(/[\[\]()|]/g, ' ').replace(/\s+/g, ' ').trim();
 }
