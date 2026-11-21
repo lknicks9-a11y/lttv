@@ -5,7 +5,7 @@ import { isPassApp } from '../app/appmode';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
-import { focusFirst, onBack } from '../app/nav';
+import { focusFirst, onBack, sinceLastMove, whenStill } from '../app/nav';
 import { openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
@@ -312,10 +312,11 @@ export function LeaguePass() {
     };
   }, [games.length, lineup, guideVersion]);
   // Each game's broadcasts: the away team's, the home team's, then up to two other channels carrying it.
-  const feeds = useMemo(() => {
-    const m = new Map<string, Feed[]>();
-    if (!index) return m;
-    for (const g of games) {
+  // Worked out one game at a time in the background, waiting while you press buttons, and only again when the games
+  // or channels change: it used to redo every game on each score update (every 30 seconds in a game), which made
+  // moving around League Pass and Blitz slow.
+  const feedsFor = (g: Game, index: GameIndexEntry[]): Feed[] => {
+    {
       const picks = bestStreams(g, lineup, cfg.sport, index);
       // NBA TV / NFL Network / RedZone have their own cards; a game only lists one when it's broadcast on it.
       const netOk = (key: string) => {
@@ -344,15 +345,43 @@ export function LeaguePass() {
           const label = isTeam(p) ? `${abbr(p.side)} broadcast` : p.kind === 'event' ? 'Game channel' : p.kind === 'local' && p.side ? `${abbr(p.side)} local${n ? ` · ${n}` : ''}` : n ?? (p.kind === 'national' ? 'National' : 'Other');
           list.push({ key: p.ch.key, label, sub: p.ch.name, team: isTeam(p) ? p.side : undefined });
         }
-        m.set(g.id, list);
-        continue;
+        return list;
       }
       // 3. A few other good streams, just in case.
       for (const p of picks.filter((x) => !x.main && netOk(x.ch.key)).slice(0, cfg.league === 'nba' ? 3 : 5)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : p.kind === 'event' ? 'Game channel' : p.kind === 'local' ? 'Local' : 'Other', sub: p.ch.name });
-      m.set(g.id, list);
+      return list;
     }
-    return m;
-  }, [games, index, lineup, extras]);
+  };
+  const [feeds, setFeeds] = useState<Map<string, Feed[]>>(() => new Map());
+  const feedKey = games.map((g) => `${g.id}:${g.start}:${g.broadcasts.map((b) => b.name).join(',')}`).join('|');
+  const gamesNow = useRef(games);
+  gamesNow.current = games;
+  useEffect(() => {
+    if (!index) return;
+    let alive = true;
+    void (async () => {
+      const m = new Map<string, Feed[]>();
+      const list = gamesNow.current;
+      // The game you're on (or watching) first, so its streams are there right away.
+      const first = list.findIndex((g) => g.id === selected || feeds.get(g.id)?.some((f) => f.key === playing));
+      const order = first > 0 ? [list[first], ...list.filter((_, i) => i !== first)] : list;
+      let shownAt = performance.now();
+      for (const g of order) {
+        await whenStill();
+        if (!alive) return;
+        m.set(g.id, feedsFor(g, index));
+        if (performance.now() - shownAt > 1000 && sinceLastMove() > 450) {
+          setFeeds((old) => new Map([...old, ...m]));
+          shownAt = performance.now();
+        }
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      if (alive) setFeeds(m);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [feedKey, index, lineup, extras]);
   const feedsOf = (g: Game | undefined) => (g ? feeds.get(g.id) ?? [] : []);
 
   const [selected, setSelected] = useState<string | undefined>();

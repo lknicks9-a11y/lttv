@@ -154,7 +154,7 @@ class HomeActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; clipChildren = false
             // Room on the right so even the last app can slide into the slot.
             // Room below for the tile you're on (it's drawn bigger than its place in the row) and its shadow.
-            setPadding(slotX, dp(4), sw, (tileBig - tileSmall) + dp(16))
+            setPadding(slotX, dp(4), sw, dp(8))
         }
         rowScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; clipChildren = false; addView(row) }
         val rowTop = (sh * 0.13f).toInt()
@@ -625,7 +625,8 @@ class HomeActivity : Activity() {
                 FrameLayout.LayoutParams(tileSmall / 2, tileSmall / 2, Gravity.CENTER))
         }
         box.addView(card, LinearLayout.LayoutParams(tileSmall, tileSmall))
-        box.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = tileGap }
+        // Each slot is as tall as the big tile (plus room for its shadow), so the one you're on is never cut off.
+        box.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, tileBig + dp(14)).apply { marginEnd = tileGap }
         card.setOnClickListener { launch(e) }
         card.setOnLongClickListener { options(e); true }
         card.setOnFocusChangeListener { v, f ->
