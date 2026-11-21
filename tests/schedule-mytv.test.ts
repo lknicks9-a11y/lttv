@@ -116,7 +116,7 @@ test('best streams: event channel, chosen team broadcast, national; other cities
   assert.ok(yes.findIndex((p) => /NESN/.test(p.ch.originalName)) > yes.findIndex((p) => /YES Network SD/.test(p.ch.originalName)));
   const bos = findStreams(g, lineup, { networks: true, sport: 'baseball', feed: 'away' });
   assert.equal(bos[0].ch.originalName, 'US: NESN FHD');
-  assert.equal(bos[0].reason, 'NESN · Red Sox broadcast');
+  assert.equal(bos[0].reason, 'NESN · Red Sox broadcast today');
   assert.ok(!bos.some((p) => /Sky Sports/.test(p.ch.originalName)));
   // Hockey: national NHL Network and the Flyers' broadcast.
   const h = findStreams(nhl, lineup, { networks: true, sport: 'hockey' });
