@@ -153,7 +153,8 @@ class HomeActivity : Activity() {
         row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; clipChildren = false
             // Room on the right so even the last app can slide into the slot.
-            setPadding(slotX, dp(4), sw, dp(12))
+            // Room below for the tile you're on (it's drawn bigger than its place in the row) and its shadow.
+            setPadding(slotX, dp(4), sw, (tileBig - tileSmall) + dp(16))
         }
         rowScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; clipChildren = false; addView(row) }
         val rowTop = (sh * 0.13f).toInt()
@@ -161,7 +162,7 @@ class HomeActivity : Activity() {
             topMargin = rowTop })
         // The app's name, small, tucked under the next tiles beside the one you're on (as on the PS5).
         tileName = TextView(this).apply { setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_PX, sh * 0.026f); typeface = Fonts.medium; maxLines = 1 }
-        home.addView(tileName, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
+        home.addView(tileName, FrameLayout.LayoutParams((sw * 0.5f).toInt(), (sh * 0.05f).toInt(), Gravity.TOP or Gravity.START).apply {
             leftMargin = slotX + tileBig + (sh * 0.02f).toInt(); topMargin = rowTop + dp(4) + tileSmall + (sh * 0.03f).toInt() })
 
         // ---- the selected app: name, its line, Open and "…"
@@ -598,6 +599,7 @@ class HomeActivity : Activity() {
             if (e.key == had || e.app?.key == had) toFocus = t.first
         }
         focusKey = null
+        warmPictures()
         val keep = (if (firstShow) null else entries.firstOrNull { it.key == selected?.key }) ?: entries.first()
         selected = null
         show(keep, instant = true)
@@ -627,7 +629,8 @@ class HomeActivity : Activity() {
         card.setOnClickListener { launch(e) }
         card.setOnLongClickListener { options(e); true }
         card.setOnFocusChangeListener { v, f ->
-            v.foreground = if (f) GradientDrawable().apply { cornerRadius = tileBig * 0.16f; setStroke(dp(3), Color.WHITE) } else null
+            // Drawn at the tile's own size and scaled up with it, so a 2 dp line shows as about 3 dp.
+            v.foreground = if (f) GradientDrawable().apply { cornerRadius = tileSmall * 0.16f; setStroke(dp(2), Color.WHITE) } else null
             v.elevation = if (f) dp(12).toFloat() else 0f
             if (f) select(e)
         }
@@ -641,24 +644,39 @@ class HomeActivity : Activity() {
         return card to box
     }
 
-    /** Grows / shrinks a tile smoothly (the PS5's tiles ease between sizes). */
-    private fun resize(t: View, to: Int, animate: Boolean) {
-        val lp = t.layoutParams as LinearLayout.LayoutParams
-        (t.getTag(R.id.tile_anim) as? android.animation.ValueAnimator)?.cancel()
-        if (!animate || lp.width == to) { lp.width = to; lp.height = to; t.layoutParams = lp; return }
-        val anim = android.animation.ValueAnimator.ofInt(lp.width, to).apply {
-            duration = 200; interpolator = android.view.animation.DecelerateInterpolator(1.6f)
-            addUpdateListener { v -> val n = v.animatedValue as Int; lp.width = n; lp.height = n; t.layoutParams = lp }
+    /**
+     * Tiles never change size in the layout (that re-laid out the whole screen on every frame and made moving slow on a
+     * Fire TV Stick). The one you're on is scaled up from its top-left corner and the tiles after it slide over to make
+     * room: both are drawing-only changes the TV's graphics chip does for free.
+     */
+    private fun placeTiles(sel: Int, animate: Boolean) {
+        val k = tileBig / tileSmall.toFloat()
+        val push = (tileBig - tileSmall).toFloat()
+        val first = (sel - 3).coerceAtLeast(0); val last = sel + 14
+        tiles.forEachIndexed { j, t ->
+            val box = t.parent as View
+            val scale = if (j == sel) k else 1f
+            val tx = if (j > sel) push else 0f
+            t.pivotX = 0f; t.pivotY = 0f
+            if (!animate || j < first || j > last) {
+                t.animate().cancel(); box.animate().cancel()
+                t.scaleX = scale; t.scaleY = scale; box.translationX = tx
+            } else {
+                if (t.scaleX != scale) t.animate().scaleX(scale).scaleY(scale).setDuration(190).setInterpolator(ease).start()
+                if (box.translationX != tx) box.animate().translationX(tx).setDuration(190).setInterpolator(ease).start()
+            }
         }
-        t.setTag(R.id.tile_anim, anim); anim.start()
     }
+    private val ease = android.view.animation.DecelerateInterpolator(1.6f)
+    private var slide: android.animation.ObjectAnimator? = null
 
     /** The row slides so the app you're on rests in the second slot (the one before peeks in at the edge). */
     private fun slideTo(index: Int, animate: Boolean) {
         val x = index * (tileSmall + tileGap)
+        slide?.cancel()
         if (animate) {
-            android.animation.ObjectAnimator.ofInt(rowScroll, "scrollX", rowScroll.scrollX, x).apply {
-                duration = 220; interpolator = android.view.animation.DecelerateInterpolator(1.6f) }.start()
+            slide = android.animation.ObjectAnimator.ofInt(rowScroll, "scrollX", rowScroll.scrollX, x).apply {
+                duration = 200; interpolator = ease }.also { it.start() }
         } else rowScroll.scrollTo(x, 0)
     }
 
@@ -667,12 +685,9 @@ class HomeActivity : Activity() {
         if (selected?.key == e.key) return
         val prev = selected
         selected = e
-        for (t in tiles) {
-            val te = t.tag as? Entry ?: continue
-            if (te.key == e.key) resize(t, tileBig, prev != null)
-            else if (te.key == prev?.key) resize(t, tileSmall, true)
-        }
-        slideTo(entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0), prev != null)
+        val i = entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0)
+        placeTiles(i, prev != null)
+        slideTo(i, prev != null)
         show(e, instant = prev == null)
     }
 
@@ -688,8 +703,9 @@ class HomeActivity : Activity() {
     private fun show(e: Entry, instant: Boolean) {
         if (selected == null) {
             selected = e
-            selectedTile()?.let { resize(it, tileBig, false) }
-            row.post { slideTo(entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0), false) }
+            val i = entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0)
+            placeTiles(i, false)
+            row.post { slideTo(i, false) }
         }
         tileName.text = e.title
         tileName.alpha = 0f; tileName.animate().alpha(1f).setDuration(180).start()
@@ -703,8 +719,8 @@ class HomeActivity : Activity() {
         infoBlock.animate().alpha(0f).translationY(screenH * 0.012f).setDuration(110).start()
         chipRow.animate().alpha(0f).setStartDelay(0).setDuration(110).start()
         // Scrolling quickly along the row: pictures and words wait until you pause, so it never stutters.
-        main.postDelayed(heroSwap, 120)
-        main.postDelayed(infoIn, 430)
+        main.postDelayed(heroSwap, 110)
+        main.postDelayed(infoIn, 360)
     }
 
     private fun fillInfo(e: Entry) {
@@ -721,14 +737,14 @@ class HomeActivity : Activity() {
         fillInfo(e)
         infoBlock.animate().cancel()
         infoBlock.alpha = 0f; infoBlock.translationY = screenH * 0.03f
-        infoBlock.animate().alpha(1f).translationY(0f).setDuration(380).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
+        infoBlock.animate().alpha(1f).translationY(0f).withLayer().setDuration(340).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
         chipRow.alpha = 0f
         chipRow.animate().alpha(1f).setStartDelay(120).setDuration(320).start()
     }
 
     private fun heroOf(e: Entry): Drawable {
         if (e.slide >= 0) lttvPkg()?.let { p -> Art.drawable(this, "$p/slide${e.slide}") }?.let { return it }
-        if (e.heroRes != 0) return resources.getDrawable(e.heroRes, theme)
+        if (e.heroRes != 0) return heroCache[e.key] ?: decodeHero(e.heroRes).also { heroCache[e.key] = it }
         Art.drawable(this, Art.BACKGROUND)?.let { return it }
         val c = e.accent
         val base = blend(c, Color.BLACK, 0.80f)
@@ -744,7 +760,7 @@ class HomeActivity : Activity() {
         if (heroKey == e.key) return
         heroKey = e.key
         val d = heroOf(e)
-        val icon: Drawable? = if (e.heroRes == 0 && e.app != null && (e.slide < 0)) placeArt(bannerOf(e.app), iconOf(e.app)) else null
+        val icon: Drawable? = if (e.heroRes == 0 && e.app != null && (e.slide < 0)) artFor(e.app) else null
         if (instant) {
             heroBack.setImageDrawable(d); heroFront.alpha = 0f
             heroIcon.setImageDrawable(icon); heroIcon.alpha = if (icon != null) 1f else 0f
@@ -754,7 +770,7 @@ class HomeActivity : Activity() {
         heroFront.setImageDrawable(d); heroFront.alpha = 0f
         // Fades in while settling from a slight zoom; then it becomes the picture underneath.
         heroFront.scaleX = 1.06f; heroFront.scaleY = 1.06f
-        heroFront.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(650).setInterpolator(android.view.animation.DecelerateInterpolator(1.8f)).withEndAction {
+        heroFront.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(600).setInterpolator(android.view.animation.DecelerateInterpolator(1.8f)).withLayer().withEndAction {
             heroBack.setImageDrawable(d); heroFront.alpha = 0f; heroFront.setImageDrawable(null)
         }.start()
         heroIcon.animate().cancel()
@@ -766,15 +782,41 @@ class HomeActivity : Activity() {
      * Another app's own picture on the right: its banner shown wide (or its icon, square), with the edges faded away so
      * it melts into the colour behind it instead of sitting there as a box.
      */
-    private fun placeArt(banner: Drawable?, icon: Drawable): Drawable {
+    private fun placeArt(banner: Drawable?, icon: Drawable): android.graphics.Bitmap {
         val wide = banner != null
         val w = if (wide) (screenW * 0.50f).toInt() else (screenH * 0.46f).toInt()
         val h = if (wide) w * 9 / 16 else w
-        heroIcon.layoutParams = (heroIcon.layoutParams as FrameLayout.LayoutParams).apply {
+        return fadeEdges(banner ?: icon, w, h, if (wide) 0.24f else 0.16f)
+    }
+
+    private val heroCache = java.util.concurrent.ConcurrentHashMap<String, Drawable>()
+    private val artCache = java.util.concurrent.ConcurrentHashMap<String, android.graphics.Bitmap>()
+
+    private fun decodeHero(res: Int): Drawable = android.graphics.drawable.BitmapDrawable(resources,
+        android.graphics.BitmapFactory.decodeResource(resources, res, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }))
+
+    /** An installed app's faded picture (made once), sized and placed on the right. */
+    private fun artFor(a: App): Drawable {
+        val bmp = artCache[a.pkg] ?: placeArt(bannerOf(a), iconOf(a)).also { artCache[a.pkg] = it }
+        val w = bmp.width; val h = bmp.height
+        val lp = heroIcon.layoutParams as FrameLayout.LayoutParams
+        if (lp.width != w || lp.height != h) heroIcon.layoutParams = lp.apply {
             width = w; height = h
             leftMargin = (screenW * 0.70f - w / 2f).toInt(); topMargin = (screenH * 0.43f - h / 2f).toInt()
         }
-        return android.graphics.drawable.BitmapDrawable(resources, fadeEdges(banner ?: icon, w, h, if (wide) 0.24f else 0.16f))
+        return android.graphics.drawable.BitmapDrawable(resources, bmp)
+    }
+
+    /** Gets every picture ready in the background, so moving along the row never waits on one. */
+    private fun warmPictures() {
+        val list = entries.toList()
+        Thread {
+            for (e in list) try {
+                if (e.heroRes != 0 && !heroCache.containsKey(e.key)) heroCache[e.key] = decodeHero(e.heroRes)
+                val a = e.app
+                if (a != null && !artCache.containsKey(a.pkg)) artCache[a.pkg] = placeArt(bannerOf(a), iconOf(a))
+            } catch (_: Throwable) { }
+        }.apply { priority = Thread.MIN_PRIORITY }.start()
     }
 
     private fun fadeEdges(d: Drawable, w: Int, h: Int, edge: Float): android.graphics.Bitmap {
