@@ -2445,3 +2445,6 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 .is-editing .vod-card, .is-editing .svcx-card { position: relative; }
 .is-editing .vod-card::after, .is-editing .svcx-card::after { content: "✕"; position: absolute; top: 0.4rem; right: 0.4rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: rgba(0,0,0,0.75); color: #fff; font-size: 1rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .is-editing .vod-card:focus::after, .is-editing .svcx-card:focus::after { background: #c62828; }
+
+/* Long score lists (college football): rows off screen aren't drawn until you scroll to them. */
+.games .game-row { content-visibility: auto; contain-intrinsic-size: auto 5.6rem; }

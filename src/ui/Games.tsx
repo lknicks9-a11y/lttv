@@ -12,9 +12,18 @@ import { allTeams } from '../core/teams';
 import { canCheck, cachedLiveness, checkStream, type Liveness } from '../app/streamcheck';
 
 /** Team logo (transparent PNG from the schedule), falling back to the abbreviation. */
+/**
+ * ESPN's team logos are 500 px; a list of a hundred of them (a college football Saturday) made scrolling lag on a
+ * Fire TV Stick. ESPN serves the same picture at the size it's shown.
+ */
+export function smallLogo(url: string | undefined, px: number): string | undefined {
+  const m = url && /^https:\/\/a\.espncdn\.com(\/i\/teamlogos\/[^?]+)$/.exec(url);
+  return m ? `https://a.espncdn.com/combiner/i?img=${m[1]}&w=${px}&h=${px}` : url;
+}
+
 export function TeamLogo({ team, size = 'md' }: { team: { name: string; abbr: string; logo?: string; color?: string }; size?: 'sm' | 'md' | 'lg' }) {
   const [failed, setFailed] = useState(false);
-  const src = team.logo ?? logoFor(team.name);
+  const src = smallLogo(team.logo ?? logoFor(team.name), size === 'lg' ? 200 : size === 'md' ? 140 : 100);
   if (src && !failed) return <img class={`team-logo team-logo-${size}`} src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
   return <span class={`team-logo team-logo-${size} team-logo-text`} style={team.color ? { color: `#${team.color}` } : undefined}>{team.abbr}</span>;
 }

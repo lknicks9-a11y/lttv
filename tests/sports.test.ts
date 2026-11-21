@@ -165,11 +165,11 @@ test('team channels come only from the league\'s "Team PPV" group, by team name'
 import { buildGameIndex } from '../src/core/streamfinder';
 
 test("an event stream named after one event isn't offered for another game its network's guide lists", () => {
-  const evt = { key: 'e', name: 'Atlético Ottawa vs. Cavalry FC TSN 3', originalName: 'Atlético Ottawa vs. Cavalry FC TSN 3', group: 'TSN Events', number: 23060, playlistId: 'p', index: 1, hidden: false, category: 'sports', epgChannelId: 'g:tsn3', matchStatus: 'auto' } as never;
+  const evt = { key: 'e', name: 'TSN 3: Atlético Ottawa vs. Cavalry FC', originalName: 'TSN 3: Atlético Ottawa vs. Cavalry FC', group: 'TSN Events', number: 23060, playlistId: 'p', index: 1, hidden: false, category: 'sports', epgChannelId: 'g:tsn3', matchStatus: 'auto' } as never;
   const plain = { key: 't', name: 'TSN 3', originalName: 'TSN 3', group: 'Canada', number: 300, playlistId: 'p', index: 2, hidden: false, category: 'sports', epgChannelId: 'g:tsn3', matchStatus: 'auto' } as never;
   const guide = { range: () => [{ ch: 'g:tsn3', start: 1000, stop: 9000, title: 'NCAA Football: Arkansas at Texas' }] } as never;
   const idx = buildGameIndex([evt, plain], guide, 0, 10_000);
   // The event stream: only its own name. The regular channel: its guide listing.
-  assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 'e').map((e) => e.text), ['Atlético Ottawa vs. Cavalry FC TSN 3']);
+  assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 'e').map((e) => e.text), ['TSN 3: Atlético Ottawa vs. Cavalry FC']);
   assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 't').map((e) => e.text), ['NCAA Football: Arkansas at Texas']);
 });
