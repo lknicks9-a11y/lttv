@@ -9,7 +9,7 @@ import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
 import { nbaLocalsNotOnTonight, nbaMainChannels } from './nbachannels';
-import { channelsForBroadcast, networkForBroadcast } from './networks';
+import { channelKeys, channelsForBroadcast, networkForBroadcast } from './networks';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
 export type FeedChoice = 'home' | 'away' | 'national';
@@ -218,10 +218,20 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
     });
   }
 
-  // 3. Networks carrying the game (only when asked for: see FindOptions.networks).
-  for (const b of opts.networks ? game.broadcasts : []) {
-    const found = channelsForBroadcast(b.name, lineup);
+  // 3. Each team's own TV channel for this game (ESPN lists who carries it for each side: "NBC Sports Chicago",
+  //    "Sportsnet West"), found by its exact name — never a look-alike from another city or a channel that only
+  //    shares a word. National networks only when asked for (see FindOptions.networks).
+  for (const b of game.broadcasts) {
+    if (b.market === 'national' && !opts.networks) continue;
+    let found = channelsForBroadcast(b.name, lineup);
+    // A team's regional feed: the exact one named ("Sportsnet West" for the Flames, not Sportsnet East).
+    if (b.market !== 'national' && !opts.networks) {
+      const exact = networkForBroadcast(b.name).key;
+      const own = exact ? found.filter((f) => channelKeys(f.ch.cleanedName || f.ch.originalName).includes(exact)) : [];
+      if (own.length) found = own;
+    }
     for (const { ch, fit } of found) {
+      if (!opts.networks && (fit === 'affiliate' || NOT_A_GAME_CHANNEL.test(`${ch.originalName} ${ch.group ?? ''}`))) continue;
       const fitAdj = fit === 'mytv' ? 4 : fit === 'exact' ? 2 : -15;
       if (b.market === 'national') {
         add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : `${b.name} · national` });
@@ -229,7 +239,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
         const side = b.market;
         const team = teamOfSide(game, side);
         const chosen = !feed || feed === side;
-        add({ ch, score: (feed === side ? 95 : chosen ? 82 : 55) + fitAdj, kind: 'local', side, broadcast: b.name, reason: `${b.name} · ${team.short} broadcast` });
+        add({ ch, score: (feed === side ? 95 : chosen ? 82 : 55) + fitAdj, kind: 'local', side, broadcast: b.name, reason: `${b.name} · ${team.short} broadcast today`, team: !opts.networks || undefined });
       }
     }
   }
@@ -391,3 +401,6 @@ export function tierOf(p: StreamPick): number {
   if (p.via === 'name') return 1;
   return 0;
 }
+
+/** Channels that are never a game's stream, whatever their name shares with a network (kids, news, radio…). */
+const NOT_A_GAME_CHANNEL = /\b(kids?|junior|jr|cartoon|disney|nick|news|radio|music|movies?|cinema|weather|shopping|religio|church)\b/i;

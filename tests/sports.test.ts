@@ -129,7 +129,7 @@ test('a game listing must be the same schools and sport', () => {
   assert.equal(textMatchesGame('College Basketball: Penn State at Michigan', g, 'football'), false);
 });
 
-import { findStreams } from '../src/core/streamfinder';
+import { findStreams, bestStreams } from '../src/core/streamfinder';
 
 test('streaming-only games offer the provider\'s channels for that service until game day', () => {
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
@@ -194,4 +194,16 @@ test('NHL team channels: both teams, from the provider\'s NHL team group', () =>
   const ch = (key: string, name: string, group: string) => ({ key, name, originalName: name, group, number: 1, playlistId: 'p', index: 1, hidden: false, category: 'sports' }) as never;
   const lineup = [ch('c', 'Calgary Flames', 'NHL Teams'), ch('b', 'Chicago Blackhawks HD', 'NHL Teams'), ch('x', 'Chicago Bulls', 'NBA Team PPV')];
   assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.ch.key}`), ['home:b', 'away:c']);
+});
+
+test("each team's channel for the day (from the game's TV listing) comes first; look-alikes and kids channels don't", () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const game = { id: '8', league: 'nhl', start: Date.now(), state: 'in', detail: '', name: '', home: t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI'), away: t('Calgary Flames', 'Flames', 'Calgary', 'CGY'),
+    broadcasts: [{ name: 'CHSN', market: 'home', kind: 'tv' }, { name: 'SN West', market: 'away', kind: 'tv' }, { name: 'ABC', market: 'national', kind: 'tv' }] } as never;
+  const ch = (key: string, name: string, number: number, group = 'Sports') => ({ key, name, originalName: name, group, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
+  const lineup = [ch('k', 'Play Kids ABC', 5, 'Kids'), ch('a', 'US: ABC HD', 6), ch('h', 'US: CHSN', 7), ch('w', 'CA: Sportsnet West', 8)];
+  const picks = bestStreams(game, lineup as never, 'hockey', []);
+  const keys = picks.map((p) => (p.ch as { key: string }).key);
+  assert.ok(!keys.includes('k') && !keys.includes('a'));
+  assert.deepEqual(keys.slice(0, 2).sort(), ['h', 'w']);
 });
