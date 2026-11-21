@@ -349,8 +349,24 @@ class HomeActivity : Activity() {
 
     private fun profileName(): String = prefs.getString("profile", null) ?: "LTTV"
 
-    /** Home starts on the first app in the row. */
-    private fun focusHome() = row.post { (selectedTile() ?: tiles.firstOrNull())?.requestFocus() ?: homeItem.requestFocus() }
+    /**
+     * Home always starts on the first app in the row (LTTV), never where it was last (like All Apps): on opening,
+     * on the Home button and on Back. Asked again a moment later in case Android put the focus somewhere else first.
+     */
+    private fun focusHome() {
+        val first = { tiles.firstOrNull()?.let { t -> if (currentFocus !== t) t.requestFocus() } ?: homeItem.requestFocus() }
+        userKey = false
+        row.post { first() }
+        main.postDelayed({ if (!userKey && overlayPage == null && settingsPage == null && photosPage == null) first() }, 350)
+    }
+
+    /** Set once you press anything, so the "start on the first app" check never pulls you back. */
+    private var userKey = false
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) userKey = true
+        return super.dispatchKeyEvent(event)
+    }
 
     private fun scrollTopAndFocus() {
         homeItem.requestFocus()
@@ -582,7 +598,7 @@ class HomeActivity : Activity() {
             if (e.key == had || e.app?.key == had) toFocus = t.first
         }
         focusKey = null
-        val keep = entries.firstOrNull { it.key == selected?.key } ?: entries.first()
+        val keep = (if (firstShow) null else entries.firstOrNull { it.key == selected?.key }) ?: entries.first()
         selected = null
         show(keep, instant = true)
         toFocus?.let { v -> v.post { v.requestFocus() } }
