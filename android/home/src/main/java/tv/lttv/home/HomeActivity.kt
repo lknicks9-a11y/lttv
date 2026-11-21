@@ -728,7 +728,7 @@ class HomeActivity : Activity() {
         if (heroKey == e.key) return
         heroKey = e.key
         val d = heroOf(e)
-        val icon: Drawable? = if (e.heroRes == 0 && e.app != null && (e.slide < 0)) (bannerOf(e.app) ?: iconOf(e.app)) else null
+        val icon: Drawable? = if (e.heroRes == 0 && e.app != null && (e.slide < 0)) placeArt(bannerOf(e.app), iconOf(e.app)) else null
         if (instant) {
             heroBack.setImageDrawable(d); heroFront.alpha = 0f
             heroIcon.setImageDrawable(icon); heroIcon.alpha = if (icon != null) 1f else 0f
@@ -744,6 +744,42 @@ class HomeActivity : Activity() {
         heroIcon.animate().cancel()
         if (icon != null) { heroIcon.setImageDrawable(icon); heroIcon.alpha = 0f; heroIcon.animate().alpha(1f).setDuration(420).start() }
         else heroIcon.animate().alpha(0f).setDuration(200).start()
+    }
+
+    /**
+     * Another app's own picture on the right: its banner shown wide (or its icon, square), with the edges faded away so
+     * it melts into the colour behind it instead of sitting there as a box.
+     */
+    private fun placeArt(banner: Drawable?, icon: Drawable): Drawable {
+        val wide = banner != null
+        val w = if (wide) (screenW * 0.50f).toInt() else (screenH * 0.46f).toInt()
+        val h = if (wide) w * 9 / 16 else w
+        heroIcon.layoutParams = (heroIcon.layoutParams as FrameLayout.LayoutParams).apply {
+            width = w; height = h
+            leftMargin = (screenW * 0.70f - w / 2f).toInt(); topMargin = (screenH * 0.43f - h / 2f).toInt()
+        }
+        return android.graphics.drawable.BitmapDrawable(resources, fadeEdges(banner ?: icon, w, h, if (wide) 0.24f else 0.16f))
+    }
+
+    private fun fadeEdges(d: Drawable, w: Int, h: Int, edge: Float): android.graphics.Bitmap {
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val iw = d.intrinsicWidth; val ih = d.intrinsicHeight
+        if (iw > 0 && ih > 0) {
+            // Fill the box (crop the overflow), like a picture would.
+            val k = maxOf(w / iw.toFloat(), h / ih.toFloat())
+            val dw = (iw * k).toInt(); val dh = (ih * k).toInt()
+            d.setBounds((w - dw) / 2, (h - dh) / 2, (w + dw) / 2, (h + dh) / 2)
+        } else d.setBounds(0, 0, w, h)
+        d.draw(c)
+        // Keep the middle, fade every edge (sides, top and bottom) to nothing.
+        val clear = Color.TRANSPARENT; val solid = Color.BLACK
+        val mask = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN) }
+        mask.shader = android.graphics.LinearGradient(0f, 0f, w.toFloat(), 0f, intArrayOf(clear, solid, solid, clear), floatArrayOf(0f, edge, 1f - edge, 1f), android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), mask)
+        mask.shader = android.graphics.LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(clear, solid, solid, clear), floatArrayOf(0f, edge * 1.2f, 1f - edge * 1.2f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), mask)
+        return bmp
     }
 
     private fun launch(e: Entry) {
