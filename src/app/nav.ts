@@ -243,6 +243,16 @@ function isTextField(el: Element | null): boolean {
 
 let installed = false;
 let lastMoveAt = 0;
+
+/** Milliseconds since the last arrow press: background work waits while you're moving around, so moves stay instant. */
+export function sinceLastMove(): number {
+  return performance.now() - lastMoveAt;
+}
+
+/** Waits until the remote has been still for a moment (background work calls this between steps). */
+export async function whenStill(ms = 450): Promise<void> {
+  while (sinceLastMove() < ms) await new Promise((r) => setTimeout(r, ms - sinceLastMove() + 20));
+}
 export let lastInputWasPointer = false;
 
 export function installNavigation(): void {

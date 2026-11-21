@@ -1,6 +1,7 @@
 import { h, Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
+import { sinceLastMove, whenStill } from '../app/nav';
 import { useGames, logoFor } from '../app/schedule';
 import { sportsDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
 import { buildGameIndexAsync, broadcastSummary, bestStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
@@ -90,34 +91,45 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   useEffect(() => {
     if (!open) setBest(new Map(latest.current));
   }, [open]);
+  // Only when the games themselves change (not every score update, which during live games came every minute and
+  // restarted this whole search, making up/down slow while it ran).
+  const gamesKey = games.map((g) => `${g.id}:${g.start}:${g.state === 'post' ? 'f' : ''}`).join('|');
+  const gamesRef = useRef(games);
+  gamesRef.current = games;
   useEffect(() => {
     let alive = true;
+    const list = gamesRef.current;
     // Keep what's already shown while channels are re-checked (no "Finding channels…" flashing on refresh).
-    if (!games.length) return;
+    if (!list.length) return;
     void (async () => {
-      const from = Math.min(...games.map((g) => g.start)) - 3600_000;
-      const to = Math.max(...games.map((g) => g.start)) + 5 * 3600_000;
+      const from = Math.min(...list.map((g) => g.start)) - 3600_000;
+      const to = Math.max(...list.map((g) => g.start)) + 5 * 3600_000;
       const idx = await buildGameIndexAsync(lineup, guide, from, to, guideVersion);
       if (!alive) return;
       setIndex(idx);
       const m = new Map<string, StreamPick | undefined>(latest.current);
-      for (let i = 0; i < games.length; i++) {
-        const g = games[i];
+      let shownAt = performance.now();
+      for (let i = 0; i < list.length; i++) {
+        // One game at a time, and only while the remote is still: a press is never stuck behind this work.
+        await whenStill();
+        if (!alive) return;
+        const g = list[i];
         m.set(g.id, bestStreams(g, lineup, league.sport, idx)[0]);
         latest.current = m;
-        if (i % 6 === 5) {
-          if (!openRef.current) setBest(new Map(m));
-          await new Promise((r) => setTimeout(r, 0));
-          if (!alive) return;
+        // The list is redrawn at most about once a second (not every few games), and never mid-move.
+        if (performance.now() - shownAt > 1000 && !openRef.current && sinceLastMove() > 450) {
+          setBest(new Map(m));
+          shownAt = performance.now();
         }
+        await new Promise((r) => setTimeout(r, 0));
       }
       latest.current = m;
-      if (!openRef.current) setBest(new Map(m));
+      if (!openRef.current && alive) setBest(new Map(m));
     })();
     return () => {
       alive = false;
     };
-  }, [games, lineup, guide, guideVersion, league.sport]);
+  }, [gamesKey, lineup, guide, guideVersion, league.sport]);
 
   const live = games.filter((g) => g.state === 'in').length;
 
