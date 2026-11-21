@@ -45,7 +45,13 @@ export function buildGameIndex(lineup: LineupChannel[], guide: GuideIndex, from:
   for (const ch of lineup) {
     if (ch.hidden) continue;
     const event = isEventChannel(ch);
-    if (event && GAMEY.test(` ${ch.originalName} `)) out.push({ ch, text: ch.originalName, start: from, stop: to, event: true });
+    if (event && GAMEY.test(` ${ch.originalName} `)) {
+      out.push({ ch, text: ch.originalName, start: from, stop: to, event: true });
+      // An event stream named after its event ("Atlético Ottawa vs. Cavalry FC · TSN 3") carries that event only. Its
+      // guide is the regular network's (TSN 3's), which may list something else entirely (Arkansas at Texas), so it
+      // must not make this stream count for that other game.
+      continue;
+    }
     const usable = ch.epgChannelId && (ch.matchStatus === 'auto' || ch.matchStatus === 'approved');
     if (!usable) continue;
     const sporty = event || ch.category === 'sports';
