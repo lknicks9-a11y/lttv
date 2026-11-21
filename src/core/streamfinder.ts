@@ -348,9 +348,13 @@ export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineu
   const mine = feedNames(t);
   const theirs = feedNames(other);
   const out: LineupChannel[] = [];
+  const full = foldText(t.name);
   for (const ch of lineup) {
-    if (ch.hidden || !inTeamGroup(ch, league)) continue;
+    if (ch.hidden) continue;
     const name = ` ${foldText(ch.originalName)} `;
+    // In the league's team group by name, or anywhere when the channel is just the team ("Calgary Flames HD").
+    const justTeam = foldText(stripQuality(ch.cleanedName || ch.originalName)) === full;
+    if (!justTeam && !inTeamGroup(ch, league)) continue;
     if (!mentionsFolded(name, mine)) continue;
     if (mentionsFolded(name, theirs)) continue; // a channel for this one game, not the team's channel
     out.push(ch);
@@ -415,3 +419,8 @@ export function tierOf(p: StreamPick): number {
 
 /** Channels that are never a game's stream, whatever their name shares with a network (kids, news, radio…). */
 const NOT_A_GAME_CHANNEL = /\b(kids?|junior|jr|cartoon|disney|nick|news|radio|music|movies?|cinema|weather|shopping|religio|church)\b/i;
+
+/** A channel name without country tags and picture-quality words ("US: Calgary Flames FHD" → "Calgary Flames"). */
+function stripQuality(name: string): string {
+  return name.replace(/^\s*[\[(]?[a-z]{2,3}[\])]?\s*[:|\-]\s*/i, '').replace(/\b(uhd|fhd|hd|sd|4k|hevc|h265|1080p?|720p?|backup|raw)\b/gi, ' ').replace(/[\[\]()|]/g, ' ').replace(/\s+/g, ' ').trim();
+}

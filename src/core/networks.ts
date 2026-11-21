@@ -197,7 +197,14 @@ function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): Ne
     const country = channelCountry(ch);
     if (country && country !== wantCountry) continue;
     if (/\+\s?\d/.test(ch.originalName)) continue; // timeshift
-    if (channelKeys(ch.cleanedName || ch.originalName).some((k) => keys.includes(k))) {
+    const ck = channelKeys(ch.cleanedName || ch.originalName);
+    if (ck.some((k) => keys.includes(k))) {
+      push(ch, 'exact');
+      continue;
+    }
+    // A team's regional sports channel with more in its name: "CHSN Chicago", "NESN Red Sox", "Sportsnet West 4K".
+    // Regional networks only (a national one's name is the start of its sister channels': ESPN → ESPN2, ESPNews).
+    if (network?.rsn && ck.some((c) => keys.some((k) => k.length >= 4 && c.startsWith(k)))) {
       push(ch, 'exact');
       continue;
     }

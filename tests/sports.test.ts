@@ -208,3 +208,13 @@ test("each team's channel for the day (from the game's TV listing) comes first; 
   assert.ok(!keys.includes('k'));
   assert.deepEqual(keys.slice(0, 3).sort(), ['a', 'h', 'w']);
 });
+
+test('team channels with more in their names: "CHSN Chicago" for a CHSN game, "Calgary Flames HD" anywhere', () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const game = { id: '11', league: 'nhl', start: Date.now(), state: 'in', detail: '', name: '', home: t('Calgary Flames', 'Flames', 'Calgary', 'CGY'), away: t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI'),
+    broadcasts: [{ name: 'CHSN', market: 'away', kind: 'tv' }, { name: 'ESPN+', market: 'national', kind: 'streaming' }] } as never;
+  const ch = (key: string, name: string, group: string) => ({ key, name, originalName: name, group, number: 1, playlistId: 'p', index: 1, hidden: false, category: 'sports' }) as never;
+  const lineup = [ch('c', 'US: CHSN Chicago', 'USA Sports'), ch('f', 'Calgary Flames HD', 'Canada'), ch('n', 'ESPNews', 'USA Sports')];
+  const keys = bestStreams(game, lineup as never, 'hockey', []).map((p) => (p.ch as { key: string }).key);
+  assert.ok(keys.includes('c') && keys.includes('f') && !keys.includes('n'));
+});
