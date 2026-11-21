@@ -290,7 +290,7 @@ export function broadcastSummary(game: Game): string {
 // broadcast. Only those groups are used; other sports get national broadcasts / other streams.
 
 /** Leagues with a team-broadcast group, and that group's name. */
-export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv' };
+export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv', nhl: 'nhl team ppv' };
 const teamFeedCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
 
 /** Names good enough to pick out a team's own channel (full name, nickname; not the city alone). */
@@ -309,9 +309,11 @@ function feedNames(t: GameTeam): string[] {
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
   const want = TEAM_PPV_GROUPS[league];
   if (!want) return false;
-  const g = foldText(ch.group ?? '');
+  const g = ` ${foldText(ch.group ?? '')} `;
   // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
-  return ` ${g} `.includes(` ${want} `);
+  if (g.includes(` ${want} `)) return true;
+  // Other providers' names for the same thing: "NHL Teams", "NHL Center Ice", "NBA League Pass", "MLB Extra Innings".
+  return g.includes(` ${league} `) && /\b(teams?|ppv|league pass|center ice|centre ice|extra innings|team channels?)\b/.test(g);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */

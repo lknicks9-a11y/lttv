@@ -4,7 +4,9 @@
 import type { LineupChannel, Programme } from './types';
 
 /** Countries whose channels broadcast in English. */
-export const ENGLISH_COUNTRIES = new Set(['us', 'uk', 'ca', 'au', 'ie', 'nz']);
+export const ENGLISH_COUNTRIES = new Set(['us', 'uk', 'gb', 'ca', 'au', 'ie', 'nz', 'za', 'sg', 'ph']);
+/** A feed that says it's in English ("ENG", "English"), from any country. */
+const ENGLISH_FEED = /\b(english|eng)\b|\(en\)/i;
 
 // Letters outside the Latin alphabet (Greek, Cyrillic, Armenian, Hebrew, Arabic, Indic, Thai, CJK, Hangul\u2026).
 const FOREIGN = /[\u0370-\u03ff\u0400-\u052f\u0530-\u058f\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\u0900-\u0dff\u0e00-\u0e7f\u1100-\u11ff\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\ufb50-\ufdff\ufe70-\ufeff]/g;
@@ -63,5 +65,5 @@ export function isEnglishChannel(ch: Pick<LineupChannel, 'country' | 'originalNa
   const text = `${ch.originalName} ${ch.group ?? ''}`;
   // Any word in another script ("beIN Sports عربي") marks a foreign feed; English channel names never have one.
   if (NON_ENGLISH_FEED.test(text) || (text.match(FOREIGN)?.length ?? 0) >= 2) return false;
-  return !ch.country || ENGLISH_COUNTRIES.has(ch.country);
+  return !ch.country || ENGLISH_COUNTRIES.has(ch.country) || ENGLISH_FEED.test(text);
 }

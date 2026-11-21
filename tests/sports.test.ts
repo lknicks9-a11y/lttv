@@ -185,3 +185,13 @@ test('stream order: team channels, then guide listings, then channels named afte
   const order = [net, named, guide, team].sort((a, b) => tierOf(b) - tierOf(a));
   assert.deepEqual(order, [team, guide, named, net]);
 });
+
+test('NHL team channels: both teams, from the provider\'s NHL team group', () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const cgy = t('Calgary Flames', 'Flames', 'Calgary', 'CGY');
+  const chi = t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI');
+  const game = { id: '7', league: 'nhl', start: Date.now(), state: 'in', detail: '', name: '', home: chi, away: cgy, broadcasts: [] } as never;
+  const ch = (key: string, name: string, group: string) => ({ key, name, originalName: name, group, number: 1, playlistId: 'p', index: 1, hidden: false, category: 'sports' }) as never;
+  const lineup = [ch('c', 'Calgary Flames', 'NHL Teams'), ch('b', 'Chicago Blackhawks HD', 'NHL Teams'), ch('x', 'Chicago Bulls', 'NBA Team PPV')];
+  assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.ch.key}`), ['home:b', 'away:c']);
+});
