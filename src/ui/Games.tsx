@@ -4,7 +4,7 @@ import { useApp, tune } from '../app/state';
 import { focusEl, sinceLastMove, whenStill } from '../app/nav';
 import { useGames, logoFor } from '../app/schedule';
 import { sportsDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
-import { buildGameIndexAsync, broadcastSummary, bestStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
+import { buildGameIndexAsync, broadcastSummary, bestStreams, rememberWatched, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
 import { Button, ChannelLogo, Chip, Empty, Icon, Modal } from './common';
 import { ChannelName } from './ChannelName';
 import { clock } from './fmt';
@@ -270,6 +270,9 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   const picks = [...ranked].sort((a, b) => rank(a) - rank(b));
   const allDead = dead.length > 0 && dead.length === Math.min(ranked.length, CHECK_TOP) && !ranked.some((p) => live.get(p.ch.key) === 'live');
   const watch = (key: string) => {
+    // Remembered by name for this team / network, so it's found again first (even after switching providers).
+    const p = ranked.find((x) => x.ch.key === key);
+    if (p) rememberWatched(game, p);
     onClose();
     if (onPick) onPick(key, game);
     else {

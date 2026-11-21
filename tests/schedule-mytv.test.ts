@@ -110,16 +110,16 @@ test('best streams: event channel, chosen team broadcast, national; other cities
     ['US: NBC Sports Philadelphia', 'USA Sports'], ['US: NHL Network', 'USA Sports'], ['US: ESPN', 'USA Sports'],
   ]);
   assert.ok(needsFeedChoice(g));
-  const yes = findStreams(g, lineup, { networks: true, sport: 'baseball', feed: 'home', index: [{ ch: lineup[3], text: lineup[3].originalName, start: 0, stop: Infinity, event: true }] });
+  const yes = findStreams(g, lineup, { sport: 'baseball', feed: 'home', index: [{ ch: lineup[3], text: lineup[3].originalName, start: 0, stop: Infinity, event: true }] });
   assert.equal(yes[0].ch.originalName, 'MLB 05: Red Sox @ Yankees (YES)'); // event channel labelled with the YES feed
   assert.equal(yes[1].ch.originalName, 'US: YES Network HD'); // HD before SD
   assert.ok(yes.findIndex((p) => /NESN/.test(p.ch.originalName)) > yes.findIndex((p) => /YES Network SD/.test(p.ch.originalName)));
-  const bos = findStreams(g, lineup, { networks: true, sport: 'baseball', feed: 'away' });
+  const bos = findStreams(g, lineup, { sport: 'baseball', feed: 'away' });
   assert.equal(bos[0].ch.originalName, 'US: NESN FHD');
-  assert.equal(bos[0].reason, 'NESN · Red Sox broadcast today');
+  assert.equal(bos[0].reason, 'NESN · Red Sox broadcast');
   assert.ok(!bos.some((p) => /Sky Sports/.test(p.ch.originalName)));
   // Hockey: national NHL Network and the Flyers' broadcast.
-  const h = findStreams(nhl, lineup, { networks: true, sport: 'hockey' });
+  const h = findStreams(nhl, lineup, { sport: 'hockey' });
   assert.deepEqual(h.map((p) => p.ch.originalName), ['US: NHL Network', 'US: NBC Sports Philadelphia']);
   assert.equal(needsFeedChoice(nhl), false);
   assert.equal(broadcastSummary(g), 'YES (NYY) · NESN (BOS)');
@@ -132,17 +132,17 @@ test('one best-first stream list for a game: no broadcast question, both teams\'
     ['MLB 05: Red Sox @ Yankees', 'MLB Extra Innings'], ['UK: Sky Sports Main Event', 'UK Sports'],
   ]);
   const index = [{ ch: lineup[2], text: lineup[2].originalName, start: 0, stop: Infinity, event: true }];
-  const all = bestStreams(g, lineup, 'baseball', index, undefined, { networks: true });
+  const all = bestStreams(g, lineup, 'baseball', index);
   assert.equal(all[0].ch.originalName, 'MLB 05: Red Sox @ Yankees'); // the game's own event channel first
   assert.ok(all.some((p) => /YES/.test(p.ch.originalName)) && all.some((p) => /NESN/.test(p.ch.originalName)));
   assert.ok(!all.some((p) => /Sky Sports/.test(p.ch.originalName)));
   // Spanish-language feeds of the game are left out when English ones exist.
   const withEs = lineupOf([['US: YES Network HD', 'USA Sports'], ['MLB 05: Red Sox @ Yankees', 'LATINO | MLB'], ['MLB 06: Red Sox @ Yankees', 'MLB Extra Innings']]);
   const esIndex = [1, 2].map((i) => ({ ch: withEs[i], text: withEs[i].originalName, start: 0, stop: Infinity, event: true }));
-  const en = bestStreams(g, withEs, 'baseball', esIndex, undefined, { networks: true });
+  const en = bestStreams(g, withEs, 'baseball', esIndex);
   assert.ok(en.length > 0 && !en.some((p) => /MLB 05/.test(p.ch.originalName)));
   // A Red Sox fan gets the NESN feed ahead of YES.
-  const fan = bestStreams(g, lineup, 'baseball', index, (t) => t.short === 'Red Sox', { networks: true });
+  const fan = bestStreams(g, lineup, 'baseball', index, (t) => t.short === 'Red Sox');
   assert.ok(fan.findIndex((p) => /NESN/.test(p.ch.originalName)) < fan.findIndex((p) => /YES/.test(p.ch.originalName)));
 });
 

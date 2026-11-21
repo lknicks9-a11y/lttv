@@ -9,7 +9,8 @@ import { isEventChannel } from './events';
 import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
 import { nbaLocalsNotOnTonight, nbaMainChannels } from './nbachannels';
-import { channelKeys, channelsForBroadcast, networkForBroadcast } from './networks';
+import { channelsForBroadcast, networkForBroadcast } from './networks';
+import { netMemKey, recallChannels, rememberChannel, teamMemKey } from './streammemory';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
 export type FeedChoice = 'home' | 'away' | 'national';
@@ -26,8 +27,6 @@ export interface StreamPick {
   main?: boolean;
   /** The team's own channel (named after the team), as opposed to a local station carrying the game. */
   team?: boolean;
-  /** How it was found: the channel's guide lists the game, or the channel's own name is the game. */
-  via?: 'guide' | 'name';
 }
 
 /** Text entries worth checking for games: programme titles around the day, and event channel names. */
@@ -47,13 +46,7 @@ export function buildGameIndex(lineup: LineupChannel[], guide: GuideIndex, from:
   for (const ch of lineup) {
     if (ch.hidden) continue;
     const event = isEventChannel(ch);
-    if (event && GAMEY.test(` ${ch.originalName} `)) {
-      out.push({ ch, text: ch.originalName, start: from, stop: to, event: true });
-      // An event stream named after its event ("Atlético Ottawa vs. Cavalry FC · TSN 3") carries that event only. Its
-      // guide is the regular network's (TSN 3's), which may list something else entirely (Arkansas at Texas), so it
-      // must not make this stream count for that other game.
-      continue;
-    }
+    if (event && GAMEY.test(` ${ch.originalName} `)) out.push({ ch, text: ch.originalName, start: from, stop: to, event: true });
     const usable = ch.epgChannelId && (ch.matchStatus === 'auto' || ch.matchStatus === 'approved');
     if (!usable) continue;
     const sporty = event || ch.category === 'sports';
@@ -167,12 +160,6 @@ export interface FindOptions {
   feed?: FeedChoice;
   index?: GameIndexEntry[];
   guide?: GuideIndex;
-  /**
-   * Also offer channels by the network's name (ABC, ESPN, a local affiliate…) and a streaming service's channels.
-   * Off in the app: name-guessing picked the wrong things ("Play Kids ABC" for an ABC game). Streams come from
-   * channels named after the game, channels whose guide lists it, and the teams' own channels.
-   */
-  networks?: boolean;
 }
 
 export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptions): StreamPick[] {
@@ -212,43 +199,29 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
       ch: e.ch,
       score,
       kind: e.event ? 'event' : 'guide',
-      via: e.event && e.text === e.ch.originalName ? 'name' : 'guide',
       side,
       reason: e.event ? (side ? `Event channel · ${teamOfSide(game, side).short} broadcast` : 'Event channel for this game') : `Guide: ${e.text}`,
     });
   }
 
-  // 3. Each team's own TV channel for this game (ESPN lists who carries it for each side: "NBC Sports Chicago",
-  //    "Sportsnet West"), found by its exact name — never a look-alike from another city or a channel that only
-  //    shares a word. National networks only when asked for (see FindOptions.networks).
-  // The game's channel(s) today from its TV listing: both teams' channels for a two-channel game, the one channel
-  // (ESPN, ABC…) for a one-channel game. Exact names only in the app: no other-city affiliates, no kids/news
-  // channels that share a word, no streaming-service guesses.
+  // 3. Networks carrying the game.
   for (const b of game.broadcasts) {
-    if (b.kind === 'streaming' && !opts.networks) continue;
-    let found = channelsForBroadcast(b.name, lineup);
-    // A team's regional feed: the exact one named ("Sportsnet West" for the Flames, not Sportsnet East).
-    if (b.market !== 'national' && !opts.networks) {
-      const exact = networkForBroadcast(b.name).key;
-      const own = exact ? found.filter((f) => channelKeys(f.ch.cleanedName || f.ch.originalName).includes(exact)) : [];
-      if (own.length) found = own;
-    }
+    const found = channelsForBroadcast(b.name, lineup);
     for (const { ch, fit } of found) {
-      if (!opts.networks && (fit === 'affiliate' || NOT_A_GAME_CHANNEL.test(`${ch.originalName} ${ch.group ?? ''}`))) continue;
       const fitAdj = fit === 'mytv' ? 4 : fit === 'exact' ? 2 : -15;
       if (b.market === 'national') {
-        add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : opts.networks ? `${b.name} · national` : `${b.name} · the game's channel today`, team: !opts.networks || undefined });
+        add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : `${b.name} · national` });
       } else {
         const side = b.market;
         const team = teamOfSide(game, side);
         const chosen = !feed || feed === side;
-        add({ ch, score: (feed === side ? 95 : chosen ? 82 : 55) + fitAdj, kind: 'local', side, broadcast: b.name, reason: `${b.name} · ${team.short} broadcast today`, team: !opts.networks || undefined });
+        add({ ch, score: (feed === side ? 95 : chosen ? 82 : 55) + fitAdj, kind: 'local', side, broadcast: b.name, reason: `${b.name} · ${team.short} broadcast` });
       }
     }
   }
   // 4. Streaming-only games (ESPN+, B1G+, Peacock…): providers name the exact event channel on game day,
   //    so before that offer their channels for that service.
-  if (opts.networks && ![...picks.values()].some((p) => p.kind === 'event' || p.kind === 'guide' || p.kind === 'national' || p.kind === 'local')) {
+  if (![...picks.values()].some((p) => p.kind === 'event' || p.kind === 'guide' || p.kind === 'national' || p.kind === 'local')) {
     for (const b of game.broadcasts) {
       const svc = STREAMING_SERVICES.find((x) => x.re.test(b.name));
       if (!svc) continue;
@@ -303,7 +276,7 @@ export function broadcastSummary(game: Game): string {
 // broadcast. Only those groups are used; other sports get national broadcasts / other streams.
 
 /** Leagues with a team-broadcast group, and that group's name. */
-export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv', nhl: 'nhl team ppv' };
+export const TEAM_PPV_GROUPS: Record<string, string> = { nba: 'nba team ppv', wnba: 'wnba team ppv', mlb: 'mlb team ppv' };
 const teamFeedCache = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
 
 /** Names good enough to pick out a team's own channel (full name, nickname; not the city alone). */
@@ -319,27 +292,17 @@ function feedNames(t: GameTeam): string[] {
   return [...out].sort((a, b) => b.length - a.length);
 }
 
-/** How providers write each league in a group name. */
-const LEAGUE_WORDS: Record<string, string[]> = {
-  nba: ['nba'], wnba: ['wnba'], mlb: ['mlb'], nhl: ['nhl'], nfl: ['nfl'], mls: ['mls'],
-  cfb: ['ncaaf', 'cfb', 'college football', 'ncaa football'], cbb: ['ncaab', 'cbb', 'college basketball', 'ncaa basketball'],
-  wcbb: ['ncaaw', 'wcbb', 'womens college basketball'], epl: ['epl', 'premier league'], laliga: ['laliga', 'la liga'],
-  bundesliga: ['bundesliga'], seriea: ['serie a'], ligue1: ['ligue 1'], ucl: ['champions league', 'ucl'], championship: ['efl', 'championship'],
-};
-
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
-  const g = ` ${foldText(ch.group ?? '')} `;
   const want = TEAM_PPV_GROUPS[league];
+  if (!want) return false;
+  const g = foldText(ch.group ?? '');
   // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
-  if (want && g.includes(` ${want} `)) return true;
-  // Any league, other providers' names: "NHL Teams", "NHL Center Ice", "NBA League Pass", "MLB Extra Innings",
-  // "NFL Team Channels", "NCAAF Teams", "Premier League Clubs".
-  const words = LEAGUE_WORDS[league] ?? [league];
-  return words.some((w) => g.includes(` ${w} `)) && /\b(teams?|clubs?|ppv|league pass|center ice|centre ice|extra innings|team channels?)\b/.test(g);
+  return ` ${g} `.includes(` ${want} `);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
 export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineup: LineupChannel[]): LineupChannel[] {
+  if (!TEAM_PPV_GROUPS[league]) return [];
   const m = teamFeedCache.get(lineup) ?? new Map<string, LineupChannel[]>();
   teamFeedCache.set(lineup, m);
   const key = `${league}|${t.name}|${other.name}`;
@@ -348,14 +311,9 @@ export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineu
   const mine = feedNames(t);
   const theirs = feedNames(other);
   const out: LineupChannel[] = [];
-  const full = foldText(t.name);
   for (const ch of lineup) {
-    if (ch.hidden) continue;
+    if (ch.hidden || !inTeamGroup(ch, league)) continue;
     const name = ` ${foldText(ch.originalName)} `;
-    // In the league's team group by name, or anywhere when the channel is just the team ("Calgary Flames HD").
-    // (never one sitting in another league's team group: "Charlotte Hornets" under WNBA Team PPV isn't the NBA team's).
-    const justTeam = foldText(stripQuality(ch.originalName)) === full && !/event|ppv events|live events/i.test(ch.group ?? '') && !Object.keys(LEAGUE_WORDS).some((l) => l !== league && inTeamGroup(ch, l));
-    if (!justTeam && !inTeamGroup(ch, league)) continue;
     if (!mentionsFolded(name, mine)) continue;
     if (mentionsFolded(name, theirs)) continue; // a channel for this one game, not the team's channel
     out.push(ch);
@@ -383,13 +341,36 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
  * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
  * English-commentary channels only (Spanish-language feeds like ESPN Deportes / TUDN are left out).
  */
-export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false, more: { networks?: boolean } = {}): StreamPick[] {
+export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
   const picks = new Map<string, StreamPick>();
-  for (const p of findStreams(game, lineup, { sport, index, networks: more.networks })) picks.set(p.ch.key, { ...p });
+  for (const p of findStreams(game, lineup, { sport, index })) picks.set(p.ch.key, { ...p });
   for (const t of teamBroadcasts(game, lineup)) {
     const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
     const cur = picks.get(t.ch.key);
-    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel`, team: true });
+    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
+  }
+  // Remember what was found for each team and network (by channel name), and bring back what was found or watched
+  // before: after switching providers, the same channels are found again right away by their names.
+  for (const p of picks.values()) {
+    if (/affiliate|another city/i.test(p.reason)) continue;
+    if (p.side && (p.kind === 'local' || /team channel/.test(p.reason))) rememberChannel(teamMemKey(game.league, teamOfSide(game, p.side).name), p.ch);
+    if (p.broadcast && (p.kind === 'national' || p.kind === 'local')) rememberChannel(netMemKey(p.broadcast), p.ch);
+  }
+  for (const side of ['away', 'home'] as const) {
+    const team = teamOfSide(game, side);
+    for (const { ch, watched } of recallChannels(teamMemKey(game.league, team.name), lineup)) {
+      const score = (watched ? 90 : 86) + qualityRank(ch.originalName);
+      const cur = picks.get(ch.key);
+      if (!cur) picks.set(ch.key, { ch, score, kind: 'local', side, reason: `${team.short} channel${watched ? ' · you watched it before' : ' · found before'}` });
+      else if (watched) cur.score = Math.max(cur.score, score);
+    }
+  }
+  for (const b of game.broadcasts) {
+    for (const { ch, watched } of recallChannels(netMemKey(b.name), lineup)) {
+      if (picks.has(ch.key)) continue;
+      const side = b.market === 'national' ? undefined : b.market;
+      picks.set(ch.key, { ch, score: (watched ? 84 : 78) + qualityRank(ch.originalName), kind: side ? 'local' : 'national', side, broadcast: b.name, reason: `${b.name} · found before` });
+    }
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   // NBA: each team's main stream on top (its channel tonight, or its NBA team channel); the others stay below.
@@ -402,26 +383,14 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
       picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true, team: m.why === 'pass' });
     });
   }
-  // Always in this order, however many channels a provider adds: 1. both teams' own channels, 2. channels whose
-  // guide lists the game, 3. channels named after the game, 4. networks, local stations and anything else.
-  const all = [...picks.values()].sort((a, b) => tierOf(b) - tierOf(a) || b.score - a.score || a.ch.number - b.ch.number);
+  const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => p.main || isEnglishChannel(p.ch));
   return en.length ? en : all.map((p) => ({ ...p, reason: `Not in English · ${p.reason}` }));
 }
 
-/** Ranking tier of a stream for a game (higher first): team channel 3, guide listing 2, named after the game 1, other 0. */
-export function tierOf(p: StreamPick): number {
-  if (p.team || p.main || /team channel/.test(p.reason)) return 3;
-  if (p.via === 'guide') return 2;
-  if (p.via === 'name') return 1;
-  return 0;
-}
-
-/** Channels that are never a game's stream, whatever their name shares with a network (kids, news, radio…). */
-const NOT_A_GAME_CHANNEL = /\b(kids?|junior|jr|cartoon|disney|nick|news|radio|music|movies?|cinema|weather|shopping|religio|church)\b/i;
-
-/** A channel name without country tags and picture-quality words ("US: Calgary Flames FHD" → "Calgary Flames"). */
-function stripQuality(name: string): string {
-  return name.replace(/^\s*[\[(]?[a-z]{2}[\])]?\s*[:|\-]\s*/i, '').replace(/\b(uhd|fhd|hd|sd|4k|hevc|h265|1080p?|720p?|backup|raw)\b/gi, ' ').replace(/[\[\]()|]/g, ' ').replace(/\s+/g, ' ').trim();
+/** You played this stream for this game: remember it (by name) for the team / network, so it's found again first. */
+export function rememberWatched(game: Game, p: StreamPick) {
+  if (p.side) rememberChannel(teamMemKey(game.league, teamOfSide(game, p.side).name), p.ch, true);
+  if (p.broadcast) rememberChannel(netMemKey(p.broadcast), p.ch, true);
 }

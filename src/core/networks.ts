@@ -139,7 +139,7 @@ const ABBREV: [RegExp, string][] = [
 ];
 
 /** Find the network a schedule broadcast name refers to. */
-export function networkForBroadcast(name: string): { network?: Network; keys: string[]; key?: string } {
+export function networkForBroadcast(name: string): { network?: Network; keys: string[] } {
   let s = name.toLowerCase().replace(/\(local\)|\blocal\b/g, ' ').replace(/[^a-z0-9+ ]+/g, ' ').replace(/\s+/g, ' ').trim();
   // "The Spot - MTN" style: try the part before the dash too.
   const fd = /^(?:fdsn|fanduel\s*(?:sports)?\s*(?:network|sn)?|bally\s*sports|bally)\s+(.+)$/.exec(s);
@@ -150,8 +150,7 @@ export function networkForBroadcast(name: string): { network?: Network; keys: st
   for (const [re, v] of ABBREV) s = s.replace(re, v);
   const key = channelKey(s);
   const direct = NETWORKS.find((n) => n.keys.includes(key) || channelKey(n.label) === key);
-  // `key`: the exact feed named ("Sportsnet West", not every Sportsnet region).
-  if (direct) return { network: direct, keys: direct.keys, key };
+  if (direct) return { network: direct, keys: direct.keys };
   const first = channelKey(name.split(/\s+-\s+/)[0]);
   const byFirst = NETWORKS.find((n) => n.keys.includes(first));
   if (byFirst) return { network: byFirst, keys: byFirst.keys };
@@ -197,14 +196,7 @@ function channelsForBroadcastUncached(name: string, lineup: LineupChannel[]): Ne
     const country = channelCountry(ch);
     if (country && country !== wantCountry) continue;
     if (/\+\s?\d/.test(ch.originalName)) continue; // timeshift
-    const ck = channelKeys(ch.cleanedName || ch.originalName);
-    if (ck.some((k) => keys.includes(k))) {
-      push(ch, 'exact');
-      continue;
-    }
-    // A team's regional sports channel with more in its name: "CHSN Chicago", "NESN Red Sox", "Sportsnet West 4K".
-    // Regional networks only (a national one's name is the start of its sister channels': ESPN → ESPN2, ESPNews).
-    if (network?.rsn && ck.some((c) => keys.some((k) => k.length >= 4 && c.startsWith(k)))) {
+    if (channelKeys(ch.cleanedName || ch.originalName).some((k) => keys.includes(k))) {
       push(ch, 'exact');
       continue;
     }

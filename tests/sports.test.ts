@@ -129,13 +129,13 @@ test('a game listing must be the same schools and sport', () => {
   assert.equal(textMatchesGame('College Basketball: Penn State at Michigan', g, 'football'), false);
 });
 
-import { findStreams, bestStreams } from '../src/core/streamfinder';
+import { findStreams } from '../src/core/streamfinder';
 
 test('streaming-only games offer the provider\'s channels for that service until game day', () => {
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
   const game = { id: '9', league: 'cfb', start: Date.now() + 86400_000, state: 'pre', detail: '', name: '', home: t('Rutgers Scarlet Knights', 'Scarlet Knights', 'Rutgers', 'RUTG'), away: t('Purdue Boilermakers', 'Boilermakers', 'Purdue', 'PUR'), broadcasts: [{ name: 'B1G+', market: 'national', kind: 'tv' }] } as never;
   const ch = (key: string, name: string, number: number) => ({ key, name, originalName: name, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
-  const picks = findStreams(game, [ch('a', '(US) (BTN+ 066)', 13236), ch('b', 'US: CBS HD', 3430)], { networks: true, sport: 'football', index: [] });
+  const picks = findStreams(game, [ch('a', '(US) (BTN+ 066)', 13236), ch('b', 'US: CBS HD', 3430)], { sport: 'football', index: [] });
   assert.equal(picks[0]?.ch.key, 'a');
   assert.match(picks[0]?.reason ?? '', /game day/);
 });
@@ -158,63 +158,23 @@ test('team channels come only from the league\'s "Team PPV" group, by team name'
   ];
   assert.deepEqual((teamFeedChannels(hornets, heat, 'nba', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
   assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
-  // Another league's team group never counts (NBA team channels aren't NFL ones).
+  // Other sports: no team broadcasts.
   assert.deepEqual(teamFeedChannels(hornets, heat, 'nfl', lineup as never), []);
 });
 
-import { buildGameIndex } from '../src/core/streamfinder';
+import { bestStreams as best2 } from '../src/core/streamfinder';
+import { channelNameKey, loadStreamMemory } from '../src/core/streammemory';
 
-test("an event stream named after one event isn't offered for another game its network's guide lists", () => {
-  const evt = { key: 'e', name: 'TSN 3: Atlético Ottawa vs. Cavalry FC', originalName: 'TSN 3: Atlético Ottawa vs. Cavalry FC', group: 'TSN Events', number: 23060, playlistId: 'p', index: 1, hidden: false, category: 'sports', epgChannelId: 'g:tsn3', matchStatus: 'auto' } as never;
-  const plain = { key: 't', name: 'TSN 3', originalName: 'TSN 3', group: 'Canada', number: 300, playlistId: 'p', index: 2, hidden: false, category: 'sports', epgChannelId: 'g:tsn3', matchStatus: 'auto' } as never;
-  const guide = { range: () => [{ ch: 'g:tsn3', start: 1000, stop: 9000, title: 'NCAA Football: Arkansas at Texas' }] } as never;
-  const idx = buildGameIndex([evt, plain], guide, 0, 10_000);
-  // The event stream: only its own name. The regular channel: its guide listing.
-  assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 'e').map((e) => e.text), ['TSN 3: Atlético Ottawa vs. Cavalry FC']);
-  assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 't').map((e) => e.text), ['NCAA Football: Arkansas at Texas']);
-});
-
-import { tierOf } from '../src/core/streamfinder';
-
-test('stream order: team channels, then guide listings, then channels named after the game, then the rest', () => {
-  const pk = (o: object) => ({ ch: { key: 'x', number: 1 }, score: 50, kind: 'local', reason: '', ...o }) as never;
-  const team = pk({ team: true, score: 10, reason: 'BOS team channel' });
-  const guide = pk({ via: 'guide', kind: 'guide', score: 90 });
-  const named = pk({ via: 'name', kind: 'event', score: 100 });
-  const net = pk({ kind: 'national', score: 99 });
-  const order = [net, named, guide, team].sort((a, b) => tierOf(b) - tierOf(a));
-  assert.deepEqual(order, [team, guide, named, net]);
-});
-
-test('NHL team channels: both teams, from the provider\'s NHL team group', () => {
+test('switching providers: channels found before are found again by name in the new lineup', () => {
+  loadStreamMemory({});
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
-  const cgy = t('Calgary Flames', 'Flames', 'Calgary', 'CGY');
-  const chi = t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI');
-  const game = { id: '7', league: 'nhl', start: Date.now(), state: 'in', detail: '', name: '', home: chi, away: cgy, broadcasts: [] } as never;
-  const ch = (key: string, name: string, group: string) => ({ key, name, originalName: name, group, number: 1, playlistId: 'p', index: 1, hidden: false, category: 'sports' }) as never;
-  const lineup = [ch('c', 'Calgary Flames', 'NHL Teams'), ch('b', 'Chicago Blackhawks HD', 'NHL Teams'), ch('x', 'Chicago Bulls', 'NBA Team PPV')];
-  assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.ch.key}`), ['home:b', 'away:c']);
-});
-
-test("each team's channel for the day (from the game's TV listing) comes first; look-alikes and kids channels don't", () => {
-  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
-  const game = { id: '8', league: 'nhl', start: Date.now(), state: 'in', detail: '', name: '', home: t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI'), away: t('Calgary Flames', 'Flames', 'Calgary', 'CGY'),
-    broadcasts: [{ name: 'CHSN', market: 'home', kind: 'tv' }, { name: 'SN West', market: 'away', kind: 'tv' }, { name: 'ABC', market: 'national', kind: 'tv' }] } as never;
-  const ch = (key: string, name: string, number: number, group = 'Sports') => ({ key, name, originalName: name, group, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
-  const lineup = [ch('k', 'Play Kids ABC', 5, 'Kids'), ch('a', 'US: ABC HD', 6), ch('h', 'US: CHSN', 7), ch('w', 'CA: Sportsnet West', 8)];
-  const picks = bestStreams(game, lineup as never, 'hockey', []);
-  const keys = picks.map((p) => (p.ch as { key: string }).key);
-  // Kids channel never; this game has a national channel too (ABC), found by its exact name.
-  assert.ok(!keys.includes('k'));
-  assert.deepEqual(keys.slice(0, 3).sort(), ['a', 'h', 'w']);
-});
-
-test('team channels with more in their names: "CHSN Chicago" for a CHSN game, "Calgary Flames HD" anywhere', () => {
-  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
-  const game = { id: '11', league: 'nhl', start: Date.now(), state: 'in', detail: '', name: '', home: t('Calgary Flames', 'Flames', 'Calgary', 'CGY'), away: t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI'),
-    broadcasts: [{ name: 'CHSN', market: 'away', kind: 'tv' }, { name: 'ESPN+', market: 'national', kind: 'streaming' }] } as never;
-  const ch = (key: string, name: string, group: string) => ({ key, name, originalName: name, group, number: 1, playlistId: 'p', index: 1, hidden: false, category: 'sports' }) as never;
-  const lineup = [ch('c', 'US: CHSN Chicago', 'USA Sports'), ch('f', 'Calgary Flames HD', 'Canada'), ch('n', 'ESPNews', 'USA Sports')];
-  const keys = bestStreams(game, lineup as never, 'hockey', []).map((p) => (p.ch as { key: string }).key);
-  assert.ok(keys.includes('c') && keys.includes('f') && !keys.includes('n'));
+  const game = { id: '12', league: 'nba', start: Date.now(), state: 'in', detail: '', name: '', home: t('Charlotte Hornets', 'Hornets', 'Charlotte', 'CHA'), away: t('Miami Heat', 'Heat', 'Miami', 'MIA'), broadcasts: [] } as never;
+  const ch = (key: string, name: string, group: string, playlistId: string) => ({ key, name, originalName: name, group, number: 1, playlistId, index: 1, hidden: false, category: 'sports' }) as never;
+  // Old provider: the team channel is found (and remembered).
+  const before = best2(game, [ch('a1', 'US: Charlotte Hornets HD', 'NBA Team PPV', 'old')] as never, 'basketball', []);
+  assert.ok(before.some((p) => (p.ch as { key: string }).key === 'a1'));
+  // New provider: same channel, new key, and not in a team group — still found, by its name.
+  const after = best2(game, [ch('b9', 'Charlotte Hornets FHD', 'Basketball', 'new')] as never, 'basketball', []);
+  assert.ok(after.some((p) => (p.ch as { key: string }).key === 'b9' && /found before/.test(p.reason)));
+  assert.equal(channelNameKey('US: NESN FHD'), channelNameKey('NESN HD'));
 });
