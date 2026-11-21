@@ -246,7 +246,6 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   // Check the top streams are actually on the air, one at a time (one extra provider connection at most).
   const [live, setLive] = useState<Map<string, Liveness>>(() => new Map());
   const [checking, setChecking] = useState<string | undefined>();
-  const [showDead, setShowDead] = useState(false);
   useEffect(() => {
     const ctl = new AbortController();
     const top = ranked.slice(0, CHECK_TOP);
@@ -264,11 +263,12 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
     })();
     return () => ctl.abort();
   }, [ranked]);
-  // Dead channels leave the list; streams confirmed working go first (the ranking otherwise stays).
+  // Every channel stays in the list (a quick check can be wrong, and a channel may come on any moment): ones that
+  // answered go first, ones that didn't go last with a note; the ranking otherwise stays.
   const dead = ranked.filter((p) => live.get(p.ch.key) === 'dead');
-  const picks = showDead
-    ? ranked
-    : ranked.filter((p) => p.main || live.get(p.ch.key) !== 'dead').sort((a, b) => Number(!!b.main) - Number(!!a.main) || Number(live.get(b.ch.key) === 'live') - Number(live.get(a.ch.key) === 'live'));
+  const rank = (p: (typeof ranked)[number]) => (live.get(p.ch.key) === 'live' ? 0 : live.get(p.ch.key) === 'dead' ? 2 : 1);
+  const picks = [...ranked].sort((a, b) => rank(a) - rank(b));
+  const allDead = dead.length > 0 && dead.length === Math.min(ranked.length, CHECK_TOP) && !ranked.some((p) => live.get(p.ch.key) === 'live');
   const watch = (key: string) => {
     onClose();
     if (onPick) onPick(key, game);
@@ -305,7 +305,7 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
                       <ChannelName ch={p.ch} />
                       <small class="muted">
                         {i === 0 ? 'Best stream · ' : ''}
-                        {live.get(p.ch.key) === 'live' ? 'Working · ' : live.get(p.ch.key) === 'dead' ? 'Not sending video · ' : checking === p.ch.key ? 'Checking… · ' : ''}
+                        {live.get(p.ch.key) === 'live' ? 'Working · ' : live.get(p.ch.key) === 'dead' ? 'No picture in a quick check · ' : checking === p.ch.key ? 'Checking… · ' : ''}
                         {p.reason}
                       </small>
                     </span>
@@ -313,15 +313,9 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
                   </button>
                 </div>
               ))}
-              {dead.length > 0 && !showDead && (
-                <p class="hint">{dead.length} channel{dead.length === 1 ? '' : 's'} for this game {dead.length === 1 ? 'isn’t' : 'aren’t'} sending video right now and {dead.length === 1 ? 'is' : 'are'} hidden.</p>
+              {allDead && (
+                <p class="hint">None of these showed a picture in a quick check — event channels often come on shortly before the game. You can still try any of them.</p>
               )}
-            </div>
-          ) : dead.length ? (
-            <div class="card">
-              <p><b>None of the channels for this game are sending video right now.</b></p>
-              <p class="muted">Event channels often only come on shortly before the game. Try again closer to start time.</p>
-              <Button icon="channels" onClick={() => setShowDead(true)}>Show them anyway</Button>
             </div>
           ) : (
             <div class="card">
