@@ -204,6 +204,7 @@ test("each team's channel for the day (from the game's TV listing) comes first; 
   const lineup = [ch('k', 'Play Kids ABC', 5, 'Kids'), ch('a', 'US: ABC HD', 6), ch('h', 'US: CHSN', 7), ch('w', 'CA: Sportsnet West', 8)];
   const picks = bestStreams(game, lineup as never, 'hockey', []);
   const keys = picks.map((p) => (p.ch as { key: string }).key);
-  assert.ok(!keys.includes('k') && !keys.includes('a'));
-  assert.deepEqual(keys.slice(0, 2).sort(), ['h', 'w']);
+  // Kids channel never; this game has a national channel too (ABC), found by its exact name.
+  assert.ok(!keys.includes('k'));
+  assert.deepEqual(keys.slice(0, 3).sort(), ['a', 'h', 'w']);
 });

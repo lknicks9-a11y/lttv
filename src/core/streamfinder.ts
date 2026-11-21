@@ -221,8 +221,11 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
   // 3. Each team's own TV channel for this game (ESPN lists who carries it for each side: "NBC Sports Chicago",
   //    "Sportsnet West"), found by its exact name — never a look-alike from another city or a channel that only
   //    shares a word. National networks only when asked for (see FindOptions.networks).
+  // The game's channel(s) today from its TV listing: both teams' channels for a two-channel game, the one channel
+  // (ESPN, ABC…) for a one-channel game. Exact names only in the app: no other-city affiliates, no kids/news
+  // channels that share a word, no streaming-service guesses.
   for (const b of game.broadcasts) {
-    if (b.market === 'national' && !opts.networks) continue;
+    if (b.kind === 'streaming' && !opts.networks) continue;
     let found = channelsForBroadcast(b.name, lineup);
     // A team's regional feed: the exact one named ("Sportsnet West" for the Flames, not Sportsnet East).
     if (b.market !== 'national' && !opts.networks) {
@@ -234,7 +237,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
       if (!opts.networks && (fit === 'affiliate' || NOT_A_GAME_CHANNEL.test(`${ch.originalName} ${ch.group ?? ''}`))) continue;
       const fitAdj = fit === 'mytv' ? 4 : fit === 'exact' ? 2 : -15;
       if (b.market === 'national') {
-        add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : `${b.name} · national` });
+        add({ ch, score: (feed && feed !== 'national' ? 70 : 85) + fitAdj, kind: 'national', broadcast: b.name, reason: fit === 'affiliate' ? `${b.name} affiliate (another city)` : opts.networks ? `${b.name} · national` : `${b.name} · the game's channel today`, team: !opts.networks || undefined });
       } else {
         const side = b.market;
         const team = teamOfSide(game, side);
