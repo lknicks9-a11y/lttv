@@ -8,9 +8,9 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import { getState, repo } from './state';
-import { loadGames, sportsDay } from './schedule';
+import { loadGames } from './schedule';
 import { whenStill } from './nav';
-import { SCHEDULE_LEAGUES, type Game } from '../core/schedule';
+import { SCHEDULE_LEAGUES, sportsDay, type Game } from '../core/schedule';
 import { buildGameIndexAsync, teamOfSide } from '../core/streamfinder';
 import { sheetForGame, type ChannelSheet, type SheetPick } from '../core/channelsheet';
 import { rememberChannel, teamMemKey } from '../core/streammemory';
