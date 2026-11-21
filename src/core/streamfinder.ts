@@ -167,6 +167,12 @@ export interface FindOptions {
   feed?: FeedChoice;
   index?: GameIndexEntry[];
   guide?: GuideIndex;
+  /**
+   * Also offer channels by the network's name (ABC, ESPN, a local affiliate…) and a streaming service's channels.
+   * Off in the app: name-guessing picked the wrong things ("Play Kids ABC" for an ABC game). Streams come from
+   * channels named after the game, channels whose guide lists it, and the teams' own channels.
+   */
+  networks?: boolean;
 }
 
 export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptions): StreamPick[] {
@@ -212,8 +218,8 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
     });
   }
 
-  // 3. Networks carrying the game.
-  for (const b of game.broadcasts) {
+  // 3. Networks carrying the game (only when asked for: see FindOptions.networks).
+  for (const b of opts.networks ? game.broadcasts : []) {
     const found = channelsForBroadcast(b.name, lineup);
     for (const { ch, fit } of found) {
       const fitAdj = fit === 'mytv' ? 4 : fit === 'exact' ? 2 : -15;
@@ -229,7 +235,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
   }
   // 4. Streaming-only games (ESPN+, B1G+, Peacock…): providers name the exact event channel on game day,
   //    so before that offer their channels for that service.
-  if (![...picks.values()].some((p) => p.kind === 'event' || p.kind === 'guide' || p.kind === 'national' || p.kind === 'local')) {
+  if (opts.networks && ![...picks.values()].some((p) => p.kind === 'event' || p.kind === 'guide' || p.kind === 'national' || p.kind === 'local')) {
     for (const b of game.broadcasts) {
       const svc = STREAMING_SERVICES.find((x) => x.re.test(b.name));
       if (!svc) continue;
@@ -349,9 +355,9 @@ export function teamBroadcasts(game: Game, lineup: LineupChannel[]): { side: 'ho
  * guide listings for the game, each team's own channel, then the networks; ties go to the user's own team's feed.
  * English-commentary channels only (Spanish-language feeds like ESPN Deportes / TUDN are left out).
  */
-export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false): StreamPick[] {
+export function bestStreams(game: Game, lineup: LineupChannel[], sport: ScheduleLeague['sport'], index: GameIndexEntry[], isFav: (t: GameTeam) => boolean = () => false, more: { networks?: boolean } = {}): StreamPick[] {
   const picks = new Map<string, StreamPick>();
-  for (const p of findStreams(game, lineup, { sport, index })) picks.set(p.ch.key, { ...p });
+  for (const p of findStreams(game, lineup, { sport, index, networks: more.networks })) picks.set(p.ch.key, { ...p });
   for (const t of teamBroadcasts(game, lineup)) {
     const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
     const cur = picks.get(t.ch.key);

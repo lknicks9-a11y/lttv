@@ -178,7 +178,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
       </div>
       {league.conferences && (
         <div class="chips compact conf-chips" data-group="game-confs" data-hlock>
-          <Chip active={conf === undefined} onClick={() => setConf(undefined)}>All</Chip>
+          <Chip active={conf === undefined} onClick={() => setConf(undefined)}>{leagueId === 'cfb' ? 'FBS' : 'All'}</Chip>
           {league.conferences.map((c) => <Chip key={c.id} active={conf === c.id} onClick={() => setConf(c.id)}>{c.name}</Chip>)}
         </div>
       )}

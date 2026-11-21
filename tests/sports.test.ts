@@ -135,7 +135,7 @@ test('streaming-only games offer the provider\'s channels for that service until
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
   const game = { id: '9', league: 'cfb', start: Date.now() + 86400_000, state: 'pre', detail: '', name: '', home: t('Rutgers Scarlet Knights', 'Scarlet Knights', 'Rutgers', 'RUTG'), away: t('Purdue Boilermakers', 'Boilermakers', 'Purdue', 'PUR'), broadcasts: [{ name: 'B1G+', market: 'national', kind: 'tv' }] } as never;
   const ch = (key: string, name: string, number: number) => ({ key, name, originalName: name, number, playlistId: 'p', index: number, hidden: false, category: 'sports' }) as never;
-  const picks = findStreams(game, [ch('a', '(US) (BTN+ 066)', 13236), ch('b', 'US: CBS HD', 3430)], { sport: 'football', index: [] });
+  const picks = findStreams(game, [ch('a', '(US) (BTN+ 066)', 13236), ch('b', 'US: CBS HD', 3430)], { networks: true, sport: 'football', index: [] });
   assert.equal(picks[0]?.ch.key, 'a');
   assert.match(picks[0]?.reason ?? '', /game day/);
 });

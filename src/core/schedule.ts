@@ -23,7 +23,8 @@ export interface ScheduleLeague {
 // Conference ids as ESPN's scoreboard lists them ('' = no group: its Top 25 slate).
 const conf = (rows: string[][]) => rows.map(([id, name]) => ({ id, name }));
 const HOOPS = (summit: string) => conf([['', 'Top 25'], ['2', 'ACC'], ['8', 'Big 12'], ['4', 'Big East'], ['7', 'Big Ten'], ['23', 'SEC'], ['3', 'A-10'], ['62', 'American'], ['44', 'Mountain West'], ['29', 'WCC'], ['1', 'Am. East'], ['46', 'Atlantic Sun'], ['5', 'Big Sky'], ['6', 'Big South'], ['9', 'Big West'], ['10', 'CAA'], ['11', 'CUSA'], ['45', 'Horizon'], ['12', 'Ivy'], ['14', 'MAC'], ['16', 'MEAC'], ['18', 'MVC'], ['19', 'NEC'], ['20', 'OVC'], ['22', 'Patriot'], ['24', 'SoCon'], ['25', 'Southland'], ['SUMMIT', 'Summit'], ['27', 'Sun Belt'], ['26', 'SWAC'], ['30', 'UAC']].map(([id, n]) => [id === 'SUMMIT' ? summit : id, n]));
-const CFB_CONFS = conf([['', 'Top 25'], ['1', 'ACC'], ['4', 'Big 12'], ['5', 'Big Ten'], ['8', 'SEC'], ['151', 'American'], ['12', 'CUSA'], ['15', 'MAC'], ['17', 'Mountain West'], ['9', 'Pac-12'], ['37', 'Sun Belt'], ['18', 'Independents']]);
+// "FCS" (ESPN group 81) sits next to the default FBS games (group 80): the two divisions are kept apart.
+const CFB_CONFS = conf([['81', 'FCS'], ['', 'Top 25'], ['1', 'ACC'], ['4', 'Big 12'], ['5', 'Big Ten'], ['8', 'SEC'], ['151', 'American'], ['12', 'CUSA'], ['15', 'MAC'], ['17', 'Mountain West'], ['9', 'Pac-12'], ['37', 'Sun Belt'], ['18', 'Independents']]);
 
 export const SCHEDULE_LEAGUES: ScheduleLeague[] = [
   { id: 'nba', tab: 'NBA', name: 'NBA', path: 'basketball/nba', sport: 'basketball', words: /\bnba\b|basketball/i },
