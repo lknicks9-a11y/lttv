@@ -1,7 +1,7 @@
 import { currentAccount, renameAccount } from '../app/accounts';
 import { openCloudAccount, signInWithRefreshToken } from '../app/cloud';
 import { notifyAccountsChanged } from './Accounts';
-import { addEpgSource, addPlaylist, finishTask, rematchAndReload, reloadAll, repo, showTask, toast, withClientFallback } from '../app/state';
+import { addEpgSource, addPlaylist, finishTask, matchAfterAdding, repo, showTask, toast, withClientFallback } from '../app/state';
 import type { JobProgress } from '../app/importer';
 import { checkXtreamLogin, loadXtreamPlaylist } from '../app/xtream-login';
 import { chooseOutput, normalizeServer, xtreamUrls, type XtreamLogin } from '../core/xtream';
@@ -107,16 +107,16 @@ export async function handleSetupSubmission(json: string) {
       } catch (e) {
         toast('Channels added, but the provider guide could not be loaded: ' + (e as Error).message, 'error', 10000);
       }
-      step('Matching channels to the guide…')();
-      await rematchAndReload(false);
-      await reloadAll();
+      await matchAfterAdding(true, step('Your channels are ready to watch — matching them to the guide…'));
       showTask({ id, label: 'Your channels are ready', done: true });
       finishTask(id, 4000);
       return;
     }
     const input = s.uploadId ? { file: await uploadedFile(s.uploadId, s.fileName ?? 'upload') } : s.url ? { url: s.url } : null;
     if (!input) throw new Error('Nothing to import.');
+    let guideAdded = false;
     if (s.type === 'epg') {
+      guideAdded = true;
       const { summary } = await addEpgSource({ name: s.name ?? '', input }, step('Loading the TV guide from your phone…'));
       toast(`Guide added: ${summary.programmes.toLocaleString()} programs`, 'success');
     } else {
@@ -126,14 +126,13 @@ export async function handleSetupSubmission(json: string) {
         try {
           const { summary: g } = await addEpgSource({ name: '', input: { url: s.epg.trim() } }, step('Loading the TV guide…'));
           toast(`Guide added: ${g.programmes.toLocaleString()} programs`, 'success');
+          guideAdded = true;
         } catch (e) {
           toast('Playlist added, but the guide could not be loaded: ' + (e as Error).message, 'error', 10000);
         }
       }
     }
-    step('Matching channels to the guide…')();
-    await rematchAndReload(false);
-    await reloadAll();
+    await matchAfterAdding(guideAdded, step(s.type === 'epg' ? 'Matching your channels to the new guide…' : 'Your channels are ready to watch — matching them to the guide…'));
     showTask({ id, label: 'Done — your channels are ready', done: true });
     finishTask(id, 4000);
   } catch (e) {

@@ -83,12 +83,12 @@ async function run(m: Start) {
   const progress = (p: object) => post({ type: 'progress', id: m.id, ...p });
   try {
     if (m.job === 'match') {
-      const { summary } = await recomputeMatches(repo, m.settings);
+      const { summary } = await recomputeMatches(repo, m.settings, undefined, progress);
       post({ type: 'done', id: m.id, result: summary });
       return;
     }
     if (m.job === 'matchMissing') {
-      post({ type: 'done', id: m.id, result: await matchMissing(repo, m.settings) });
+      post({ type: 'done', id: m.id, result: await matchMissing(repo, m.settings, progress) });
       return;
     }
     if (m.job === 'prune') {

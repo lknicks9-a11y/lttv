@@ -665,6 +665,25 @@ async function matchMissingAndReload() {
   }
 }
 
+/**
+ * After adding something from the phone: the channels show right away (you can watch while it works), then only
+ * what's needed is matched to the guide, with a count as it goes. A new guide re-matches everything (old channels can
+ * find their guide too); a new playlist alone only matches its new channels instead of the whole lineup again.
+ */
+export async function matchAfterAdding(guideAdded: boolean, onProgress?: (p: JobProgress) => void) {
+  await reloadAll().catch(() => undefined);
+  try {
+    if (guideAdded) await rematch(state.settings, onProgress);
+    else await matchMissingChannels(state.settings, onProgress);
+  } catch {
+    // A full match too much for this TV: what's missing is matched instead.
+    await matchMissingChannels(state.settings, onProgress).catch(() => undefined);
+  }
+  rawMatches = await loadMatches(repo);
+  refreshLineupLocal();
+  await loadGuide();
+}
+
 export async function rematchAndReload(showTask = true) {
   const id = 'match';
   if (showTask) setTask({ id, label: 'Matching channels to guide' });
