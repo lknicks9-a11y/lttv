@@ -1,7 +1,7 @@
 import { h, Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
-import { sinceLastMove, whenStill } from '../app/nav';
+import { focusEl, sinceLastMove, whenStill } from '../app/nav';
 import { useGames, logoFor } from '../app/schedule';
 import { sportsDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
 import { buildGameIndexAsync, broadcastSummary, bestStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
@@ -133,6 +133,27 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
 
   const live = games.filter((g) => g.state === 'in').length;
 
+  // Backing out of a game's channels lands on that game in the list, not back at the top of all the scores.
+  const backTo = useRef<string | null>(null);
+  const closeGame = (id: string) => {
+    backTo.current = id;
+    setOpen(null);
+  };
+  useEffect(() => {
+    if (open || !backTo.current) return;
+    const id = backTo.current;
+    backTo.current = null;
+    const put = () => {
+      const row = document.querySelector<HTMLElement>(`.game-row[data-game-id="${CSS.escape(id)}"]`);
+      if (row) focusEl(row);
+    };
+    // After the pop-up has gone (and again a moment later, in case anything else grabbed the focus).
+    requestAnimationFrame(put);
+    setTimeout(() => {
+      if (!(document.activeElement as HTMLElement | null)?.closest?.(`[data-game-id="${CSS.escape(id)}"]`)) put();
+    }, 120);
+  }, [open]);
+
   return (
     <div class="league-games">
       <div class="row gap wrap" data-group="game-days">
@@ -165,7 +186,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
             const pick = best.get(g.id);
             const tv = broadcastSummary(g);
             return (
-              <button type="button" class={`f game-row ${st.live ? 'is-live' : ''} ${g.state === 'post' ? 'is-final' : ''}`} onClick={() => setOpen(g)}>
+              <button type="button" class={`f game-row ${st.live ? 'is-live' : ''} ${g.state === 'post' ? 'is-final' : ''}`} data-game-id={g.id} onClick={() => setOpen(g)}>
                 <span class="game-status">
                   {st.live ? <span class="badge-live">LIVE</span> : null}
                   <span>{st.text}</span>
@@ -190,7 +211,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
         </div>
       )}
       <p class="hint">Schedule, scores, logos and TV listings: ESPN. Streams are matched only from your own playlists.</p>
-      {open && <WatchGame game={open} index={index} onClose={() => setOpen(null)} onPick={onPick} onWatch={(g) => (watching.current = g.id)} />}
+      {open && <WatchGame game={open} index={index} onClose={() => closeGame(open.id)} onPick={onPick} onWatch={(g) => (watching.current = g.id)} />}
     </div>
   );
 }
