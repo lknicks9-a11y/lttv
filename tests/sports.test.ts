@@ -158,7 +158,7 @@ test('team channels come only from the league\'s "Team PPV" group, by team name'
   ];
   assert.deepEqual((teamFeedChannels(hornets, heat, 'nba', lineup as never) as { key: string }[]).map((c) => c.key), ['h', 'h2']);
   assert.deepEqual(teamBroadcasts(game, lineup as never).map((b) => `${b.side}:${b.team.short}:${b.ch.key}`), ['home:Hornets:h', 'away:Heat:m']);
-  // Other sports: no team broadcasts.
+  // Another league's team group never counts (NBA team channels aren't NFL ones).
   assert.deepEqual(teamFeedChannels(hornets, heat, 'nfl', lineup as never), []);
 });
 

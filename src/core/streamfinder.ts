@@ -316,19 +316,27 @@ function feedNames(t: GameTeam): string[] {
   return [...out].sort((a, b) => b.length - a.length);
 }
 
+/** How providers write each league in a group name. */
+const LEAGUE_WORDS: Record<string, string[]> = {
+  nba: ['nba'], wnba: ['wnba'], mlb: ['mlb'], nhl: ['nhl'], nfl: ['nfl'], mls: ['mls'],
+  cfb: ['ncaaf', 'cfb', 'college football', 'ncaa football'], cbb: ['ncaab', 'cbb', 'college basketball', 'ncaa basketball'],
+  wcbb: ['ncaaw', 'wcbb', 'womens college basketball'], epl: ['epl', 'premier league'], laliga: ['laliga', 'la liga'],
+  bundesliga: ['bundesliga'], seriea: ['serie a'], ligue1: ['ligue 1'], ucl: ['champions league', 'ucl'], championship: ['efl', 'championship'],
+};
+
 function inTeamGroup(ch: LineupChannel, league: string): boolean {
-  const want = TEAM_PPV_GROUPS[league];
-  if (!want) return false;
   const g = ` ${foldText(ch.group ?? '')} `;
+  const want = TEAM_PPV_GROUPS[league];
   // "NBA Team PPV", "USA | NBA TEAM PPV", "NBA Team PPV (HD)"; not "WNBA Team PPV" for NBA.
-  if (g.includes(` ${want} `)) return true;
-  // Other providers' names for the same thing: "NHL Teams", "NHL Center Ice", "NBA League Pass", "MLB Extra Innings".
-  return g.includes(` ${league} `) && /\b(teams?|ppv|league pass|center ice|centre ice|extra innings|team channels?)\b/.test(g);
+  if (want && g.includes(` ${want} `)) return true;
+  // Any league, other providers' names: "NHL Teams", "NHL Center Ice", "NBA League Pass", "MLB Extra Innings",
+  // "NFL Team Channels", "NCAAF Teams", "Premier League Clubs".
+  const words = LEAGUE_WORDS[league] ?? [league];
+  return words.some((w) => g.includes(` ${w} `)) && /\b(teams?|clubs?|ppv|league pass|center ice|centre ice|extra innings|team channels?)\b/.test(g);
 }
 
 /** The lineup's channels for one team's own broadcast (from the league's Team PPV group), best quality first. */
 export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineup: LineupChannel[]): LineupChannel[] {
-  if (!TEAM_PPV_GROUPS[league]) return [];
   const m = teamFeedCache.get(lineup) ?? new Map<string, LineupChannel[]>();
   teamFeedCache.set(lineup, m);
   const key = `${league}|${t.name}|${other.name}`;
