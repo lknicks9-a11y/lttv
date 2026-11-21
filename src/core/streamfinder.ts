@@ -26,6 +26,8 @@ export interface StreamPick {
   main?: boolean;
   /** The team's own channel (named after the team), as opposed to a local station carrying the game. */
   team?: boolean;
+  /** How it was found: the channel's guide lists the game, or the channel's own name is the game. */
+  via?: 'guide' | 'name';
 }
 
 /** Text entries worth checking for games: programme titles around the day, and event channel names. */
@@ -204,6 +206,7 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
       ch: e.ch,
       score,
       kind: e.event ? 'event' : 'guide',
+      via: e.event && e.text === e.ch.originalName ? 'name' : 'guide',
       side,
       reason: e.event ? (side ? `Event channel · ${teamOfSide(game, side).short} broadcast` : 'Event channel for this game') : `Guide: ${e.text}`,
     });
@@ -352,7 +355,7 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
   for (const t of teamBroadcasts(game, lineup)) {
     const score = 88 + qualityRank(t.ch.originalName) + (t.ch.favorite ? 1 : 0);
     const cur = picks.get(t.ch.key);
-    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
+    if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel`, team: true });
   }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   // NBA: each team's main stream on top (its channel tonight, or its NBA team channel); the others stay below.
@@ -365,8 +368,18 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
       picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true, team: m.why === 'pass' });
     });
   }
-  const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
+  // Always in this order, however many channels a provider adds: 1. both teams' own channels, 2. channels whose
+  // guide lists the game, 3. channels named after the game, 4. networks, local stations and anything else.
+  const all = [...picks.values()].sort((a, b) => tierOf(b) - tierOf(a) || b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => p.main || isEnglishChannel(p.ch));
   return en.length ? en : all.map((p) => ({ ...p, reason: `Not in English · ${p.reason}` }));
+}
+
+/** Ranking tier of a stream for a game (higher first): team channel 3, guide listing 2, named after the game 1, other 0. */
+export function tierOf(p: StreamPick): number {
+  if (p.team || p.main || /team channel/.test(p.reason)) return 3;
+  if (p.via === 'guide') return 2;
+  if (p.via === 'name') return 1;
+  return 0;
 }

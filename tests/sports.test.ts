@@ -173,3 +173,15 @@ test("an event stream named after one event isn't offered for another game its n
   assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 'e').map((e) => e.text), ['TSN 3: Atlético Ottawa vs. Cavalry FC']);
   assert.deepEqual(idx.filter((e) => (e.ch as { key: string }).key === 't').map((e) => e.text), ['NCAA Football: Arkansas at Texas']);
 });
+
+import { tierOf } from '../src/core/streamfinder';
+
+test('stream order: team channels, then guide listings, then channels named after the game, then the rest', () => {
+  const pk = (o: object) => ({ ch: { key: 'x', number: 1 }, score: 50, kind: 'local', reason: '', ...o }) as never;
+  const team = pk({ team: true, score: 10, reason: 'BOS team channel' });
+  const guide = pk({ via: 'guide', kind: 'guide', score: 90 });
+  const named = pk({ via: 'name', kind: 'event', score: 100 });
+  const net = pk({ kind: 'national', score: 99 });
+  const order = [net, named, guide, team].sort((a, b) => tierOf(b) - tierOf(a));
+  assert.deepEqual(order, [team, guide, named, net]);
+});
