@@ -139,7 +139,7 @@ const ABBREV: [RegExp, string][] = [
 ];
 
 /** Find the network a schedule broadcast name refers to. */
-export function networkForBroadcast(name: string): { network?: Network; keys: string[] } {
+export function networkForBroadcast(name: string): { network?: Network; keys: string[]; key?: string } {
   let s = name.toLowerCase().replace(/\(local\)|\blocal\b/g, ' ').replace(/[^a-z0-9+ ]+/g, ' ').replace(/\s+/g, ' ').trim();
   // "The Spot - MTN" style: try the part before the dash too.
   const fd = /^(?:fdsn|fanduel\s*(?:sports)?\s*(?:network|sn)?|bally\s*sports|bally)\s+(.+)$/.exec(s);
@@ -150,7 +150,8 @@ export function networkForBroadcast(name: string): { network?: Network; keys: st
   for (const [re, v] of ABBREV) s = s.replace(re, v);
   const key = channelKey(s);
   const direct = NETWORKS.find((n) => n.keys.includes(key) || channelKey(n.label) === key);
-  if (direct) return { network: direct, keys: direct.keys };
+  // `key`: the exact feed named ("Sportsnet West", not every Sportsnet region).
+  if (direct) return { network: direct, keys: direct.keys, key };
   const first = channelKey(name.split(/\s+-\s+/)[0]);
   const byFirst = NETWORKS.find((n) => n.keys.includes(first));
   if (byFirst) return { network: byFirst, keys: byFirst.keys };

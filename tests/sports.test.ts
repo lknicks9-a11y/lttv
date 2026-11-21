@@ -178,3 +178,21 @@ test('switching providers: channels found before are found again by name in the 
   assert.ok(after.some((p) => (p.ch as { key: string }).key === 'b9' && /found before/.test(p.reason)));
   assert.equal(channelNameKey('US: NESN FHD'), channelNameKey('NESN HD'));
 });
+
+import { broadcastChannels, confirmedByGuide, applySheet } from '../src/core/channelsheet';
+
+test("channel sheet: a team's broadcast found by any form of its name, and confirmed only by the guide", () => {
+  const ch = (key: string, name: string, extra: object = {}) => ({ key, name, originalName: name, group: 'Sports', number: 1, playlistId: 'p', index: 1, hidden: false, category: 'sports', ...extra }) as never;
+  const lineup = [ch('a', 'US: CHSN Chicago HD'), ch('b', 'WBBM CBS 2 Chicago'), ch('k', 'Play Kids ABC'), ch('c', 'CBS 4 Boston')];
+  assert.deepEqual(broadcastChannels('CHSN', 'Chicago', lineup as never).map((c) => (c as { key: string }).key), ['a']);
+  assert.deepEqual(broadcastChannels('WBBM', 'Chicago', lineup as never).map((c) => (c as { key: string }).key), ['b']);
+  assert.ok(!broadcastChannels('ABC', 'Chicago', lineup as never).some((c) => (c as { key: string }).key === 'k'));
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const game = { id: '1', league: 'nhl', start: 10_000_000, state: 'pre', detail: '', name: '', home: t('Calgary Flames', 'Flames', 'Calgary', 'CGY'), away: t('Chicago Blackhawks', 'Blackhawks', 'Chicago', 'CHI'), broadcasts: [] } as never;
+  const guide = { range: () => [{ ch: 'g', start: 9_900_000, stop: 19_000_000, title: 'NHL Hockey', subTitle: 'Chicago Blackhawks at Calgary Flames' }] } as never;
+  assert.equal(confirmedByGuide(ch('x', 'SN West', { epgChannelId: 'g', matchStatus: 'auto' }), game, 'hockey', guide), true);
+  assert.equal(confirmedByGuide(ch('y', 'SN East'), game, 'hockey', guide), false);
+  const picks = applySheet([{ ch: lineup[1], score: 90, kind: 'national', reason: 'x' } as never], [{ key: 'a', name: 'CHSN', side: 'away', status: 'confirmed', reason: 'CHSN · Blackhawks broadcast' }], lineup as never);
+  assert.equal((picks[0].ch as { key: string }).key, 'a');
+  assert.match(picks[0].reason, /Confirmed in the guide/);
+});

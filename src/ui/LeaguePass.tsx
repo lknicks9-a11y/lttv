@@ -6,6 +6,8 @@ import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
 import { focusFirst, onBack } from '../app/nav';
+import { sheetFor } from '../app/channelsheet';
+import { applySheet } from '../core/channelsheet';
 import { openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
@@ -309,7 +311,7 @@ export function LeaguePass() {
   // moving around League Pass and Blitz slow.
   const feedsFor = (g: Game, index: GameIndexEntry[]): Feed[] => {
     {
-      const picks = bestStreams(g, lineup, cfg.sport, index);
+      const picks = applySheet(bestStreams(g, lineup, cfg.sport, index), sheetFor(g.id), lineup);
       // NBA TV / NFL Network / RedZone have their own cards; a game only lists one when it's broadcast on it.
       const netOk = (key: string) => {
         const e = extras.find((x) => x.key === key);

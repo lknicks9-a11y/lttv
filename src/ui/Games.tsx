@@ -2,6 +2,8 @@ import { h, Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
 import { focusEl, sinceLastMove, whenStill } from '../app/nav';
+import { sheetFor, useChannelSheet } from '../app/channelsheet';
+import { applySheet } from '../core/channelsheet';
 import { useGames, logoFor } from '../app/schedule';
 import { sportsDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
 import { buildGameIndexAsync, broadcastSummary, bestStreams, rememberWatched, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
@@ -123,7 +125,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
         await whenStill();
         if (!alive) return;
         const g = list[i];
-        m.set(g.id, bestStreams(g, lineup, league.sport, idx)[0]);
+        m.set(g.id, applySheet(bestStreams(g, lineup, league.sport, idx), sheetFor(g.id), lineup)[0]);
         latest.current = m;
         // The list is redrawn at most about once a second (not every few games), and never mid-move.
         if (performance.now() - shownAt > 1000 && !openRef.current && sinceLastMove() > 450) {
@@ -242,7 +244,9 @@ export function WatchGame({ game, index, onClose, onPick, onWatch }: { game: Gam
   }, [favs, custom]);
   const isFav = (t: GameTeam) => favNames.has(t.name.toLowerCase()) || favNames.has(t.short.toLowerCase());
 
-  const ranked = useMemo(() => (index ? bestStreams(game, lineup, league.sport, index, isFav) : []), [game, lineup, index, favNames]);
+  // Today's channel sheet first (checked against the guide at 3:00 AM / when channels change), then the live picks.
+  const daySheet = useChannelSheet();
+  const ranked = useMemo(() => (index ? applySheet(bestStreams(game, lineup, league.sport, index, isFav), sheetFor(game.id), lineup) : []), [game, lineup, index, favNames, daySheet]);
   // Check the top streams are actually on the air, one at a time (one extra provider connection at most).
   const [live, setLive] = useState<Map<string, Liveness>>(() => new Map());
   const [checking, setChecking] = useState<string | undefined>();
