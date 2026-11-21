@@ -120,10 +120,14 @@ class SearchPage(
 class ScoresPage(private val a: Activity) {
     private data class League(val name: String, val path: String)
     private val leagues = listOf(
+        League("All", ""),
         League("NFL", "football/nfl"), League("NBA", "basketball/nba"), League("NHL", "hockey/nhl"), League("MLB", "baseball/mlb"),
         League("College Football", "football/college-football"), League("College Basketball", "basketball/mens-college-basketball"),
         League("WNBA", "basketball/wnba"), League("MLS", "soccer/usa.1"), League("Premier League", "soccer/eng.1"),
     )
+    /** One game from ESPN's scoreboard, with the league it's in. */
+    private data class G(val league: String, val e: JSONObject, val state: String, val start: Long)
+
     private lateinit var games: LinearLayout
     private lateinit var status: TextView
     private val chips = mutableListOf<TextView>()
@@ -157,52 +161,116 @@ class ScoresPage(private val a: Activity) {
 
     private fun pick(i: Int) {
         current = i; paintChips()
-        status.text = "Loading ${leagues[i].name}…"
+        status.text = if (i == 0) "Loading today's games…" else "Loading ${leagues[i].name}…"
         load(i)
         auto?.let { main.removeCallbacks(it) }
         auto = Runnable { if (games.isAttachedToWindow) { load(current); main.postDelayed(auto!!, 60_000) } }.also { main.postDelayed(it, 60_000) }
     }
 
-    private fun load(i: Int) = bg {
-        val j = JSONObject(fetchJson("https://site.api.espn.com/apis/site/v2/sports/${leagues[i].path}/scoreboard"))
-        val events = j.optJSONArray("events") ?: JSONArray()
-        main.post { if (i == current) show(events) }
-    }
+    /** ESPN's scoreboard: one league, or every league at once (All). Failures say so instead of loading forever. */
+    private fun load(i: Int) = Thread {
+        val which = if (i == 0) leagues.drop(1) else listOf(leagues[i])
+        val found = java.util.Collections.synchronizedList(mutableListOf<G>())
+        var failed = 0
+        val threads = which.map { l ->
+            Thread {
+                try {
+                    val j = JSONObject(fetchJson("https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard"))
+                    val ev = j.optJSONArray("events") ?: JSONArray()
+                    for (k in 0 until ev.length()) {
+                        val e = ev.getJSONObject(k)
+                        val st = e.optJSONObject("status")?.optJSONObject("type")
+                        found += G(l.name, e, st?.optString("state") ?: "pre", parseTime(e.optString("date")))
+                    }
+                } catch (_: Exception) { synchronized(this) { failed++ } }
+            }.also { it.start() }
+        }
+        threads.forEach { it.join() }
+        // Live first, then what's coming up (soonest first), then finals.
+        val order = mapOf("in" to 0, "pre" to 1, "post" to 2)
+        val list = found.sortedWith(compareBy<G>({ order[it.state] ?: 1 }, { if (it.state == "post") -it.start else it.start }))
+        main.post {
+            if (i != current) return@post
+            if (failed == which.size) { games.removeAllViews(); status.text = "Couldn't reach ESPN. Check the TV's internet connection — trying again in a minute."; return@post }
+            show(list, i == 0)
+        }
+    }.start()
 
-    private fun show(events: JSONArray) {
+    private fun parseTime(s: String): Long = try {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.parse(s)?.time ?: 0L
+    } catch (_: Exception) { 0L }
+
+    private fun show(list: List<G>, all: Boolean) {
         games.removeAllViews()
-        if (events.length() == 0) { status.text = "No ${leagues[current].name} games today."; return }
-        status.text = "${leagues[current].name} · ${events.length()} games · updates every minute"
+        val name = if (all) "today" else leagues[current].name
+        if (list.isEmpty()) { status.text = if (all) "No games today." else "No ${leagues[current].name} games today."; return }
+        val live = list.count { it.state == "in" }
+        status.text = (if (all) "Today · " else "${leagues[current].name} · ") + "${list.size} games" + (if (live > 0) " · $live live" else "") + " · updates every minute"
         val g = android.widget.GridLayout(a).apply { columnCount = 3 }
         val w = (a.resources.displayMetrics.widthPixels - dp(a, 112) - 3 * dp(a, 16)) / 3
-        for (k in 0 until events.length()) {
-            val e = events.getJSONObject(k)
+        for (game in list) {
+            val e = game.e
             val comp = e.optJSONArray("competitions")?.optJSONObject(0) ?: continue
             val st = comp.optJSONObject("status")?.optJSONObject("type") ?: e.optJSONObject("status")?.optJSONObject("type")
-            val state = st?.optString("state") ?: "pre"
+            val state = game.state
             val detail = st?.optString("shortDetail") ?: ""
             val teams = comp.optJSONArray("competitors") ?: continue
             val sorted = (0 until teams.length()).map { teams.getJSONObject(it) }.sortedBy { if (it.optString("homeAway") == "away") 0 else 1 }
             g.addView(tile(a, {}) { t ->
-                t.addView(label(a, if (state == "in") "● LIVE · $detail" else detail, 13f, if (state == "in") "#FF6B6B" else "#C9C3E8", bold = state == "in"))
+                val head = (if (all) "${game.league} · " else "") + (if (state == "in") "● LIVE · $detail" else detail)
+                t.addView(label(a, head, 13f, if (state == "in") "#FF6B6B" else "#C9C3E8", bold = state == "in"))
                 for (c in sorted) {
                     val team = c.optJSONObject("team") ?: JSONObject()
-                    val line = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(a, 6), 0, 0) }
+                    val line = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(a, 8), 0, 0) }
+                    // The team's logo (the same ESPN pictures LTTV shows); its colour while it loads or if there's none.
                     val color = team.optString("color").takeIf { it.length == 6 }?.let { "#$it" } ?: "#5A4FA0"
-                    line.addView(View(a).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor(color)); setStroke(dp(a, 1), Color.parseColor("#66FFFFFF")) } }, LinearLayout.LayoutParams(dp(a, 14), dp(a, 14)).apply { marginEnd = dp(a, 10) })
-                    val name = team.optString("shortDisplayName").ifEmpty { team.optString("abbreviation") }
+                    val logo = android.widget.ImageView(a).apply {
+                        scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor(color)) }
+                    }
+                    line.addView(logo, LinearLayout.LayoutParams(dp(a, 32), dp(a, 32)).apply { marginEnd = dp(a, 12) })
+                    val url = team.optString("logo").ifEmpty { team.optJSONArray("logos")?.optJSONObject(0)?.optString("href") ?: "" }
+                    if (url.isNotEmpty()) TeamLogos.into(logo, url)
+                    val tname = team.optString("shortDisplayName").ifEmpty { team.optString("abbreviation") }
+                    val rank = c.optJSONObject("curatedRank")?.optInt("current", 99)?.takeIf { it in 1..25 }
                     val rec = c.optJSONArray("records")?.optJSONObject(0)?.optString("summary") ?: ""
-                    line.addView(label(a, name, 19f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    line.addView(label(a, (if (rank != null) "#$rank " else "") + tname, 19f, bold = true).apply { maxLines = 1 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     if (state == "pre") line.addView(label(a, rec, 14f, "#C9C3E8"))
-                    else line.addView(label(a, c.optString("score"), 22f, bold = true))
+                    else line.addView(label(a, c.optString("score"), 22f, bold = true, color = if (state == "post" && !c.optBoolean("winner")) "#9A93C0" else "#FFFFFF"))
                     t.addView(line)
                 }
                 val net = comp.optJSONArray("broadcasts")?.optJSONObject(0)?.optJSONArray("names")?.optString(0)
-                if (!net.isNullOrEmpty()) t.addView(label(a, net, 12f, "#9A93C0").apply { setPadding(0, dp(a, 6), 0, 0) })
+                if (!net.isNullOrEmpty()) t.addView(label(a, net, 12f, "#9A93C0").apply { setPadding(0, dp(a, 8), 0, 0) })
             }, android.widget.GridLayout.LayoutParams().apply { width = w; setMargins(dp(a, 8), dp(a, 8), dp(a, 8), dp(a, 8)) })
         }
         games.addView(g)
         Glass.unclip(g)
+    }
+}
+
+/** Team logos from ESPN (the pictures LTTV uses), loaded once and kept, small. */
+private object TeamLogos {
+    private val cache = object : android.util.LruCache<String, android.graphics.Bitmap>(120) {}
+    private val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+
+    fun into(v: android.widget.ImageView, url: String) {
+        v.tag = url
+        cache.get(url)?.let { v.setImageBitmap(it); v.background = null; return }
+        pool.execute {
+            val bmp = try {
+                val c = URL(url).openConnection() as HttpURLConnection
+                c.connectTimeout = 10_000; c.readTimeout = 12_000; c.setRequestProperty("User-Agent", "LTTV-Home")
+                val bytes = c.inputStream.use { it.readBytes() }; c.disconnect()
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+                var sample = 1; while (o.outWidth / (sample * 2) >= 96) sample *= 2
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+            } catch (_: Exception) { null }
+            if (bmp != null) {
+                cache.put(url, bmp)
+                main.post { if (v.tag == url) { v.setImageBitmap(bmp); v.background = null } }
+            }
+        }
     }
 }
 

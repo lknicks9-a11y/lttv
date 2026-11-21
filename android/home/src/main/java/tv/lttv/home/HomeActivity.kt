@@ -147,36 +147,48 @@ class HomeActivity : Activity() {
         homeItem = appsTab
 
         // ---- the row of app tiles
-        tileSmall = (sw * 0.068f).toInt(); tileBig = (sw * 0.096f).toInt()
+        // Sizes from the PS5: small tiles about 9.7% of the screen's height, the one you're on 16%, tight gaps.
+        tileSmall = (sh * 0.097f).toInt(); tileBig = (sh * 0.16f).toInt(); tileGap = (sh * 0.009f).toInt()
+        slotX = (sw * 0.095f).toInt()
         row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; clipChildren = false
-            setPadding(side, dp(6), side * 4, dp(16))
+            // Room on the right so even the last app can slide into the slot.
+            setPadding(slotX, dp(4), sw, dp(12))
         }
         rowScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; clipChildren = false; addView(row) }
+        val rowTop = (sh * 0.13f).toInt()
         home.addView(rowScroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
-            topMargin = (sh * 0.13f).toInt() })
+            topMargin = rowTop })
+        // The app's name, small, tucked under the next tiles beside the one you're on (as on the PS5).
+        tileName = TextView(this).apply { setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_PX, sh * 0.026f); typeface = Fonts.medium; maxLines = 1 }
+        home.addView(tileName, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
+            leftMargin = slotX + tileBig + (sh * 0.02f).toInt(); topMargin = rowTop + dp(4) + tileSmall + (sh * 0.03f).toInt() })
 
         // ---- the selected app: name, its line, Open and "…"
         val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        heroTitle = TextView(this).apply { setTextColor(Color.WHITE); typeface = Fonts.display; letterSpacing = -0.03f; maxLines = 2; ellipsize = TextUtils.TruncateAt.END; includeFontPadding = false }
-        heroSub = TextView(this).apply { setTextColor(Color.parseColor("#E0FFFFFF")); setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f); typeface = Fonts.regular; setPadding(0, dp(12), 0, 0) }
+        heroTitle = TextView(this).apply { setTextColor(Color.WHITE); typeface = Fonts.display; letterSpacing = -0.035f; maxLines = 2; ellipsize = TextUtils.TruncateAt.END; includeFontPadding = false
+            setShadowLayer(dp(14).toFloat(), 0f, dp(2).toFloat(), Color.parseColor("#66000000")) }
+        heroSub = TextView(this).apply { setTextColor(Color.parseColor("#F0FFFFFF")); setTextSize(TypedValue.COMPLEX_UNIT_PX, sh * 0.025f); typeface = Fonts.medium; setPadding(0, (sh * 0.016f).toInt(), 0, 0) }
         info.addView(heroTitle); info.addView(heroSub)
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(30), 0, 0) }
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, (sh * 0.065f).toInt(), 0, 0) }
         openBtn = TextView(this).apply {
-            text = "Open"; gravity = Gravity.CENTER; typeface = Fonts.bold; setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
-            isFocusable = true; isClickable = true; minWidth = dp(150); setPadding(dp(30), 0, dp(30), 0)
+            text = "Open"; gravity = Gravity.CENTER; typeface = Fonts.bold; setTextSize(TypedValue.COMPLEX_UNIT_PX, sh * 0.025f)
+            isFocusable = true; isClickable = true
             setOnClickListener { selected?.let { launch(it) } }
         }
         moreBtn = TextView(this).apply {
-            text = "•••"; gravity = Gravity.CENTER; setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f); typeface = Fonts.bold
+            text = "•••"; gravity = Gravity.CENTER; setTextSize(TypedValue.COMPLEX_UNIT_PX, sh * 0.02f); typeface = Fonts.bold
             isFocusable = true; isClickable = true; contentDescription = "More options"
             setOnClickListener { selected?.let { options(it) } }
         }
-        buttons.addView(openBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(46)))
-        buttons.addView(moreBtn, LinearLayout.LayoutParams(dp(46), dp(46)).apply { marginStart = dp(12) })
+        val bh = (sh * 0.067f).toInt()
+        buttons.addView(openBtn, LinearLayout.LayoutParams((sw * 0.175f).toInt(), bh))
+        buttons.addView(moreBtn, LinearLayout.LayoutParams(bh, bh).apply { marginStart = (sh * 0.016f).toInt() })
         info.addView(buttons)
-        home.addView(info, FrameLayout.LayoutParams((sw * 0.42f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
-            leftMargin = (sw * 0.073f).toInt(); topMargin = (sh * 0.43f).toInt() })
+        // Anchored from the bottom, like the PS5: the buttons always sit at the same height, the name grows upward.
+        home.addView(info, FrameLayout.LayoutParams((sw * 0.44f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = (sw * 0.105f).toInt(); bottomMargin = (sh * 0.14f).toInt() })
+        infoBlock = info
         paintButtons()
         for (b in listOf(openBtn, moreBtn)) b.setOnFocusChangeListener { _, _ -> paintButtons() }
         wireKeys()
@@ -184,7 +196,7 @@ class HomeActivity : Activity() {
         // Little info chips at the bottom right (like the PS5's), in the app's colour.
         chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         home.addView(chipRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply {
-            rightMargin = (sw * 0.078f).toInt(); topMargin = (sh * 0.71f).toInt() })
+            rightMargin = (sw * 0.078f).toInt(); bottomMargin = (sh * 0.15f).toInt(); gravity = Gravity.BOTTOM or Gravity.END })
 
         root.addView(home, full())
         homeLayers += home
@@ -195,6 +207,10 @@ class HomeActivity : Activity() {
     private var screenH = 0
     private var tileSmall = 0
     private var tileBig = 0
+    private var tileGap = 0
+    private var slotX = 0
+    private lateinit var tileName: TextView
+    private lateinit var infoBlock: View
     private lateinit var heroBack: ImageView
     private lateinit var heroFront: ImageView
     private lateinit var heroIcon: ImageView
@@ -218,7 +234,7 @@ class HomeActivity : Activity() {
     }
 
     private fun tab(label: String, current: Boolean, onClick: () -> Unit) = TextView(this).apply {
-        text = label; setTextSize(TypedValue.COMPLEX_UNIT_SP, 21f); typeface = if (current) Fonts.bold else Fonts.regular
+        text = label; setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.displayMetrics.heightPixels * 0.03f); typeface = if (current) Fonts.bold else Fonts.regular
         setTextColor(if (current) Color.WHITE else Color.parseColor("#9EFFFFFF"))
         isFocusable = true; isClickable = true; setPadding(dp(14), dp(6), dp(14), dp(6))
         setOnClickListener { onClick() }
@@ -243,7 +259,7 @@ class HomeActivity : Activity() {
         val accent = selected?.accent ?: Color.WHITE
         val of = openBtn.isFocused
         openBtn.background = GradientDrawable().apply {
-            cornerRadius = dp(23).toFloat(); setColor(if (of) Color.WHITE else Color.parseColor("#2EFFFFFF"))
+            cornerRadius = screenH * 0.034f; setColor(if (of) Color.WHITE else Color.parseColor("#33FFFFFF"))
             if (of) setStroke(dp(3), accent)
         }
         openBtn.setTextColor(if (of) Color.parseColor("#0B0B0E") else Color.WHITE)
@@ -572,36 +588,32 @@ class HomeActivity : Activity() {
         toFocus?.let { v -> v.post { v.requestFocus() } }
     }
 
-    /** A square tile, and its name beside it when it's the one you're on (as on the PS5). */
+    /** A square tile (all the same size, the one you're on bigger, all lined up along the top), as on the PS5. */
     private fun rowTile(e: Entry): Pair<View, LinearLayout> {
-        val box = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; clipChildren = false }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; clipChildren = false }
+        val radius = tileSmall * 0.16f
         val card = FrameLayout(this).apply {
             isFocusable = true; isClickable = true; tag = e; contentDescription = e.title
             clipToOutline = true
-            background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(tileColor(e)) }
+            background = GradientDrawable().apply { cornerRadius = radius; setColor(tileColor(e)) }
         }
         val photo = e.app?.let { Art.drawable(this, it.key) }
         when {
             photo != null -> card.addView(ImageView(this).apply { setImageDrawable(photo); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
             e.tileRes != 0 -> card.addView(ImageView(this).apply { setImageResource(e.tileRes); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
             e.app != null -> card.addView(ImageView(this).apply { setImageDrawable(iconOf(e.app)); scaleType = ImageView.ScaleType.FIT_CENTER },
-                FrameLayout.LayoutParams(-1, -1).apply { val m = dp(12); setMargins(m, m, m, m) })
+                FrameLayout.LayoutParams(-1, -1).apply { val m = tileSmall / 7; setMargins(m, m, m, m) })
             else -> card.addView(ImageView(this).apply { setImageResource(R.drawable.ic_apps); setColorFilter(Color.WHITE) },
-                FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER))
-        }
-        val name = TextView(this).apply {
-            text = e.title; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f); typeface = Fonts.medium
-            maxLines = 1; setPadding(dp(16), 0, dp(10), 0); visibility = View.GONE
+                FrameLayout.LayoutParams(tileSmall / 2, tileSmall / 2, Gravity.CENTER))
         }
         box.addView(card, LinearLayout.LayoutParams(tileSmall, tileSmall))
-        box.addView(name)
-        box.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(9) }
+        box.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = tileGap }
         card.setOnClickListener { launch(e) }
         card.setOnLongClickListener { options(e); true }
         card.setOnFocusChangeListener { v, f ->
-            v.foreground = if (f) GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setStroke(dp(3), Color.WHITE) } else null
+            v.foreground = if (f) GradientDrawable().apply { cornerRadius = tileBig * 0.16f; setStroke(dp(3), Color.WHITE) } else null
             v.elevation = if (f) dp(12).toFloat() else 0f
-            if (f) { select(e); v.post { keepInView(box) } }
+            if (f) select(e)
         }
         card.setOnKeyListener { _, code, ev ->
             when (code) {
@@ -613,49 +625,89 @@ class HomeActivity : Activity() {
         return card to box
     }
 
-    /** The row slides so the app you're on stays near the left, like the PS5's. */
-    private fun keepInView(box: View) {
-        val target = (box.left - row.paddingLeft).coerceAtLeast(0)
-        rowScroll.smoothScrollTo(target, 0)
+    /** Grows / shrinks a tile smoothly (the PS5's tiles ease between sizes). */
+    private fun resize(t: View, to: Int, animate: Boolean) {
+        val lp = t.layoutParams as LinearLayout.LayoutParams
+        (t.getTag(R.id.tile_anim) as? android.animation.ValueAnimator)?.cancel()
+        if (!animate || lp.width == to) { lp.width = to; lp.height = to; t.layoutParams = lp; return }
+        val anim = android.animation.ValueAnimator.ofInt(lp.width, to).apply {
+            duration = 200; interpolator = android.view.animation.DecelerateInterpolator(1.6f)
+            addUpdateListener { v -> val n = v.animatedValue as Int; lp.width = n; lp.height = n; t.layoutParams = lp }
+        }
+        t.setTag(R.id.tile_anim, anim); anim.start()
     }
 
-    /** The app you're on: its tile grows and shows its name, and the screen becomes its picture. */
+    /** The row slides so the app you're on rests in the second slot (the one before peeks in at the edge). */
+    private fun slideTo(index: Int, animate: Boolean) {
+        val x = index * (tileSmall + tileGap)
+        if (animate) {
+            android.animation.ObjectAnimator.ofInt(rowScroll, "scrollX", rowScroll.scrollX, x).apply {
+                duration = 220; interpolator = android.view.animation.DecelerateInterpolator(1.6f) }.start()
+        } else rowScroll.scrollTo(x, 0)
+    }
+
+    /** The app you're on: its tile grows into the slot and the screen turns to it. */
     private fun select(e: Entry) {
         if (selected?.key == e.key) return
         val prev = selected
         selected = e
         for (t in tiles) {
             val te = t.tag as? Entry ?: continue
-            val on = te.key == e.key
-            if (te.key != e.key && te.key != prev?.key) continue
-            val box = t.parent as LinearLayout
-            t.layoutParams = (t.layoutParams as LinearLayout.LayoutParams).apply { val s = if (on) tileBig else tileSmall; width = s; height = s }
-            box.getChildAt(1).visibility = if (on) View.VISIBLE else View.GONE
+            if (te.key == e.key) resize(t, tileBig, prev != null)
+            else if (te.key == prev?.key) resize(t, tileSmall, true)
         }
+        slideTo(entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0), prev != null)
         show(e, instant = prev == null)
     }
 
     private var heroKey: String? = null
     private val heroSwap = Runnable { selected?.let { paintHero(it, false) } }
+    private val infoIn = Runnable { selected?.let { revealInfo(it) } }
 
+    /**
+     * The PS5's motion: the moment you move, the name, line and buttons drop away and the small name by the tile
+     * changes; the picture crossfades in (settling from a slight zoom); once you stop, the name, line and buttons
+     * fade back in, rising into place.
+     */
     private fun show(e: Entry, instant: Boolean) {
         if (selected == null) {
             selected = e
-            selectedTile()?.let { t ->
-                t.layoutParams = (t.layoutParams as LinearLayout.LayoutParams).apply { width = tileBig; height = tileBig }
-                (t.parent as LinearLayout).getChildAt(1).visibility = View.VISIBLE
-            }
+            selectedTile()?.let { resize(it, tileBig, false) }
+            row.post { slideTo(entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0), false) }
         }
+        tileName.text = e.title
+        tileName.alpha = 0f; tileName.animate().alpha(1f).setDuration(180).start()
+        main.removeCallbacks(heroSwap); main.removeCallbacks(infoIn)
+        if (instant) {
+            paintHero(e, true); fillInfo(e)
+            infoBlock.alpha = 1f; infoBlock.translationY = 0f; chipRow.alpha = 1f
+            return
+        }
+        infoBlock.animate().cancel(); chipRow.animate().cancel()
+        infoBlock.animate().alpha(0f).translationY(screenH * 0.012f).setDuration(110).start()
+        chipRow.animate().alpha(0f).setStartDelay(0).setDuration(110).start()
+        // Scrolling quickly along the row: pictures and words wait until you pause, so it never stutters.
+        main.postDelayed(heroSwap, 120)
+        main.postDelayed(infoIn, 430)
+    }
+
+    private fun fillInfo(e: Entry) {
         heroTitle.text = e.title
-        heroTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (e.title.length > 14) 46f else 66f)
+        heroTitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * (if (e.title.length > 12) 0.085f else 0.125f))
         heroSub.text = e.sub
         heroSub.visibility = if (e.sub.isEmpty()) View.GONE else View.VISIBLE
         openBtn.text = if (e === allEntry || e === storeEntry) "Go" else "Open"
         paintChips(e)
         paintButtons()
-        // Pictures wait a moment while you scroll quickly along the row, so it never stutters.
-        main.removeCallbacks(heroSwap)
-        if (instant) paintHero(e, true) else main.postDelayed(heroSwap, 140)
+    }
+
+    private fun revealInfo(e: Entry) {
+        fillInfo(e)
+        infoBlock.animate().cancel()
+        infoBlock.alpha = 0f; infoBlock.translationY = screenH * 0.03f
+        infoBlock.animate().alpha(1f).translationY(0f).setDuration(380).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
+        chipRow.alpha = 0f
+        chipRow.animate().alpha(1f).setStartDelay(120).setDuration(320).start()
     }
 
     private fun heroOf(e: Entry): Drawable {
@@ -684,11 +736,13 @@ class HomeActivity : Activity() {
         }
         heroFront.animate().cancel()
         heroFront.setImageDrawable(d); heroFront.alpha = 0f
-        heroFront.animate().alpha(1f).setDuration(260).withEndAction {
+        // Fades in while settling from a slight zoom; then it becomes the picture underneath.
+        heroFront.scaleX = 1.06f; heroFront.scaleY = 1.06f
+        heroFront.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(650).setInterpolator(android.view.animation.DecelerateInterpolator(1.8f)).withEndAction {
             heroBack.setImageDrawable(d); heroFront.alpha = 0f; heroFront.setImageDrawable(null)
         }.start()
         heroIcon.animate().cancel()
-        if (icon != null) { heroIcon.setImageDrawable(icon); heroIcon.alpha = 0f; heroIcon.animate().alpha(1f).setDuration(260).start() }
+        if (icon != null) { heroIcon.setImageDrawable(icon); heroIcon.alpha = 0f; heroIcon.animate().alpha(1f).setDuration(420).start() }
         else heroIcon.animate().alpha(0f).setDuration(200).start()
     }
 
