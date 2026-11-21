@@ -2434,3 +2434,14 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
   linear-gradient(0deg, var(--bg) 0%, transparent 30%),
   linear-gradient(180deg, var(--bg) 0%, transparent 16%),
   linear-gradient(270deg, var(--bg) 0%, transparent 12%); }
+
+/* Continue watching: Remove / Clear all / Done beside the title; while removing, every card shows an ✕. */
+.cont-head { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.cont-head > h2 { margin-right: 0.4rem; }
+.cont-btn { font: inherit; font-size: 0.95rem; font-weight: 600; color: #fff; background: rgba(255,255,255,0.12); border: 0; border-radius: 999px; padding: 0.35rem 1rem; cursor: pointer; }
+.cont-btn:focus, .cont-btn:hover { background: #fff; color: #0b0d12; }
+.cont-btn.is-danger { background: #c62828; color: #fff; }
+.cont-btn.is-done { background: rgba(76,194,255,0.22); }
+.is-editing .vod-card, .is-editing .svcx-card { position: relative; }
+.is-editing .vod-card::after, .is-editing .svcx-card::after { content: "✕"; position: absolute; top: 0.4rem; right: 0.4rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: rgba(0,0,0,0.75); color: #fff; font-size: 1rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.is-editing .vod-card:focus::after, .is-editing .svcx-card:focus::after { background: #c62828; }

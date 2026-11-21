@@ -151,9 +151,6 @@ class HomeActivity : Activity() {
         row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP; clipChildren = false
             setPadding(side, dp(6), side * 4, dp(16))
-            layoutTransition = android.animation.LayoutTransition().apply {
-                enableTransitionType(android.animation.LayoutTransition.CHANGING); setDuration(170)
-            }
         }
         rowScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; clipChildren = false; addView(row) }
         home.addView(rowScroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
@@ -184,6 +181,11 @@ class HomeActivity : Activity() {
         for (b in listOf(openBtn, moreBtn)) b.setOnFocusChangeListener { _, _ -> paintButtons() }
         wireKeys()
 
+        // Little info chips at the bottom right (like the PS5's), in the app's colour.
+        chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        home.addView(chipRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply {
+            rightMargin = (sw * 0.078f).toInt(); topMargin = (sh * 0.71f).toInt() })
+
         root.addView(home, full())
         homeLayers += home
         setContentView(root)
@@ -203,6 +205,17 @@ class HomeActivity : Activity() {
     private lateinit var row: LinearLayout
     private lateinit var rowScroll: android.widget.HorizontalScrollView
     private val topItems = mutableListOf<View>()
+    private lateinit var chipRow: LinearLayout
+
+    private fun paintChips(e: Entry) {
+        chipRow.removeAllViews()
+        for (c in e.chips) chipRow.addView(TextView(this).apply {
+            text = c; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = Fonts.bold
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), 0, dp(16), 0); compoundDrawablePadding = dp(8)
+            background = GradientDrawable().apply { cornerRadius = dp(9).toFloat(); setColor(Color.parseColor("#B808080A")) }
+            setCompoundDrawablesWithIntrinsicBounds(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(e.accent); setSize(dp(8), dp(8)) }, null, null, null)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)).apply { marginStart = dp(11) })
+    }
 
     private fun tab(label: String, current: Boolean, onClick: () -> Unit) = TextView(this).apply {
         text = label; setTextSize(TypedValue.COMPLEX_UNIT_SP, 21f); typeface = if (current) Fonts.bold else Fonts.regular
@@ -251,6 +264,72 @@ class HomeActivity : Activity() {
             else code == KeyEvent.KEYCODE_DPAD_UP
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        main.post(tick)
+        // Only rebuild when the installed apps changed (rebuilding on every return made the screen flash).
+        val sig = appsSignature()
+        if (sig != lastAppsSig) { lastAppsSig = sig; rebuildGrid() }
+        applyBackground()
+        if (firstShow) { firstShow = false; focusHome() }
+        main.postDelayed({ if (!isFinishing) Updater.autoCheck(this) }, 4_000)
+    }
+
+    private var lastAppsSig = ""
+    private fun appsSignature(): String = try {
+        loadApps().joinToString("|") { it.key } + "#" + prefs.getString("hidden", "") + "#" + prefs.getString("order", "")
+    } catch (_: Exception) { "" }
+
+    override fun onPause() {
+        super.onPause()
+        main.removeCallbacks(tick)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        closeOverlay(); closePhotos(); closeSettings()
+        focusHome()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when {
+            overlayPage != null -> closeOverlay()
+            photosPage != null -> closePhotos()
+            settingsPage != null -> closeSettings()
+            else -> focusHome()
+        }
+    }
+
+    private var backHeld = false
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        // Back: a press stays in LTTV Home (closes a page, back to the top); hold it to go to Fire TV's own home.
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.repeatCount == 0) { backHeld = false; event.startTracking() }
+            return true
+        }
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            (currentFocus?.tag as? Entry)?.let { options(it); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) { backHeld = true; openAmazonHome(); return true }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (!backHeld && event.isTracking && !event.isCanceled) @Suppress("DEPRECATION") onBackPressed()
+            backHeld = false
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
 
     private fun profileName(): String = prefs.getString("profile", null) ?: "LTTV"
 
@@ -450,17 +529,17 @@ class HomeActivity : Activity() {
     private data class Entry(
         val key: String, val title: String, val sub: String, val accent: Int,
         val tileRes: Int = 0, val heroRes: Int = 0, val app: App? = null, val screen: String? = null,
-        val pkgs: List<String> = emptyList(), val slide: Int = -1,
+        val pkgs: List<String> = emptyList(), val slide: Int = -1, val chips: List<String> = emptyList(),
     )
 
     private val ltEntries = listOf(
-        Entry("lt:lttv", "LTTV", "Live TV, sports, movies and shows", Color.parseColor("#4CC2FF"), R.drawable.tile_lttv, R.drawable.hero_lttv, screen = "guide", pkgs = LTTV_PACKAGES, slide = 0),
-        Entry("lt:music", "LT Music", "Every song, no ads", Color.parseColor("#FF3B6B"), R.drawable.tile_music, R.drawable.hero_music, screen = "app:ltmusic", pkgs = listOf("com.lttube.music"), slide = 4),
-        Entry("lt:tube", "LTTube", "Your videos, no ads", Color.parseColor("#FF3B3B"), R.drawable.tile_tube, R.drawable.hero_tube, screen = "app:lttube", pkgs = listOf("com.lttube.tv"), slide = 1),
-        Entry("lt:league", "League Pass", "Every NBA game tonight", Color.parseColor("#FF8A1F"), R.drawable.tile_league, R.drawable.hero_league, screen = "app:leaguepass", pkgs = listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), slide = 2),
-        Entry("lt:blitz", "Blitz", "Every NFL game this week", Color.parseColor("#3DDC84"), R.drawable.tile_blitz, R.drawable.hero_blitz, screen = "app:blitz", pkgs = listOf("tv.lttv.blitz.debug", "tv.lttv.blitz"), slide = 3),
+        Entry("lt:lttv", "LTTV", "Live TV, sports, movies and shows", Color.parseColor("#4CC2FF"), R.drawable.tile_lttv, R.drawable.hero_lttv, screen = "guide", pkgs = LTTV_PACKAGES, slide = 0, chips = listOf("Live", "Guide")),
+        Entry("lt:music", "LT Music", "Every song, no ads", Color.parseColor("#FF3B6B"), R.drawable.tile_music, R.drawable.hero_music, screen = "app:ltmusic", pkgs = listOf("com.lttube.music"), slide = 4, chips = listOf("Lyrics", "No ads")),
+        Entry("lt:tube", "LTTube", "Your videos, no ads", Color.parseColor("#FF3B3B"), R.drawable.tile_tube, R.drawable.hero_tube, screen = "app:lttube", pkgs = listOf("com.lttube.tv"), slide = 1, chips = listOf("No ads", "Subscriptions")),
+        Entry("lt:league", "League Pass", "Every NBA game tonight", Color.parseColor("#FF8A1F"), R.drawable.tile_league, R.drawable.hero_league, screen = "app:leaguepass", pkgs = listOf("tv.lttv.leaguepass.debug", "tv.lttv.leaguepass"), slide = 2, chips = listOf("Live tonight", "Every team")),
+        Entry("lt:blitz", "Blitz", "Every NFL game this week", Color.parseColor("#3DDC84"), R.drawable.tile_blitz, R.drawable.hero_blitz, screen = "app:blitz", pkgs = listOf("tv.lttv.blitz.debug", "tv.lttv.blitz"), slide = 3, chips = listOf("Live this week", "Every game")),
     )
-    private val storeEntry = Entry("lt:store", "Store", "Apps and updates for your TV", Color.parseColor("#8B5CF6"), R.drawable.tile_store, R.drawable.hero_store)
+    private val storeEntry = Entry("lt:store", "Store", "Apps and updates for your TV", Color.parseColor("#8B5CF6"), R.drawable.tile_store, R.drawable.hero_store, chips = listOf("Updates", "Installed"))
     private val allEntry = Entry("lt:all", "All Apps", "Every app on this TV", Color.parseColor("#9AA4B2"))
 
     private var entries: List<Entry> = emptyList()
@@ -572,6 +651,7 @@ class HomeActivity : Activity() {
         heroSub.text = e.sub
         heroSub.visibility = if (e.sub.isEmpty()) View.GONE else View.VISIBLE
         openBtn.text = if (e === allEntry || e === storeEntry) "Go" else "Open"
+        paintChips(e)
         paintButtons()
         // Pictures wait a moment while you scroll quickly along the row, so it never stutters.
         main.removeCallbacks(heroSwap)

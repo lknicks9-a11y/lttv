@@ -193,6 +193,12 @@ export async function addProfileRecent(key: string, max = 30): Promise<RecentEnt
   return trimmed;
 }
 
+/** Clears this profile's recently watched channels (part of "Clear watch history"). */
+export async function clearProfileRecents() {
+  await kv?.setKv(k('recents', current), []);
+  await touch();
+}
+
 /** Continue watching changed (vod.ts calls this after saving progress). */
 export async function touchProfile() {
   await touch();

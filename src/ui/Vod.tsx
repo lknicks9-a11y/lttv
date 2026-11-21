@@ -8,7 +8,7 @@ import { isTV, native } from '../app/platform';
 import { focusFirst, onAppKey, onBack } from '../app/nav';
 import {
   continueList, dedupe, episodeName, episodePlay, findSeriesByName, findVersions, itemName, lastWatched, loadAllMovies, loadAllSeries, loadCategoryItems, loadCategories, loadHome, loadMovieDetails, loadSeriesDetails,
-  moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching, movieResume, showEntries, providerPresent, findMovieByName,
+  moviePlay, playVod, resumePlay, resumePosition, saveProgress, useContinueWatching, movieResume, showEntries, providerPresent, findMovieByName, forgetWatched, clearWatched,
   type ResumeEntry, type VodCat, type VodHome, type VodItem, type VodKind, type VodPlay, type VodVersion,
 } from '../app/vod';
 import { sizedImage, cleanTitle, formatDuration, isEnglishCategory, qualityOf, type VodDetails, type VodEpisode, type VodMovie, type VodSeries } from '../core/vod';
@@ -87,6 +87,7 @@ export function VodScreen({ kind }: { kind: VodKind }) {
   const [home, setHome] = useState<VodHome | null>(null);
   const [homeErr, setHomeErr] = useState('');
   const contAll = continueList(useContinueWatching());
+  const [editCont, setEditCont] = useState(false);
   const cont = contAll.filter((e) => e.key.startsWith(kind === 'movies' ? 'm:' : 'e:'));
   // Continue watching: shows open their page with the episode selected; movies continue right away.
   const openResume = (e: ResumeEntry) => {
@@ -207,8 +208,8 @@ export function VodScreen({ kind }: { kind: VodKind }) {
             {home && home.rows[0] && <Hero items={home.rows[0].items.slice(0, 10)} top={home.rows[0].id === 'trending' || home.rows[0].id === 'popular'} onOpen={setOpen} />}
             {cont.length > 0 && (
               <section class="vod-row">
-                <h2 class="vod-row-title">Continue watching</h2>
-                <div class="vod-strip" data-group="vod-row-continue" data-hlock>
+                <ContinueHead title="Continue watching" cls="vod-row-title" editing={editCont} onEdit={setEditCont} onClear={() => clearWatched(kind === 'movies' ? 'movies' : 'shows')} />
+                <div class={`vod-strip ${editCont ? 'is-editing' : ''}`} data-group="vod-row-continue" data-hlock>
                   {cont.map((e, i) => (
                     <button
                       type="button"
@@ -216,7 +217,8 @@ export function VodScreen({ kind }: { kind: VodKind }) {
                       key={e.key}
                       data-autofocus={i === 0 ? '' : undefined}
                       // Shows open their page with the episode selected; movies continue right away.
-                      onClick={() => openResume(e)}
+                      // While removing: OK takes it off Continue watching instead.
+                      onClick={() => (editCont ? forgetAndSay(e) : openResume(e))}
                     >
                       <ArtPoster kind={e.key.startsWith('e:') ? 'series' : 'movie'} name={e.series?.name ?? e.title} year={e.series?.year} src={e.series?.poster ?? (e.key.startsWith('e:') ? undefined : e.poster)} />
                       <div class="vod-progress"><div style={{ width: `${e.done ? 100 : Math.min(100, (e.pos / Math.max(1, e.dur)) * 100)}%` }} /></div>
@@ -458,6 +460,7 @@ function useSvcArt(it: SvcItem, enabled = true) {
  * the others open their details.
  */
 function ServicePage({ svc, onOpen, onPick, onSearch, cont, onResume, onCategory }: { svc: StreamingService; onOpen: (it: VodItem) => void; onPick: (s: StreamingService | null) => void; onSearch: () => void; cont?: ResumeEntry[]; onResume?: (e: ResumeEntry) => void; onCategory?: (kind: VodKind, cat: VodCat) => void }) {
+  const [editCont, setEditCont] = useState(false);
   const all = svc.id === 'all';
   const st = svc.id === 'all' ? { ...SVC_STYLE.Netflix, follow: true } : SVC_STYLE[svc.id] ?? SVC_STYLE.Hulu;
   const [home, setHome] = useState<ServiceHome | null>(null);
@@ -506,10 +509,10 @@ function ServicePage({ svc, onOpen, onPick, onSearch, cont, onResume, onCategory
         {all && cont && onResume && (() => {
           const list = cont.filter((e) => filter === 'all' || (filter === 'movies') === !e.key.startsWith('e:'));
           return list.length > 0 && (
-            <section class="svcx-row">
-              <h2 class="svcx-row-title">Continue Watching</h2>
+            <section class={`svcx-row ${editCont ? 'is-editing' : ''}`}>
+              <ContinueHead title="Continue Watching" cls="svcx-row-title" editing={editCont} onEdit={setEditCont} onClear={() => clearWatched(filter === 'all' ? undefined : filter === 'movies' ? 'movies' : 'shows')} />
               <LazyStrip id="svc-continue" count={list.length}>
-                {(n) => list.slice(0, n).map((e, i) => <ResumeCard e={e} autofocus={!featured.length && i === 0} onOpen={onResume} />)}
+                {(n) => list.slice(0, n).map((e, i) => <ResumeCard e={e} autofocus={!featured.length && i === 0} onOpen={editCont ? forgetAndSay : onResume} />)}
               </LazyStrip>
             </section>
           );
@@ -735,6 +738,36 @@ function SvcCard({ it, st, rank, autofocus, onFocus, onOpen, big, named }: { it:
 }
 
 /** Continue Watching: the title's picture with how far you got, its name and what's next under it. */
+/** Takes something off Continue watching and says so. */
+function forgetAndSay(e: ResumeEntry) {
+  void forgetWatched(e).then(() => toast(`Removed ${e.series?.name ?? e.title} from Continue watching`, 'info'));
+}
+
+/**
+ * Continue watching's title with "Remove": press it, then OK on anything takes it off (or Clear all); Done when
+ * finished. Only OK needed, nothing to hold.
+ */
+function ContinueHead({ title, cls, editing, onEdit, onClear }: { title: string; cls: string; editing: boolean; onEdit: (v: boolean) => void; onClear: () => void }) {
+  const [sure, setSure] = useState(false);
+  useEffect(() => { if (!editing) setSure(false); }, [editing]);
+  return (
+    <div class="cont-head">
+      <h2 class={cls}>{title}{editing && <small class="muted"> · press OK on one to remove it</small>}</h2>
+      {editing ? (
+        <>
+          <button type="button" class={`f cont-btn ${sure ? 'is-danger' : ''}`} onClick={() => {
+            if (!sure) { setSure(true); return; }
+            onClear(); onEdit(false); toast('Continue watching cleared', 'info');
+          }}>{sure ? 'Press again to clear all' : 'Clear all'}</button>
+          <button type="button" class="f cont-btn is-done" onClick={() => onEdit(false)}>Done</button>
+        </>
+      ) : (
+        <button type="button" class="f cont-btn" onClick={() => onEdit(true)} aria-label={`Remove from ${title}`}>Remove</button>
+      )}
+    </div>
+  );
+}
+
 function ResumeCard({ e, autofocus, onOpen }: { e: ResumeEntry; autofocus?: boolean; onOpen: (e: ResumeEntry) => void }) {
   const isShow = e.key.startsWith('e:');
   const name = e.series?.name ?? e.title;

@@ -9,6 +9,8 @@ import {
   PROFILE_COLORS, addProfile, currentProfile, deleteProfile, editProfile, listProfiles, markProfilePicked, onProfilesChanged, switchProfile, type Profile,
 } from '../app/profiles';
 import { Button, Icon, Modal } from './common';
+import { clearProfileRecents } from '../app/profiles';
+import { clearWatched } from '../app/vod';
 
 function useProfiles() {
   const [, bump] = useState(0);
@@ -144,6 +146,7 @@ export function ProfilesSection() {
   const [editing, setEditing] = useState<Profile | 'new' | null>(null);
   const [st, setSt] = useState<SyncStatus>(syncStatus());
   const [confirmOut, setConfirmOut] = useState(false);
+  const [clearHistory, setClearHistory] = useState(false);
   useEffect(() => onSyncStatus(setSt), []);
   const sess = currentSession();
   return (
@@ -176,9 +179,23 @@ export function ProfilesSection() {
       </div>
       <div class="row gap">
         {list.length < 8 && <Button icon="add" onClick={() => setEditing('new')}>Add profile</Button>}
+        <Button icon="close" onClick={() => setClearHistory(true)}>Clear watch history</Button>
       </div>
       <p class="hint">Everyone shares the account’s playlists and guide. Each profile has its own favorite channels, Continue watching and recently watched.</p>
       {editing && <ProfileEditor p={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
+      {clearHistory && (
+        <Modal title="Clear watch history?" onClose={() => setClearHistory(false)}>
+          <p>Removes {current?.name ? `${current.name}’s` : 'this profile’s'} Continue watching (movies and shows) and recently watched channels, on every device. Favorites stay.</p>
+          <div class="row gap modal-actions">
+            <Button variant="danger" data-autofocus onClick={() => void Promise.all([clearWatched(), clearProfileRecents()]).then(() => {
+              setState({ recents: [] });
+              setClearHistory(false);
+              toast('Watch history cleared', 'success');
+            })}>Clear</Button>
+            <Button variant="ghost" onClick={() => setClearHistory(false)}>Cancel</Button>
+          </div>
+        </Modal>
+      )}
       {confirmOut && (
         <Modal title="Sign out?" onClose={() => setConfirmOut(false)}>
           <p>Your profiles and channels stay saved with your account and come back when you sign in again.</p>

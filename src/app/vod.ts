@@ -320,6 +320,29 @@ export async function saveProgress(e: Omit<ResumeEntry, 'at'>) {
   resumeListeners.forEach((l) => l());
 }
 
+async function storeWatched(store: Record<string, ResumeEntry>) {
+  await repo.setKv(resumeKey(), store).catch(() => undefined);
+  // Marks the profile changed, so the removal is what syncs to your other devices (it doesn't come back).
+  void touchProfile().catch(() => undefined);
+  resumeListeners.forEach((l) => l());
+}
+
+/** Removes something from Continue watching (a show: every episode of it you watched). */
+export async function forgetWatched(e: ResumeEntry) {
+  const store = await resumeStore();
+  for (const [k, v] of Object.entries(store)) {
+    if (k === e.key || (e.series && v.series?.id === e.series.id && v.playlistId === e.playlistId) || (e.series && v.series?.name === e.series.name)) delete store[k];
+  }
+  await storeWatched(store);
+}
+
+/** Clears Continue watching: everything, or only movies / only shows. */
+export async function clearWatched(only?: 'movies' | 'shows') {
+  const store = await resumeStore();
+  for (const k of Object.keys(store)) if (!only || (only === 'shows') === k.startsWith('e:')) delete store[k];
+  await storeWatched(store);
+}
+
 /** The episode to select on a show's page: the last one watched, or the next one if it was finished. */
 export function lastWatched(all: ResumeEntry[], playlistId: string, seriesId: string): ResumeEntry | undefined {
   return [...all].filter((e) => e.series?.id === seriesId && e.playlistId === playlistId).sort((a, b) => b.at - a.at)[0];
