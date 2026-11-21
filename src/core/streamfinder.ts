@@ -353,7 +353,8 @@ export function teamChannels(t: GameTeam, other: GameTeam, league: string, lineu
     if (ch.hidden) continue;
     const name = ` ${foldText(ch.originalName)} `;
     // In the league's team group by name, or anywhere when the channel is just the team ("Calgary Flames HD").
-    const justTeam = foldText(stripQuality(ch.cleanedName || ch.originalName)) === full;
+    // (never one sitting in another league's team group: "Charlotte Hornets" under WNBA Team PPV isn't the NBA team's).
+    const justTeam = foldText(stripQuality(ch.cleanedName || ch.originalName)) === full && !Object.keys(LEAGUE_WORDS).some((l) => l !== league && inTeamGroup(ch, l));
     if (!justTeam && !inTeamGroup(ch, league)) continue;
     if (!mentionsFolded(name, mine)) continue;
     if (mentionsFolded(name, theirs)) continue; // a channel for this one game, not the team's channel
