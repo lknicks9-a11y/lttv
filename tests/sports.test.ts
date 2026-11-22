@@ -183,7 +183,17 @@ test("Blitz: only the game's network, a team's market station or a guide match; 
   const s = blitzStreams(g, [], lineup as never, guide);
   const keys = s.map((x) => (x.ch as { key: string }).key);
   assert.equal(keys[0], 'fc');
-  assert.ok(keys.includes('fg') && !keys.includes('k') && !keys.includes('h'));
+  // Green Bay's own FOX station counts (their market); New York's FOX doesn't (another city, not in the guide).
+  assert.ok(keys.includes('fg') && !keys.includes('fx') && !keys.includes('k') && !keys.includes('h'));
   assert.equal(s[0].guide, true);
   assert.equal(s[0].market, 'home');
+});
+
+test('Blitz: Arizona plays in Phoenix; the same station from two providers is listed once', () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const g = { id: 'n2', league: 'nfl', start: 10_000_000, state: 'pre', detail: '', name: '', home: t('Kansas City Chiefs', 'Chiefs', 'Kansas City', 'KC'), away: t('Arizona Cardinals', 'Cardinals', 'Arizona', 'ARI'), broadcasts: [{ name: 'CBS', market: 'national', kind: 'tv' }] } as never;
+  const ch = (key: string, name: string, number: number) => ({ key, name, originalName: name, group: 'US Locals', number, playlistId: 'p', index: number, hidden: false, category: 'general' }) as never;
+  const lineup = [ch('k1', 'CBS 5 (KCTV) Kansas City HD', 1), ch('k2', 'US: CBS 5 (KCTV) KANSAS CITY HD', 2), ch('p1', 'CBS 5 KPHO Phoenix', 3), ch('gr', 'PRIME: CBS Grand Rapids', 4)];
+  const keys = blitzStreams(g, [], lineup as never, { range: () => [] } as never).map((x) => (x.ch as { key: string }).key);
+  assert.deepEqual(keys, ['p1', 'k1']);
 });

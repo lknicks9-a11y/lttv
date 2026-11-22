@@ -2,6 +2,7 @@ import { isPassApp } from '../app/appmode';
 // LTTV League Pass (NBA) and LTTV Blitz (NFL): the league's games in one place. Opened from Sports, or from anywhere
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
+import { cachedLiveness, canCheck, checkStream, type Liveness } from '../app/streamcheck';
 import { blitzStreams } from '../core/blitz';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -294,7 +295,29 @@ export function LeaguePass() {
   const day = cfg.league === 'nfl' ? 'week' : today;
   const { games: raw, loading } = useGames(cfg.league as ScheduleLeagueId, day, today);
   useEffect(() => noteGameStates(raw), [raw]);
-  const extras = useMemo(() => cfg.extras.flatMap((x) => extraChannels(lineup, x.re).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: ch.name }))), [lineup, cfg]);
+  // RedZone / NFL Network / NBA TV: each stream is checked in the background; ones that play go first.
+  const extraChs = useMemo(() => cfg.extras.map((x) => ({ x, chs: extraChannels(lineup, x.re) })), [lineup, cfg]);
+  const [extraLive, setExtraLive] = useState<Map<string, Liveness>>(() => new Map());
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      for (const { chs } of extraChs)
+        for (const ch of chs) {
+          if (!alive) return;
+          if (cachedLiveness(ch.key) || !canCheck(ch)) continue;
+          const v = await checkStream(ch).catch(() => undefined);
+          if (alive && v) setExtraLive((m) => new Map(m).set(ch.key, v));
+        }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [extraChs]);
+  const extras = useMemo(() => extraChs.flatMap(({ x, chs }) => {
+    const live = (key: string) => extraLive.get(key) ?? cachedLiveness(key);
+    const rank = (key: string) => (live(key) === 'live' ? 0 : live(key) === 'dead' ? 2 : 1);
+    return [...chs].sort((a, b) => rank(a.key) - rank(b.key)).map((ch, i): Feed => ({ key: ch.key, label: i ? `${x.label} ${i + 1}` : x.label, sub: live(ch.key) === 'dead' ? `${ch.name} · no picture in a check` : ch.name }));
+  }), [extraChs, extraLive]);
   const games = useMemo(() => {
     const rank = (g: Game) => (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
     // Small logos: the source's are 500 px, shown here at 30 to 140 px (dozens of full-size ones slow a Fire TV Stick).
@@ -334,8 +357,8 @@ export function LeaguePass() {
         for (const p of teamCh) list.push({ key: p.ch.key, label: `${abbr(p.side)} broadcast`, sub: p.ch.name, team: p.side });
         for (const s of blitzStreams(g, picks.map((p) => p.ch), lineup, guide).slice(0, 8)) {
           if (list.some((f) => f.key === s.ch.key)) continue;
-          const where = s.market ? `${abbr(s.market)} market` : s.network ? 'National' : 'On the guide';
-          list.push({ key: s.ch.key, label: [where, s.network].filter(Boolean).join(' · '), sub: `${s.ch.name}${s.guide ? ' · ✓ in the guide' : ''}`, team: s.market });
+          const where = s.guide ? `In the guide${s.market ? ` · ${abbr(s.market)} market` : ''}` : s.market ? `${abbr(s.market)} market` : 'National';
+          list.push({ key: s.ch.key, label: [where, s.network].filter(Boolean).join(' · '), sub: s.ch.name, team: s.market });
         }
         return list;
       }
