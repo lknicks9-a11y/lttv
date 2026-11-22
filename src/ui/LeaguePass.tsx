@@ -2,6 +2,7 @@ import { isPassApp } from '../app/appmode';
 // LTTV League Pass (NBA) and LTTV Blitz (NFL): the league's games in one place. Opened from Sports, or from anywhere
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
+import { blitzStreams } from '../core/blitz';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
@@ -43,7 +44,8 @@ const PASSES: Record<'nba' | 'nfl', PassCfg> = {
 function extraChannels(lineup: LineupChannel[], re: RegExp): LineupChannel[] {
   const score = (c: LineupChannel) => {
     const t = `${c.group ?? ''} ${c.name}`;
-    return (/\b(US|USA|EN)\b/i.test(t) ? 4 : 0) + (/\b(F?HD|RAW)\b|ᴴᴰ|ᴿᴬᵂ/i.test(t) ? 2 : 0) - (/\b(4K|UHD|SD|ES|LAT|FR|DE|IT|PT|AR|MX|ESPA\w*)\b/i.test(t) ? 3 : 0);
+    // Your provider's "GF" channels are the ones that work well: always first ("GF: NFL RedZone", a "GF | …" group).
+    return (/(^|[^a-z0-9])gf([^a-z0-9]|$)/i.test(t) ? 10 : 0) + (/\b(US|USA|EN)\b/i.test(t) ? 4 : 0) + (/\b(F?HD|RAW)\b|ᴴᴰ|ᴿᴬᵂ/i.test(t) ? 2 : 0) - (/\b(4K|UHD|SD|ES|LAT|FR|DE|IT|PT|AR|MX|ESPA\w*)\b/i.test(t) ? 3 : 0);
   };
   return lineup.filter((c) => !c.hidden && re.test(c.name)).sort((a, b) => score(b) - score(a) || a.number - b.number).slice(0, 5);
 }
@@ -325,17 +327,15 @@ export function LeaguePass() {
       }
       // 2. The local stations picked for the teams, when the game is on them tonight.
       for (const p of picks.filter((x) => x.main && !x.team)) list.push({ key: p.ch.key, label: `${abbr(p.side)} local`, sub: p.ch.name });
-      // Blitz: the game's networks by name (CBS, FOX, ESPN…), the teams' local stations and the game channels.
+      // Blitz: only streams on the game's own channel (CBS, FOX, ESPN…), in a team's market, or whose guide shows the
+      // game — guide-confirmed ones first, each team's market first.
       if (cfg.league === 'nfl') {
-        const net = (name: string) => g.broadcasts.find((b) => b.kind !== 'streaming' && new RegExp(`(^|[^a-z0-9])${b.name.replace(/[^a-z0-9]+/gi, '\\W*')}([^a-z0-9]|$)`, 'i').test(name))?.name;
-        // Like League Pass: each team's own channel first (away, home), then the networks, the locals and game channels.
-        const isTeam = (x: typeof picks[number]) => /team channel/.test(x.reason ?? '') && !!x.side;
-        const rest = picks.filter((x) => netOk(x.ch.key));
-        const ordered = [...rest.filter((x) => isTeam(x) && x.side === 'away'), ...rest.filter((x) => isTeam(x) && x.side === 'home'), ...rest.filter((x) => !isTeam(x))];
-        for (const p of ordered.slice(0, 8)) {
-          const n = p.broadcast ?? net(p.ch.name);
-          const label = isTeam(p) ? `${abbr(p.side)} broadcast` : p.kind === 'event' ? 'Game channel' : p.kind === 'local' && p.side ? `${abbr(p.side)} local${n ? ` · ${n}` : ''}` : n ?? (p.kind === 'national' ? 'National' : 'Other');
-          list.push({ key: p.ch.key, label, sub: p.ch.name, team: isTeam(p) ? p.side : undefined });
+        const teamCh = picks.filter((x) => /team channel/.test(x.reason ?? '') && !!x.side);
+        for (const p of teamCh) list.push({ key: p.ch.key, label: `${abbr(p.side)} broadcast`, sub: p.ch.name, team: p.side });
+        for (const s of blitzStreams(g, picks.map((p) => p.ch), lineup, guide).slice(0, 8)) {
+          if (list.some((f) => f.key === s.ch.key)) continue;
+          const where = s.market ? `${abbr(s.market)} market` : s.network ? 'National' : 'On the guide';
+          list.push({ key: s.ch.key, label: [where, s.network].filter(Boolean).join(' · '), sub: `${s.ch.name}${s.guide ? ' · ✓ in the guide' : ''}`, team: s.market });
         }
         return list;
       }

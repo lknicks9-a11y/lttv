@@ -171,3 +171,19 @@ test('Canadian DAZN channels are never offered for games; other DAZN channels st
   assert.equal(isCanadianDazn({ originalName: 'UK: DAZN 1', group: 'UK Sports' }), false);
   assert.equal(isCanadianDazn({ originalName: 'TSN 1', group: 'Canada' }), false);
 });
+
+import { blitzStreams } from '../src/core/blitz';
+
+test("Blitz: only the game's network, a team's market station or a guide match; guide + market first", () => {
+  const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
+  const g = { id: 'n1', league: 'nfl', start: 10_000_000, state: 'pre', detail: '', name: '', home: t('Chicago Bears', 'Bears', 'Chicago', 'CHI'), away: t('Green Bay Packers', 'Packers', 'Green Bay', 'GB'), broadcasts: [{ name: 'FOX', market: 'national', kind: 'tv' }] } as never;
+  const ch = (key: string, name: string, number: number, extra: object = {}) => ({ key, name, originalName: name, group: 'US Locals', number, playlistId: 'p', index: number, hidden: false, category: 'general', ...extra }) as never;
+  const lineup = [ch('fc', 'FOX 32 Chicago', 1, { epgChannelId: 'g1', matchStatus: 'auto' }), ch('fg', 'FOX 11 Green Bay', 2), ch('fx', 'FOX 5 New York', 3), ch('k', 'FOX Kids', 4), ch('h', 'HGTV', 5)];
+  const guide = { range: (id: string) => (id === 'g1' ? [{ ch: 'g1', start: 9_900_000, stop: 20_000_000, title: 'NFL Football', subTitle: 'Green Bay Packers at Chicago Bears' }] : []) } as never;
+  const s = blitzStreams(g, [], lineup as never, guide);
+  const keys = s.map((x) => (x.ch as { key: string }).key);
+  assert.equal(keys[0], 'fc');
+  assert.ok(keys.includes('fg') && !keys.includes('k') && !keys.includes('h'));
+  assert.equal(s[0].guide, true);
+  assert.equal(s[0].market, 'home');
+});
