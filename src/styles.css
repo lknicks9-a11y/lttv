@@ -2445,3 +2445,11 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 .is-editing .vod-card, .is-editing .svcx-card { position: relative; }
 .is-editing .vod-card::after, .is-editing .svcx-card::after { content: "✕"; position: absolute; top: 0.4rem; right: 0.4rem; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: rgba(0,0,0,0.75); color: #fff; font-size: 1rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .is-editing .vod-card:focus::after, .is-editing .svcx-card:focus::after { background: #c62828; }
+
+/* TV playing behind the menus: no blurred see-through panels (blurring moving video every frame is the heaviest
+   thing a Fire TV Stick draws, and made the Sports menu lag); panels get a darker solid tint instead. */
+:root.tv .video-behind *, :root.tv .video-behind *::before, :root.tv .video-behind *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+:root.tv .video-behind .svcx-top-pill .svcx-top-items, :root.tv .video-behind .svc-tab { background: rgba(28, 28, 32, 0.88); }
+
+/* Long score lists (college football): rows off screen aren't drawn until you scroll to them. */
+.games .game-row { content-visibility: auto; contain-intrinsic-size: auto 5.6rem; }

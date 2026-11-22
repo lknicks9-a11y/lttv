@@ -1,6 +1,7 @@
 import { h, Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useApp, tune } from '../app/state';
+import { focusEl, sinceLastMove, whenStill } from '../app/nav';
 import { useGames, logoFor } from '../app/schedule';
 import { sportsDay, scheduleLeague, type Game, type GameTeam, type ScheduleLeagueId } from '../core/schedule';
 import { buildGameIndexAsync, broadcastSummary, bestStreams, type GameIndexEntry, type StreamPick } from '../core/streamfinder';
@@ -11,9 +12,18 @@ import { allTeams } from '../core/teams';
 import { canCheck, cachedLiveness, checkStream, type Liveness } from '../app/streamcheck';
 
 /** Team logo (transparent PNG from the schedule), falling back to the abbreviation. */
+/**
+ * ESPN's team logos are 500 px; a list of a hundred of them (a college football Saturday) made scrolling lag on a
+ * Fire TV Stick. ESPN serves the same picture at the size it's shown.
+ */
+export function smallLogo(url: string | undefined, px: number): string | undefined {
+  const m = url && /^https:\/\/a\.espncdn\.com(\/i\/teamlogos\/[^?]+)$/.exec(url);
+  return m ? `https://a.espncdn.com/combiner/i?img=${m[1]}&w=${px}&h=${px}` : url;
+}
+
 export function TeamLogo({ team, size = 'md' }: { team: { name: string; abbr: string; logo?: string; color?: string }; size?: 'sm' | 'md' | 'lg' }) {
   const [failed, setFailed] = useState(false);
-  const src = team.logo ?? logoFor(team.name);
+  const src = smallLogo(team.logo ?? logoFor(team.name), size === 'lg' ? 200 : size === 'md' ? 140 : 100);
   if (src && !failed) return <img class={`team-logo team-logo-${size}`} src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
   return <span class={`team-logo team-logo-${size} team-logo-text`} style={team.color ? { color: `#${team.color}` } : undefined}>{team.abbr}</span>;
 }
@@ -90,36 +100,68 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
   useEffect(() => {
     if (!open) setBest(new Map(latest.current));
   }, [open]);
+  // Only when the games themselves change (not every score update, which during live games came every minute and
+  // restarted this whole search, making up/down slow while it ran).
+  const gamesKey = games.map((g) => `${g.id}:${g.start}:${g.state === 'post' ? 'f' : ''}`).join('|');
+  const gamesRef = useRef(games);
+  gamesRef.current = games;
   useEffect(() => {
     let alive = true;
+    const list = gamesRef.current;
     // Keep what's already shown while channels are re-checked (no "Finding channels…" flashing on refresh).
-    if (!games.length) return;
+    if (!list.length) return;
     void (async () => {
-      const from = Math.min(...games.map((g) => g.start)) - 3600_000;
-      const to = Math.max(...games.map((g) => g.start)) + 5 * 3600_000;
+      const from = Math.min(...list.map((g) => g.start)) - 3600_000;
+      const to = Math.max(...list.map((g) => g.start)) + 5 * 3600_000;
       const idx = await buildGameIndexAsync(lineup, guide, from, to, guideVersion);
       if (!alive) return;
       setIndex(idx);
       const m = new Map<string, StreamPick | undefined>(latest.current);
-      for (let i = 0; i < games.length; i++) {
-        const g = games[i];
+      let shownAt = performance.now();
+      for (let i = 0; i < list.length; i++) {
+        // One game at a time, and only while the remote is still: a press is never stuck behind this work.
+        await whenStill();
+        if (!alive) return;
+        const g = list[i];
         m.set(g.id, bestStreams(g, lineup, league.sport, idx)[0]);
         latest.current = m;
-        if (i % 6 === 5) {
-          if (!openRef.current) setBest(new Map(m));
-          await new Promise((r) => setTimeout(r, 0));
-          if (!alive) return;
+        // The list is redrawn at most about once a second (not every few games), and never mid-move.
+        if (performance.now() - shownAt > 1000 && !openRef.current && sinceLastMove() > 450) {
+          setBest(new Map(m));
+          shownAt = performance.now();
         }
+        await new Promise((r) => setTimeout(r, 0));
       }
       latest.current = m;
-      if (!openRef.current) setBest(new Map(m));
+      if (!openRef.current && alive) setBest(new Map(m));
     })();
     return () => {
       alive = false;
     };
-  }, [games, lineup, guide, guideVersion, league.sport]);
+  }, [gamesKey, lineup, guide, guideVersion, league.sport]);
 
   const live = games.filter((g) => g.state === 'in').length;
+
+  // Backing out of a game's channels lands on that game in the list, not back at the top of all the scores.
+  const backTo = useRef<string | null>(null);
+  const closeGame = (id: string) => {
+    backTo.current = id;
+    setOpen(null);
+  };
+  useEffect(() => {
+    if (open || !backTo.current) return;
+    const id = backTo.current;
+    backTo.current = null;
+    const put = () => {
+      const row = document.querySelector<HTMLElement>(`.game-row[data-game-id="${CSS.escape(id)}"]`);
+      if (row) focusEl(row);
+    };
+    // After the pop-up has gone (and again a moment later, in case anything else grabbed the focus).
+    requestAnimationFrame(put);
+    setTimeout(() => {
+      if (!(document.activeElement as HTMLElement | null)?.closest?.(`[data-game-id="${CSS.escape(id)}"]`)) put();
+    }, 120);
+  }, [open]);
 
   return (
     <div class="league-games">
@@ -153,7 +195,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
             const pick = best.get(g.id);
             const tv = broadcastSummary(g);
             return (
-              <button type="button" class={`f game-row ${st.live ? 'is-live' : ''} ${g.state === 'post' ? 'is-final' : ''}`} onClick={() => setOpen(g)}>
+              <button type="button" class={`f game-row ${st.live ? 'is-live' : ''} ${g.state === 'post' ? 'is-final' : ''}`} data-game-id={g.id} onClick={() => setOpen(g)}>
                 <span class="game-status">
                   {st.live ? <span class="badge-live">LIVE</span> : null}
                   <span>{st.text}</span>
@@ -178,7 +220,7 @@ export function LeagueGames({ leagueId, onPick }: { leagueId: ScheduleLeagueId; 
         </div>
       )}
       <p class="hint">Schedule, scores, logos and TV listings: ESPN. Streams are matched only from your own playlists.</p>
-      {open && <WatchGame game={open} index={index} onClose={() => setOpen(null)} onPick={onPick} onWatch={(g) => (watching.current = g.id)} />}
+      {open && <WatchGame game={open} index={index} onClose={() => closeGame(open.id)} onPick={onPick} onWatch={(g) => (watching.current = g.id)} />}
     </div>
   );
 }
