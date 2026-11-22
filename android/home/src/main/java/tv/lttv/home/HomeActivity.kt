@@ -160,6 +160,14 @@ class HomeActivity : Activity() {
         val rowTop = (sh * 0.13f).toInt()
         home.addView(rowScroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
             topMargin = rowTop })
+        // The app you're on, big, drawn in its own place above the row (the row slides underneath): a tile drawn
+        // bigger than its spot in the row got cut off (the last one, All Apps, lost its right side).
+        slotCard = FrameLayout(this).apply {
+            clipToOutline = true; elevation = dp(12).toFloat()
+            foreground = GradientDrawable().apply { cornerRadius = tileBig * 0.16f; setStroke(dp(3), Color.WHITE) }
+        }
+        home.addView(slotCard, FrameLayout.LayoutParams(tileBig, tileBig, Gravity.TOP or Gravity.START).apply {
+            leftMargin = slotX; topMargin = rowTop + dp(4) })
         // The app's name, small, tucked under the next tiles beside the one you're on (as on the PS5).
         tileName = TextView(this).apply { setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_PX, sh * 0.026f); typeface = Fonts.medium; maxLines = 1 }
         home.addView(tileName, FrameLayout.LayoutParams((sw * 0.5f).toInt(), (sh * 0.05f).toInt(), Gravity.TOP or Gravity.START).apply {
@@ -211,6 +219,7 @@ class HomeActivity : Activity() {
     private var tileGap = 0
     private var slotX = 0
     private lateinit var tileName: TextView
+    private lateinit var slotCard: FrameLayout
     private lateinit var infoBlock: View
     private lateinit var heroBack: ImageView
     private lateinit var heroFront: ImageView
@@ -615,24 +624,13 @@ class HomeActivity : Activity() {
             clipToOutline = true
             background = GradientDrawable().apply { cornerRadius = radius; setColor(tileColor(e)) }
         }
-        val photo = e.app?.let { Art.drawable(this, it.key) }
-        when {
-            photo != null -> card.addView(ImageView(this).apply { setImageDrawable(photo); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
-            e.tileRes != 0 -> card.addView(ImageView(this).apply { setImageResource(e.tileRes); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
-            e.app != null -> card.addView(ImageView(this).apply { setImageDrawable(iconOf(e.app)); scaleType = ImageView.ScaleType.FIT_CENTER },
-                FrameLayout.LayoutParams(-1, -1).apply { val m = tileSmall / 7; setMargins(m, m, m, m) })
-            else -> card.addView(ImageView(this).apply { setImageResource(R.drawable.ic_apps); setColorFilter(Color.WHITE) },
-                FrameLayout.LayoutParams(tileSmall / 2, tileSmall / 2, Gravity.CENTER))
-        }
+        fillTile(card, e, tileSmall)
         box.addView(card, LinearLayout.LayoutParams(tileSmall, tileSmall))
         // Each slot is as tall as the big tile (plus room for its shadow), so the one you're on is never cut off.
         box.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, tileBig + dp(14)).apply { marginEnd = tileGap }
         card.setOnClickListener { launch(e) }
         card.setOnLongClickListener { options(e); true }
         card.setOnFocusChangeListener { v, f ->
-            // Drawn at the tile's own size and scaled up with it, so a 2 dp line shows as about 3 dp.
-            v.foreground = if (f) GradientDrawable().apply { cornerRadius = tileSmall * 0.16f; setStroke(dp(2), Color.WHITE) } else null
-            v.elevation = if (f) dp(12).toFloat() else 0f
             if (f) select(e)
         }
         card.setOnKeyListener { _, code, ev ->
@@ -645,27 +643,38 @@ class HomeActivity : Activity() {
         return card to box
     }
 
+    /** A tile's picture (an LT app's art, your photo for an app, its icon, or the All Apps mark) at a size. */
+    private fun fillTile(card: FrameLayout, e: Entry, size: Int) {
+        card.removeAllViews()
+        card.background = GradientDrawable().apply { cornerRadius = size * 0.16f; setColor(tileColor(e)) }
+        val photo = e.app?.let { Art.drawable(this, it.key) }
+        when {
+            photo != null -> card.addView(ImageView(this).apply { setImageDrawable(photo); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
+            e.tileRes != 0 -> card.addView(ImageView(this).apply { setImageResource(e.tileRes); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
+            e.app != null -> card.addView(ImageView(this).apply { setImageDrawable(iconOf(e.app)); scaleType = ImageView.ScaleType.FIT_CENTER },
+                FrameLayout.LayoutParams(-1, -1).apply { val m = size / 7; setMargins(m, m, m, m) })
+            else -> card.addView(ImageView(this).apply { setImageResource(R.drawable.ic_apps); setColorFilter(Color.WHITE) },
+                FrameLayout.LayoutParams(size / 2, size / 2, Gravity.CENTER))
+        }
+    }
+
     /**
      * Tiles never change size in the layout (that re-laid out the whole screen on every frame and made moving slow on a
      * Fire TV Stick). The one you're on is scaled up from its top-left corner and the tiles after it slide over to make
      * room: both are drawing-only changes the TV's graphics chip does for free.
      */
     private fun placeTiles(sel: Int, animate: Boolean) {
-        val k = tileBig / tileSmall.toFloat()
         val push = (tileBig - tileSmall).toFloat()
         val first = (sel - 3).coerceAtLeast(0); val last = sel + 14
         tiles.forEachIndexed { j, t ->
             val box = t.parent as View
-            val scale = if (j == sel) k else 1f
             val tx = if (j > sel) push else 0f
-            t.pivotX = 0f; t.pivotY = 0f
+            // The one you're on shows as the big tile above the row; its small copy stays (focusable) but hidden.
+            t.alpha = if (j == sel) 0f else 1f
+            t.scaleX = 1f; t.scaleY = 1f
             if (!animate || j < first || j > last) {
-                t.animate().cancel(); box.animate().cancel()
-                t.scaleX = scale; t.scaleY = scale; box.translationX = tx
-            } else {
-                if (t.scaleX != scale) t.animate().scaleX(scale).scaleY(scale).setDuration(190).setInterpolator(ease).start()
-                if (box.translationX != tx) box.animate().translationX(tx).setDuration(190).setInterpolator(ease).start()
-            }
+                box.animate().cancel(); box.translationX = tx
+            } else if (box.translationX != tx) box.animate().translationX(tx).setDuration(190).setInterpolator(ease).start()
         }
     }
     private val ease = android.view.animation.DecelerateInterpolator(1.6f)
@@ -707,6 +716,16 @@ class HomeActivity : Activity() {
             val i = entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0)
             placeTiles(i, false)
             row.post { slideTo(i, false) }
+        }
+        // The big tile shows the app you're on, growing out of the slot (like the PS5's).
+        fillTile(slotCard, e, tileBig)
+        slotCard.animate().cancel()
+        slotCard.pivotX = 0f; slotCard.pivotY = 0f
+        if (instant) { slotCard.scaleX = 1f; slotCard.scaleY = 1f }
+        else {
+            val k = tileSmall / tileBig.toFloat()
+            slotCard.scaleX = k; slotCard.scaleY = k
+            slotCard.animate().scaleX(1f).scaleY(1f).setDuration(190).setInterpolator(ease).start()
         }
         tileName.text = e.title
         tileName.alpha = 0f; tileName.animate().alpha(1f).setDuration(180).start()
