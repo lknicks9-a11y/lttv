@@ -359,8 +359,18 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
       picks.set(m.ch.key, { ch: m.ch, score: 1000 - i, kind: 'local', side: m.side, reason, main: true, team: m.why === 'pass' });
     });
   }
+  // Canadian DAZN channels never play (blocked outside Canada): never offered.
+  for (const [k, p] of picks) if (isCanadianDazn(p.ch)) picks.delete(k);
   const all = [...picks.values()].sort((a, b) => b.score - a.score || a.ch.number - b.ch.number);
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => p.main || isEnglishChannel(p.ch));
   return en.length ? en : all.map((p) => ({ ...p, reason: `Not in English · ${p.reason}` }));
+}
+
+/** A Canadian DAZN channel ("CA: DAZN 1", "DAZN CA", in a Canada group): these streams don't work. */
+export function isCanadianDazn(ch: Pick<LineupChannel, 'originalName' | 'group'> & { country?: string }): boolean {
+  const name = ch.originalName ?? '';
+  const group = ch.group ?? '';
+  if (!/\bdazn\b/i.test(`${name} ${group}`)) return false;
+  return ch.country === 'ca' || /(^|[\s[(|:-])(ca|can|canada)([\s\])|:-]|$)/i.test(name) || /\b(ca|can|canada|canadian)\b/i.test(group);
 }

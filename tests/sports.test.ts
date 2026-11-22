@@ -161,3 +161,13 @@ test('team channels come only from the league\'s "Team PPV" group, by team name'
   // Other sports: no team broadcasts.
   assert.deepEqual(teamFeedChannels(hornets, heat, 'nfl', lineup as never), []);
 });
+
+import { isCanadianDazn } from '../src/core/streamfinder';
+
+test('Canadian DAZN channels are never offered for games; other DAZN channels still are', () => {
+  assert.equal(isCanadianDazn({ originalName: 'CA: DAZN 1 HD', group: 'Sports' }), true);
+  assert.equal(isCanadianDazn({ originalName: 'DAZN 2', group: 'Canada Sports' }), true);
+  assert.equal(isCanadianDazn({ originalName: 'DAZN CA 3', group: 'Sports' }), true);
+  assert.equal(isCanadianDazn({ originalName: 'UK: DAZN 1', group: 'UK Sports' }), false);
+  assert.equal(isCanadianDazn({ originalName: 'TSN 1', group: 'Canada' }), false);
+});
