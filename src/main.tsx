@@ -48,8 +48,6 @@ async function boot() {
   // League Pass / Blitz: the pass is the whole app, shown from the first moment (it fills in as your provider loads).
   if (isPassApp) setState({ leaguePass: true, passLeague: APP_MODE === 'leaguepass' ? 'nba' : 'nfl' });
   render(<App />, document.getElementById('app')!);
-  // The day's channel sheet: every game's channels, checked against the guide (3:00 AM and when channels change).
-  void import('./app/channelsheet').then((m) => m.startChannelSheet()).catch(() => undefined);
   document.getElementById('boot')?.remove();
 
   // Movies & Shows / League Pass / Blitz: take the provider you set up in LTTV first, so they open straight

@@ -47,22 +47,16 @@ export function useTeamListings(teams: Team[], opts: { includeShows?: boolean; h
   const lineup = useApp((s) => s.lineup);
   const guide = useApp((s) => s.guide);
   const guideVersion = useApp((s) => s.guideVersion);
-  // The big search through a week of the guide runs every 5 minutes (it froze the page every minute); live scores
-  // only re-check which listings are really live, which is quick.
-  const slot = useApp((s) => Math.floor(s.now / 300_000));
-  const minute = useApp((s) => Math.floor(s.now / 60_000));
+  const minute = useApp((s) => Math.floor(s.now / 60000));
   const custom = useApp((s) => s.settings.customTeams);
   // "Live" needs a real game: not a replay / classic airing, and (for leagues with a scoreboard) the team's game in progress.
   const tz = useApp((s) => s.settings.timeZone);
   const leagues = teams.map((t) => t.league as string).filter((l) => !!scheduleLeague(l as ScheduleLeagueId)) as ScheduleLeagueId[];
   const liveGames = useLiveGames(leagues, tz);
-  const found = useMemo(() => {
+  return useMemo(() => {
     if (!teams.length) return [];
     const matchers = buildMatchers(teams, allTeams(custom));
-    return findTeamListings(matchers, lineup, guide, { now: Date.now(), horizon: (opts.horizonDays ?? 7) * 86400_000, includeShows: opts.includeShows });
-  }, [teams, lineup, guide, guideVersion, slot, custom, opts.includeShows, opts.horizonDays]);
-  return useMemo(() => {
-    const now = Date.now();
+    const found = findTeamListings(matchers, lineup, guide, { now: Date.now(), horizon: (opts.horizonDays ?? 7) * 86400_000, includeShows: opts.includeShows });
     const reallyLive = (l: TeamListing) => {
       if (isReplayProgramme(l.programme)) return false;
       if (l.kind !== 'game') return true;
@@ -71,14 +65,8 @@ export function useTeamListings(teams: Team[], opts: { includeShows?: boolean; h
       if (!liveGames) return false; // still checking
       return scored.some((t) => liveGames.some((g) => g.league === t.league && gameHasTeam(g, t)));
     };
-    // Between searches: drop what has ended, and work out "live" from the clock.
-    return found
-      .filter((l) => l.programme.stop > now)
-      .map((l) => {
-        const onNow = l.programme.start <= now;
-        return onNow && reallyLive(l) ? { ...l, live: true } : l.live || onNow ? { ...l, live: false } : l;
-      });
-  }, [found, liveGames, minute]);
+    return found.map((l) => (l.live && !reallyLive(l) ? { ...l, live: false } : l));
+  }, [teams, lineup, guide, guideVersion, minute, custom, opts.includeShows, opts.horizonDays, liveGames]);
 }
 
 function channelLabel(chs: LineupChannel[]) {
@@ -205,10 +193,7 @@ function LeaguePicker({ onPick }: { onPick: (v: SportsView) => void }) {
           <h1>Sports</h1>
           <p class="muted">Choose a league to see today’s games and the best channels for each one in your lineup.</p>
         </div>
-        <div class="row gap">
-          <Button icon="refresh" onClick={() => void import('../app/channelsheet').then((m) => m.buildChannelSheetNow())}>Update today’s channels</Button>
-          <Button icon="multiview" onClick={() => openMultiview()}>{mvName()}</Button>
-        </div>
+        <Button icon="multiview" onClick={() => openMultiview()}>{mvName()}</Button>
       </header>
       <LeagueGrid onPick={onPick} />
     </section>

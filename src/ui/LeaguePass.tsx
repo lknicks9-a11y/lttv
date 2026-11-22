@@ -6,8 +6,6 @@ import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
 import { focusFirst, onBack } from '../app/nav';
-import { sheetFor } from '../app/channelsheet';
-import { applySheet } from '../core/channelsheet';
 import { openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
@@ -305,13 +303,20 @@ export function LeaguePass() {
     return [...raw].sort((a, b) => rank(a) - rank(b) || a.start - b.start).map((g) => ({ ...g, home: small(g.home), away: small(g.away) }));
   }, [raw]);
   const [index, setIndex] = useState<GameIndexEntry[] | null>(null);
+  useEffect(() => {
+    if (!games.length) return;
+    let alive = true;
+    void buildGameIndexAsync(lineup, guide, Math.min(...games.map((g) => g.start)) - 3600_000, Math.max(...games.map((g) => g.start)) + 5 * 3600_000, guideVersion).then((i) => alive && setIndex(i));
+    return () => {
+      alive = false;
+    };
+  }, [games.length, lineup, guideVersion]);
   // Each game's broadcasts: the away team's, the home team's, then up to two other channels carrying it.
-  // Worked out one game at a time in the background, waiting while you press buttons, and only again when the games
-  // or channels change: it used to redo every game on each score update (every 30 seconds in a game), which made
-  // moving around League Pass and Blitz slow.
-  const feedsFor = (g: Game, index: GameIndexEntry[]): Feed[] => {
-    {
-      const picks = applySheet(bestStreams(g, lineup, cfg.sport, index), sheetFor(g.id), lineup);
+  const feeds = useMemo(() => {
+    const m = new Map<string, Feed[]>();
+    if (!index) return m;
+    for (const g of games) {
+      const picks = bestStreams(g, lineup, cfg.sport, index);
       // NBA TV / NFL Network / RedZone have their own cards; a game only lists one when it's broadcast on it.
       const netOk = (key: string) => {
         const e = extras.find((x) => x.key === key);
@@ -339,46 +344,16 @@ export function LeaguePass() {
           const label = isTeam(p) ? `${abbr(p.side)} broadcast` : p.kind === 'event' ? 'Game channel' : p.kind === 'local' && p.side ? `${abbr(p.side)} local${n ? ` · ${n}` : ''}` : n ?? (p.kind === 'national' ? 'National' : 'Other');
           list.push({ key: p.ch.key, label, sub: p.ch.name, team: isTeam(p) ? p.side : undefined });
         }
-        return list;
+        m.set(g.id, list);
+        continue;
       }
       // 3. A few other good streams, just in case.
       for (const p of picks.filter((x) => !x.main && netOk(x.ch.key)).slice(0, cfg.league === 'nba' ? 3 : 5)) list.push({ key: p.ch.key, label: p.kind === 'national' ? 'National' : p.kind === 'event' ? 'Game channel' : p.kind === 'local' ? 'Local' : 'Other', sub: p.ch.name });
-      return list;
+      m.set(g.id, list);
     }
-  };
-  const [feeds, setFeeds] = useState<Map<string, Feed[]>>(() => new Map());
-  const feedKey = games.map((g) => `${g.id}:${g.start}:${g.broadcasts.map((b) => b.name).join(',')}`).join('|');
-  const gamesNow = useRef(games);
-  gamesNow.current = games;
-  // Every game's streams are worked out in the background (a short break after each game so the remote stays
-  // instant), then shown together; again only when the games, channels or guide change — never on a score update.
-  useEffect(() => {
-    const list = gamesNow.current;
-    if (!list.length) return;
-    let alive = true;
-    void (async () => {
-      const idx = await buildGameIndexAsync(lineup, guide, Math.min(...list.map((g) => g.start)) - 3600_000, Math.max(...list.map((g) => g.start)) + 5 * 3600_000, guideVersion);
-      if (!alive) return;
-      const m = new Map<string, Feed[]>();
-      for (const g of list) {
-        m.set(g.id, feedsFor(g, idx));
-        await new Promise((r) => setTimeout(r, 0));
-        if (!alive) return;
-      }
-      setIndex(idx);
-      setFeeds(m);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [feedKey, lineup, guideVersion, extras]);
-  // A game that isn't worked out yet (just added to the schedule) is done right when it's needed.
-  const feedsOf = (g: Game | undefined): Feed[] => {
-    if (!g) return [];
-    let v = feeds.get(g.id);
-    if (!v && index) feeds.set(g.id, (v = feedsFor(g, index)));
-    return v ?? [];
-  };
+    return m;
+  }, [games, index, lineup, extras]);
+  const feedsOf = (g: Game | undefined) => (g ? feeds.get(g.id) ?? [] : []);
 
   const [selected, setSelected] = useState<string | undefined>();
   const [picks, setPicks] = useState<string[]>([]);

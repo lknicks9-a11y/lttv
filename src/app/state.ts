@@ -1,6 +1,4 @@
 import { TEAM_VAR_NAMES, mix, teamAccent, teamTheme, teamThemeVars } from '../core/teamthemes';
-import { loadStreamMemory, type StreamMemory } from '../core/streammemory';
-import { nameDecisionKey } from '../core/match';
 import { accountKey, currentAccount, currentDbName } from './accounts';
 import { addProfileRecent, initProfiles, profileRecents, setFavorite, isFavorite, withProfileFavorites } from './profiles';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -629,15 +627,8 @@ export async function toggleFavorite(key: string) {
   toast(fav ? 'Added to favorites' : 'Removed from favorites', 'success', 2000);
 }
 
-/** Saves a guide choice for the channel, and under its name too, so it carries over when you switch providers. */
-async function saveDecisionByName(key: string, status: 'approved' | 'rejected' | 'manual', epgChannelId: string | undefined, at: number) {
-  await repo.saveDecision({ key, status, epgChannelId, decidedAt: at });
-  const ch = lastData?.channels.find((c) => c.key === key);
-  if (ch) await repo.saveDecision({ key: nameDecisionKey(ch.originalName), status, epgChannelId, decidedAt: at });
-}
-
 export async function decideMatch(key: string, status: 'approved' | 'rejected' | 'manual', epgChannelId?: string) {
-  await saveDecisionByName(key, status, epgChannelId, Date.now());
+  await repo.saveDecision({ key, status, epgChannelId, decidedAt: Date.now() });
   await rematchAndReload(false);
 }
 
@@ -645,15 +636,13 @@ export async function decideMatch(key: string, status: 'approved' | 'rejected' |
 export async function approveMatches(items: { key: string; epgChannelId: string }[]) {
   if (!items.length) return;
   const at = Date.now();
-  for (const it of items) await saveDecisionByName(it.key, 'approved', it.epgChannelId, at);
+  for (const it of items) await repo.saveDecision({ key: it.key, status: 'approved', epgChannelId: it.epgChannelId, decidedAt: at });
   await rematchAndReload(true);
   toast(`Approved ${items.length} guide match${items.length === 1 ? '' : 'es'}`, 'success', 3000);
 }
 
 export async function clearDecision(key: string) {
   await repo.deleteDecision(key);
-  const ch = lastData?.channels.find((c) => c.key === key);
-  if (ch) await repo.deleteDecision(nameDecisionKey(ch.originalName));
   await rematchAndReload(false);
 }
 
@@ -674,25 +663,6 @@ async function matchMissingAndReload() {
   } finally {
     matchingMissing = false;
   }
-}
-
-/**
- * After adding something from the phone: the channels show right away (you can watch while it works), then only
- * what's needed is matched to the guide, with a count as it goes. A new guide re-matches everything (old channels can
- * find their guide too); a new playlist alone only matches its new channels instead of the whole lineup again.
- */
-export async function matchAfterAdding(guideAdded: boolean, onProgress?: (p: JobProgress) => void) {
-  await reloadAll().catch(() => undefined);
-  try {
-    if (guideAdded) await rematch(state.settings, onProgress);
-    else await matchMissingChannels(state.settings, onProgress);
-  } catch {
-    // A full match too much for this TV: what's missing is matched instead.
-    await matchMissingChannels(state.settings, onProgress).catch(() => undefined);
-  }
-  rawMatches = await loadMatches(repo);
-  refreshLineupLocal();
-  await loadGuide();
 }
 
 export async function rematchAndReload(showTask = true) {
@@ -742,11 +712,6 @@ async function loadPreferred() {
   for (const [h, e] of Object.entries(saved)) preferredExt.set(h, e);
 }
 void Promise.resolve().then(loadPreferred).catch(() => undefined);
-
-// Stream memory (which channels carry each team and network, by name): kept across providers, saved on the device.
-void Promise.resolve()
-  .then(async () => loadStreamMemory(await repo.getKv<StreamMemory>('streamMemory').catch(() => undefined), (m) => void repo.setKv('streamMemory', m).catch(() => undefined)))
-  .catch(() => undefined);
 
 const hostOf = (u: string) => {
   try {

@@ -10,7 +10,6 @@ import { qualityRank } from './mytv';
 import { isEnglishChannel } from './lang';
 import { nbaLocalsNotOnTonight, nbaMainChannels } from './nbachannels';
 import { channelsForBroadcast, networkForBroadcast } from './networks';
-import { netMemKey, recallChannels, rememberChannel, teamMemKey } from './streammemory';
 import { feedSide, foldText, gameText, mentionsFolded, preparedMatchesGame, teamNames, type Broadcast, type Game, type GameText, type GameTeam, type ScheduleLeague } from './schedule';
 
 export type FeedChoice = 'home' | 'away' | 'national';
@@ -349,29 +348,6 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
     const cur = picks.get(t.ch.key);
     if (!cur || cur.score < score) picks.set(t.ch.key, { ch: t.ch, score, kind: 'local', side: t.side, reason: `${t.team.short} team channel` });
   }
-  // Remember what was found for each team and network (by channel name), and bring back what was found or watched
-  // before: after switching providers, the same channels are found again right away by their names.
-  for (const p of picks.values()) {
-    if (/affiliate|another city/i.test(p.reason)) continue;
-    if (p.side && (p.kind === 'local' || /team channel/.test(p.reason))) rememberChannel(teamMemKey(game.league, teamOfSide(game, p.side).name), p.ch);
-    if (p.broadcast && (p.kind === 'national' || p.kind === 'local')) rememberChannel(netMemKey(p.broadcast), p.ch);
-  }
-  for (const side of ['away', 'home'] as const) {
-    const team = teamOfSide(game, side);
-    for (const { ch, watched } of recallChannels(teamMemKey(game.league, team.name), lineup)) {
-      const score = (watched ? 90 : 86) + qualityRank(ch.originalName);
-      const cur = picks.get(ch.key);
-      if (!cur) picks.set(ch.key, { ch, score, kind: 'local', side, reason: `${team.short} channel${watched ? ' · you watched it before' : ' · found before'}` });
-      else if (watched) cur.score = Math.max(cur.score, score);
-    }
-  }
-  for (const b of game.broadcasts) {
-    for (const { ch, watched } of recallChannels(netMemKey(b.name), lineup)) {
-      if (picks.has(ch.key)) continue;
-      const side = b.market === 'national' ? undefined : b.market;
-      picks.set(ch.key, { ch, score: (watched ? 84 : 78) + qualityRank(ch.originalName), kind: side ? 'local' : 'national', side, broadcast: b.name, reason: `${b.name} · found before` });
-    }
-  }
   for (const p of picks.values()) if (p.side && isFav(teamOfSide(game, p.side))) p.score += 5;
   // NBA: each team's main stream on top (its channel tonight, or its NBA team channel); the others stay below.
   if (game.league === 'nba') {
@@ -387,10 +363,4 @@ export function bestStreams(game: Game, lineup: LineupChannel[], sport: Schedule
   // English commentary only; other languages are offered (and labelled) only when there's no English stream at all.
   const en = all.filter((p) => p.main || isEnglishChannel(p.ch));
   return en.length ? en : all.map((p) => ({ ...p, reason: `Not in English · ${p.reason}` }));
-}
-
-/** You played this stream for this game: remember it (by name) for the team / network, so it's found again first. */
-export function rememberWatched(game: Game, p: StreamPick) {
-  if (p.side) rememberChannel(teamMemKey(game.league, teamOfSide(game, p.side).name), p.ch, true);
-  if (p.broadcast) rememberChannel(netMemKey(p.broadcast), p.ch, true);
 }

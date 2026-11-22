@@ -231,7 +231,7 @@ export interface MatchSummary {
 }
 
 /** Recompute EPG matches for all enabled channels and store them. */
-export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>, data?: LoadedData, onProgress?: (p: { phase: string }) => void): Promise<{ matches: Map<string, MatchResult>; summary: MatchSummary }> {
+export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>, data?: LoadedData): Promise<{ matches: Map<string, MatchResult>; summary: MatchSummary }> {
   const d = data ?? (await loadSources(repo));
   const decisions = await repo.getDecisions();
   const displayNames = cleanChannelNames(d.channels);
@@ -241,7 +241,6 @@ export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuz
   for (let i = 0; i < d.channels.length; i += 400) {
     const part = matchChannels(d.channels.slice(i, i + 400), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
     for (const [k, v] of part) matches.set(k, v);
-    onProgress?.({ phase: `${Math.min(i + 400, d.channels.length).toLocaleString()} of ${d.channels.length.toLocaleString()} channels` });
     await new Promise((r) => setTimeout(r, 0));
   }
   await repo.setKv('matches', [...matches.values()]);
@@ -260,7 +259,7 @@ export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuz
  * Match only the channels that have no match yet (new or never finished) and keep the rest —
  * much faster than a full re-match on every start, and a big lineup no longer has to be matched in one go.
  */
-export async function matchMissing(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>, onProgress?: (p: { phase: string }) => void): Promise<{ matched: number }> {
+export async function matchMissing(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>): Promise<{ matched: number }> {
   const d = await loadSources(repo);
   const existing = await loadMatches(repo);
   const missing = d.channels.filter((c) => !existing.has(c.key));
@@ -274,7 +273,6 @@ export async function matchMissing(repo: Repo, settings: Pick<Settings, 'fuzzyAu
     const part = matchChannels(missing.slice(i, i + 400), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
     for (const [k, v] of part) merged.set(k, v);
     if (i % 2000 === 1600 || i + 400 >= missing.length) await repo.setKv('matches', [...merged.values()]);
-    onProgress?.({ phase: `${Math.min(i + 400, missing.length).toLocaleString()} of ${missing.length.toLocaleString()} new channels` });
     await new Promise((r) => setTimeout(r, 0));
   }
   return { matched: missing.length };

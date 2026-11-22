@@ -202,9 +202,7 @@ export function matchChannels(
   const out = new Map<string, MatchResult>();
 
   for (const ch of channels) {
-    // Your own guide choice for this channel — or for a channel with the same name in another provider (a new
-    // provider's channels have new keys; your choices carry over by name).
-    const decision = decisions.get(ch.key) ?? decisions.get(nameDecisionKey(ch.originalName));
+    const decision = decisions.get(ch.key);
     if (decision) {
       if ((decision.status === 'approved' || decision.status === 'manual') && decision.epgChannelId && allRefs.has(decision.epgChannelId)) {
         out.set(ch.key, { key: ch.key, epgChannelId: decision.epgChannelId, method: 'manual', confidence: 1, status: 'approved' });
@@ -305,9 +303,4 @@ export function matchChannels(
 /** Only these statuses may drive the guide; pending/unmatched/rejected show "Program information unavailable". */
 export function isUsableMatch(m: MatchResult | undefined): boolean {
   return !!m && !!m.epgChannelId && (m.status === 'auto' || m.status === 'approved');
-}
-
-/** The name-based key a guide choice is also saved under, so it carries over to another provider's same channel. */
-export function nameDecisionKey(name: string): string {
-  return 'n:' + matchKey(name);
 }
