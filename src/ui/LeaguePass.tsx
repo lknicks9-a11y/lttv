@@ -44,8 +44,8 @@ const PASSES: Record<'nba' | 'nfl', PassCfg> = {
 function extraChannels(lineup: LineupChannel[], re: RegExp): LineupChannel[] {
   const score = (c: LineupChannel) => {
     const t = `${c.group ?? ''} ${c.name}`;
-    // Your provider's "GF" channels are the ones that work well: always first ("GF: NFL RedZone", a "GF | …" group).
-    return (/(^|[^a-z0-9])gf([^a-z0-9]|$)/i.test(t) ? 10 : 0) + (/\b(US|USA|EN)\b/i.test(t) ? 4 : 0) + (/\b(F?HD|RAW)\b|ᴴᴰ|ᴿᴬᵂ/i.test(t) ? 2 : 0) - (/\b(4K|UHD|SD|ES|LAT|FR|DE|IT|PT|AR|MX|ESPA\w*)\b/i.test(t) ? 3 : 0);
+    // HD channels first (FHD / HD / 1080: the ones that play well), then English / US; SD and other languages last.
+    return (/\b(F?HD|1080[pi]?)\b|ᴴᴰ/i.test(t) ? 8 : 0) + (/\b(US|USA|EN)\b/i.test(t) ? 4 : 0) + (/\bRAW\b|ᴿᴬᵂ/i.test(t) ? 1 : 0) - (/\b(SD|ES|LAT|FR|DE|IT|PT|AR|MX|ESPA\w*)\b/i.test(t) ? 6 : 0) - (/\b(4K|UHD)\b/i.test(t) ? 3 : 0);
   };
   return lineup.filter((c) => !c.hidden && re.test(c.name)).sort((a, b) => score(b) - score(a) || a.number - b.number).slice(0, 5);
 }
