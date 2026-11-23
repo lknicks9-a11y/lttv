@@ -118,7 +118,7 @@ export function blitzStreams(g: Game, candidates: LineupChannel[], lineup: Lineu
 export type BlitzWindow = 'prime' | 'nbc' | 'espn' | 'cbs' | 'fox' | 'other';
 
 export function blitzWindow(g: Game): BlitzWindow {
-  const nets = g.broadcasts.filter((b) => b.kind !== 'radio').map((b) => b.name.toLowerCase());
+  const nets = g.broadcasts.map((b) => b.name.toLowerCase());
   const has = (re: RegExp) => nets.some((n) => re.test(n));
   // Streaming-only games (Thursday night and Black Friday on Prime, Netflix on Christmas): the game's own streams only.
   if (has(/prime|amazon|netflix|youtube/) && !has(/^(cbs|fox|nbc|abc)\b/)) return 'prime';
