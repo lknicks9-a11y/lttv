@@ -3,7 +3,7 @@ import { isPassApp } from '../app/appmode';
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
 import { cachedLiveness, canCheck, checkStream, type Liveness } from '../app/streamcheck';
-import { blitzStreams } from '../core/blitz';
+import { blitzPlan } from '../core/blitz';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getState, player, setState, tune, useApp } from '../app/state';
@@ -350,16 +350,11 @@ export function LeaguePass() {
       }
       // 2. The local stations picked for the teams, when the game is on them tonight.
       for (const p of picks.filter((x) => x.main && !x.team)) list.push({ key: p.ch.key, label: `${abbr(p.side)} local`, sub: p.ch.name });
-      // Blitz: only streams on the game's own channel (CBS, FOX, ESPN…), in a team's market, or whose guide shows the
-      // game — guide-confirmed ones first, each team's market first.
+      // Blitz: by the kind of game — Prime: the game's streams only; NBC (Sunday night): each team's local NBC, then
+      // the game's streams; ESPN (Monday night): ESPN HD and backups, then the game's streams; CBS / FOX (Sunday
+      // afternoon): one local station for each team, then the game's streams.
       if (cfg.league === 'nfl') {
-        const teamCh = picks.filter((x) => /team channel/.test(x.reason ?? '') && !!x.side);
-        for (const p of teamCh) list.push({ key: p.ch.key, label: `${abbr(p.side)} broadcast`, sub: p.ch.name, team: p.side });
-        for (const s of blitzStreams(g, picks.map((p) => p.ch), lineup, guide).slice(0, 8)) {
-          if (list.some((f) => f.key === s.ch.key)) continue;
-          const where = s.guide ? `In the guide${s.market ? ` · ${abbr(s.market)} market` : ''}` : s.market ? `${abbr(s.market)} market` : 'National';
-          list.push({ key: s.ch.key, label: [where, s.network].filter(Boolean).join(' · '), sub: s.ch.name, team: s.market });
-        }
+        for (const f of blitzPlan(g, picks, lineup, guide)) list.push({ key: f.ch.key, label: f.label, sub: f.ch.name, team: f.market });
         return list;
       }
       // 3. A few other good streams, just in case.
