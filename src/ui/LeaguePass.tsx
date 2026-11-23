@@ -361,11 +361,11 @@ export function LeaguePass() {
     {
       const picks = bestStreams(g, lineup, cfg.sport, index);
       // NBA TV / NFL Network / RedZone have their own cards; a game only lists one when it's broadcast on it.
+      // (From the always-on channels themselves, not their checked order: check results must never restart this.)
       const netOk = (key: string) => {
-        const e = extras.find((x) => x.key === key);
-        if (!e) return true;
-        const x = cfg.extras.find((c) => e.label.startsWith(c.label));
-        return !!x && g.broadcasts.some((b) => x.re.test(b.name));
+        const hit = extraChs.find(({ chs }) => chs.some((c) => c.key === key));
+        if (!hit) return true;
+        return g.broadcasts.some((b) => hit.x.re.test(b.name));
       };
       const list: Feed[] = [];
       const abbr = (side?: 'home' | 'away') => (side === 'away' ? g.away : g.home).abbr;
@@ -412,7 +412,7 @@ export function LeaguePass() {
     return () => {
       alive = false;
     };
-  }, [feedKey, lineup, guideVersion, extras]);
+  }, [feedKey, lineup, guideVersion, extraChs]);
   // A game that isn't worked out yet (just added to the schedule) is done right when it's needed.
   const feedsOf = (g: Game | undefined): Feed[] => {
     if (!g) return [];
