@@ -298,21 +298,28 @@ export function LeaguePass() {
   // RedZone / NFL Network / NBA TV: each stream is checked in the background; ones that play go first.
   const extraChs = useMemo(() => cfg.extras.map((x) => ({ x, chs: extraChannels(lineup, x.re) })), [lineup, cfg]);
   const [extraLive, setExtraLive] = useState<Map<string, Liveness>>(() => new Map());
+  // Checks only while nothing is playing, and the one running is stopped the moment something starts: a check is
+  // one more connection to your provider, and on a one-connection plan it made the stream you picked fail.
+  const playingNow = useApp((s) => s.currentKey);
   useEffect(() => {
+    if (playingNow) return;
     let alive = true;
-    void (async () => {
+    const stop = new AbortController();
+    const timer = window.setTimeout(() => void (async () => {
       for (const { chs } of extraChs)
         for (const ch of chs) {
-          if (!alive) return;
+          if (!alive || getState().currentKey) return;
           if (cachedLiveness(ch.key) || !canCheck(ch)) continue;
-          const v = await checkStream(ch).catch(() => undefined);
+          const v = await checkStream(ch, stop.signal).catch(() => undefined);
           if (alive && v) setExtraLive((m) => new Map(m).set(ch.key, v));
         }
-    })();
+    })(), 4000);
     return () => {
       alive = false;
+      window.clearTimeout(timer);
+      stop.abort();
     };
-  }, [extraChs]);
+  }, [extraChs, playingNow]);
   const extras = useMemo(() => extraChs.flatMap(({ x, chs }) => {
     const live = (key: string) => extraLive.get(key) ?? cachedLiveness(key);
     const rank = (key: string) => (live(key) === 'live' ? 0 : live(key) === 'dead' ? 2 : 1);

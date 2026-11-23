@@ -24,8 +24,26 @@ export function gameNetworks(g: Game): string[] {
 }
 
 /** Is this channel one of the game's networks (by name)? */
+// Speed: a lineup has tens of thousands of channels. Each channel's cleaned-up name is worked out once, and the
+// channels of each network (CBS, FOX, NBC, ESPN…) are found once per lineup, not again for every game.
+const foldedName = new WeakMap<LineupChannel, string>();
+const foldName = (ch: LineupChannel) => {
+  let f = foldedName.get(ch);
+  if (f === undefined) foldedName.set(ch, (f = fold(ch.originalName)));
+  return f;
+};
+const byNetwork = new WeakMap<LineupChannel[], Map<string, LineupChannel[]>>();
+/** The lineup's channels whose name has this network in it (found once per lineup). */
+export function channelsOnNetwork(lineup: LineupChannel[], net: string): LineupChannel[] {
+  let m = byNetwork.get(lineup);
+  if (!m) byNetwork.set(lineup, (m = new Map()));
+  let list = m.get(net);
+  if (!list) m.set(net, (list = lineup.filter((c) => !c.hidden && onGameNetwork(c, [net]))));
+  return list;
+}
+
 export function onGameNetwork(ch: LineupChannel, nets: string[]): boolean {
-  const f = fold(ch.originalName);
+  const f = foldName(ch);
   return !NOT_A_GAME.test(ch.originalName) && nets.some((n) => f.includes(` ${n} `) || f.includes(` ${n.replace(/ /g, '')} `));
 }
 
@@ -83,7 +101,7 @@ export function blitzStreams(g: Game, candidates: LineupChannel[], lineup: Lineu
   const seen = new Map<string, LineupChannel>();
   for (const c of candidates) seen.set(c.key, c);
   // Every station on the game's network in either team's market ("CBS 5 Kansas City", "FOX 10 Phoenix").
-  for (const ch of lineup) if (!ch.hidden && !seen.has(ch.key) && onGameNetwork(ch, nets) && marketOf(ch, g)) seen.set(ch.key, ch);
+  for (const n of nets) for (const ch of channelsOnNetwork(lineup, n)) if (!seen.has(ch.key) && marketOf(ch, g)) seen.set(ch.key, ch);
   const all: BlitzStream[] = [];
   for (const ch of seen.values()) {
     if (NOT_A_GAME.test(ch.originalName)) continue;
@@ -169,7 +187,7 @@ export function blitzPlan(g: Game, picks: { ch: LineupChannel; kind: string }[],
   // Each team's local station on the network (one each, away then home): guide-confirmed and HD first.
   if (win === 'nbc' || win === 'cbs' || win === 'fox') {
     const word = win;
-    const onNet = lineup.filter((c) => !c.hidden && onGameNetwork(c, [word]));
+    const onNet = channelsOnNetwork(lineup, word);
     for (const side of ['away', 'home'] as const) {
       const mine = onNet.filter((c) => marketOf(c, g) === side).sort((a, b) => Number(guideShowsGame(b, g, guide)) - Number(guideShowsGame(a, g, guide)) || hdFirst(a, b));
       for (const c of mine) if (add(c, `${abbr(side)} local · ${word.toUpperCase()}`, side)) break;
@@ -177,7 +195,7 @@ export function blitzPlan(g: Game, picks: { ch: LineupChannel; kind: string }[],
   }
   // Monday night: ESPN in HD first, then its backups.
   if (win === 'espn') {
-    const espn = lineup.filter((c) => !c.hidden && isEspn(c)).sort(hdFirst);
+    const espn = channelsOnNetwork(lineup, 'espn').filter(isEspn).sort(hdFirst);
     let n = 0;
     for (const c of espn) if (n < 3 && add(c, n === 0 ? 'ESPN' : `ESPN backup ${n}`, undefined, true)) n++;
   }
