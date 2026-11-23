@@ -2,6 +2,7 @@ import { isPassApp } from '../app/appmode';
 // LTTV League Pass (NBA) and LTTV Blitz (NFL): the league's games in one place. Opened from Sports, or from anywhere
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
+import { SettingsScreen } from './Settings';
 import { cachedLiveness, canCheck, checkStream, type Liveness } from '../app/streamcheck';
 import { blitzPlan } from '../core/blitz';
 import { h, Fragment } from 'preact';
@@ -288,6 +289,16 @@ export function LeaguePass() {
   const guide = useApp((s) => s.guide);
   const guideVersion = useApp((s) => s.guideVersion);
   const playing = useApp((s) => s.currentKey);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!settingsOpen) return;
+    requestAnimationFrame(() => settingsRef.current && focusFirst(settingsRef.current));
+    return onBack(() => {
+      setSettingsOpen(false);
+      return true;
+    });
+  }, [settingsOpen]);
   const cfg = PASSES[useApp((s) => s.passLeague) ?? 'nba'];
   // The day's games stay up until 7:00 the next morning: late games run past midnight.
   const today = scheduleDay(now - 7 * 3600_000, tz);
@@ -701,6 +712,8 @@ export function LeaguePass() {
 
   return (
     <section class={`league-pass ${full ? 'lp-full' : ''} ${full && !bar ? 'lp-quiet' : ''} ${tucked ? 'lp-tucked' : ''}`} data-scope ref={ref} aria-label={cfg.name} style={{ '--lp-accent': cfg.accent }}>
+      {/* Settings (updates, your provider, account…) over League Pass / Blitz; Back returns here. */}
+      {settingsOpen && <div class="lp-settings" data-scope ref={settingsRef}><SettingsScreen /></div>}
       <div class="lp-bg"><i /><i /><i /><i /></div>
       <header class="lp-top">
         <h1><LpLogo kind={cfg.league} /> {!isPassApp && <span class="lp-mark">LTTV</span>} {cfg.name}</h1>
@@ -710,6 +723,7 @@ export function LeaguePass() {
         {timeoutUp && cfg.league !== 'nfl' && <Button onClick={() => { setMusicOn(!music); setMusic(!music); }}>{music ? 'Music off' : 'Music on'}</Button>}
         <Button onClick={toggleScore}>{hideScore ? 'Show score' : 'Hide score'}</Button>
         {(onThisGame || timeoutUp) && <Button icon="fullscreen" onClick={() => setFull(true)}>Full screen</Button>}
+        <Button icon="settings" onClick={() => setSettingsOpen(true)}>Settings</Button>
         <Button variant="ghost" icon="close" onClick={() => setState({ leaguePass: false })}>{isPassApp ? 'Exit' : 'Close'}</Button>
       </header>
 

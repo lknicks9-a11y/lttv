@@ -2453,3 +2453,6 @@ html.svc-open .topbar, html.svc-open .vod > .screen-head { display: none !import
 
 /* Long score lists (college football): rows off screen aren't drawn until you scroll to them. */
 .games .game-row { content-visibility: auto; contain-intrinsic-size: auto 5.6rem; }
+
+/* Settings opened from League Pass / Blitz: full screen over it, scrolling. */
+.league-pass .lp-settings { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: #0b0b0e; padding: 2rem 3rem; }
