@@ -3,7 +3,7 @@ import { isPassApp } from '../app/appmode';
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
 import { SettingsScreen } from './Settings';
-import { cachedLiveness, canCheck, checkStream, type Liveness } from '../app/streamcheck';
+import { cachedLiveness, canCheck, checkStream, markLiveness, type Liveness } from '../app/streamcheck';
 import { blitzPlan } from '../core/blitz';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -290,6 +290,13 @@ export function LeaguePass() {
   const guideVersion = useApp((s) => s.guideVersion);
   const playing = useApp((s) => s.currentKey);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // What happened when a stream was actually played is remembered (played → first next time, failed → last).
+  const [, setLiveVer] = useState(0);
+  useEffect(() => player.subscribe((st) => {
+    if (!st.key) return;
+    if (st.state === 'playing') { if (cachedLiveness(st.key) !== 'live') { markLiveness(st.key, 'live'); setLiveVer((n) => n + 1); } }
+    else if (st.state === 'error' && (st.noRetry || !st.maxAttempts || (st.attempt ?? 0) >= st.maxAttempts)) { markLiveness(st.key, 'dead'); setLiveVer((n) => n + 1); }
+  }), []);
   const settingsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!settingsOpen) return;
@@ -427,7 +434,34 @@ export function LeaguePass() {
   const [sheet, setSheet] = useState<{ i: number; games: boolean } | null>(null);
   const [bar, setBar] = useState(true);
   const game = games.find((g) => g.id === selected) ?? games.find((g) => feedsOf(g).some((f) => f.key === playing)) ?? games[0];
-  const gameFeeds = feedsOf(game);
+  // Streams that play go first, ones that didn't (when played, or in a quick check) go last, marked.
+  const liveOf = (key: string) => cachedLiveness(key);
+  const gameFeeds = [...feedsOf(game)]
+    .map((f, i) => ({ f, i, r: liveOf(f.key) === 'live' ? 0 : liveOf(f.key) === 'dead' ? 2 : 1 }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map(({ f, r }) => (r === 2 ? { ...f, sub: `${f.sub} · no picture` } : f));
+  // The game you're on: its streams are checked quietly while nothing is playing (never during playback — a check is
+  // one more connection to your provider), so the ones that work are at the top when you pick.
+  const feedKeysOfGame = feedsOf(game).map((f) => f.key).join('|');
+  useEffect(() => {
+    if (playing || !feedKeysOfGame) return;
+    let alive = true;
+    const stop = new AbortController();
+    const timer = window.setTimeout(() => void (async () => {
+      for (const key of feedKeysOfGame.split('|')) {
+        if (!alive || getState().currentKey) return;
+        const ch = lineup.find((c) => c.key === key);
+        if (!ch || cachedLiveness(key) || !canCheck(ch)) continue;
+        const v = await checkStream(ch, stop.signal).catch(() => undefined);
+        if (alive && v) setLiveVer((n) => n + 1);
+      }
+    })(), 1500);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+      stop.abort();
+    };
+  }, [feedKeysOfGame, playing]);
   // A network card you picked (its streams show under the picture even before one plays).
   const [selNet, setSelNet] = useState<string | null>(null);
   const extraOn = extras.find((f) => f.key === playing) ?? (selNet ? extras.find((f) => f.label.startsWith(selNet)) : undefined);

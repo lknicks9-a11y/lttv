@@ -18,6 +18,11 @@ const TIMEOUT_MS = 7000;
 const refusedUntil = new Map<string, number>();
 const REFUSED_PAUSE_MS = 15 * 60_000;
 
+/** What actually happened when a stream was played (it played / it failed): the best check there is. */
+export function markLiveness(key: string, v: Liveness) {
+  cache.set(key, { v, at: Date.now() });
+}
+
 export function cachedLiveness(key: string): Liveness | undefined {
   const e = cache.get(key);
   if (!e) return undefined;
