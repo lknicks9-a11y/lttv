@@ -153,62 +153,22 @@ export interface BlitzFeed {
   market?: 'home' | 'away';
 }
 
-/** ESPN itself (not ESPN2, ESPNU, ESPNews, ESPN Deportes, ESPN+…). */
-const isEspn = (ch: LineupChannel) => {
-  const f = sameName(ch.originalName);
-  return /^espn( east| west| usa| us)?( \d)?$/.test(f) || /^espn (hd|fhd)$/.test(f) || / espn$/.test(f) && !/espn ?(2|u|news|deportes|plus|\+|classic|8)/.test(f);
-};
-const hdFirst = (a: LineupChannel, b: LineupChannel) => Number(/\b(f?hd|1080)\b/i.test(b.originalName)) - Number(/\b(f?hd|1080)\b/i.test(a.originalName)) || a.number - b.number;
 
 /**
- * Blitz's streams for a game, by the kind of game:
- *   Prime (Thursday night, Black Friday) → only the game's own streams (no local stations);
- *   NBC (Sunday night) → each team's local NBC station, then the game's streams;
- *   ESPN (Monday night) → ESPN HD and ESPN backups, then the game's streams;
- *   CBS / FOX (Sunday afternoon) → one local station for each team on that network, then the game's streams.
- * "The game's streams": channels named after the game and channels whose guide shows it (guide-confirmed first).
+ * Blitz's streams for a game: only the game's own streams (channels named after the game), for every game —
+ * no local stations and no network channels (FOX, CBS, NBC, ESPN…).
  */
-export function blitzPlan(g: Game, picks: { ch: LineupChannel; kind: string }[], lineup: LineupChannel[], guide: GuideIndex): BlitzFeed[] {
-  const win = blitzWindow(g);
+export function blitzPlan(g: Game, picks: { ch: LineupChannel; kind: string }[], _lineup: LineupChannel[], _guide: GuideIndex): BlitzFeed[] {
+  // Only the game's own streams: channels named after this game. No local stations, no FOX / CBS / NBC / ESPN.
   const out: BlitzFeed[] = [];
   const names = new Set<string>();
-  const keys = new Set<string>();
-  // `backup`: the same channel again is fine (ESPN's backups usually have ESPN's exact name).
-  const add = (ch: LineupChannel, label: string, market?: 'home' | 'away', backup = false) => {
-    const n = sameName(ch.originalName);
-    if (keys.has(ch.key) || (!backup && names.has(n)) || NOT_A_GAME.test(ch.originalName)) return false;
-    keys.add(ch.key);
+  for (const p of picks) {
+    if (p.kind !== 'event' || NOT_A_GAME.test(p.ch.originalName)) continue;
+    const n = sameName(p.ch.originalName);
+    if (names.has(n) && out.length >= 3) continue;
     names.add(n);
-    out.push({ ch, label, market });
-    return true;
-  };
-  const abbr = (side: 'home' | 'away') => (side === 'home' ? g.home : g.away).abbr;
-
-  // Each team's local station on the network (one each, away then home): guide-confirmed and HD first.
-  if (win === 'nbc' || win === 'cbs' || win === 'fox') {
-    const word = win;
-    const onNet = channelsOnNetwork(lineup, word);
-    for (const side of ['away', 'home'] as const) {
-      const mine = onNet.filter((c) => marketOf(c, g) === side).sort((a, b) => Number(guideShowsGame(b, g, guide)) - Number(guideShowsGame(a, g, guide)) || hdFirst(a, b));
-      for (const c of mine) if (add(c, `${abbr(side)} local · ${word.toUpperCase()}`, side)) break;
-    }
+    out.push({ ch: p.ch, label: out.length === 0 ? 'Game stream' : `Game stream ${out.length + 1}` });
+    if (out.length >= 8) break;
   }
-  // Monday night: ESPN in HD first, then its backups.
-  if (win === 'espn') {
-    const espn = channelsOnNetwork(lineup, 'espn').filter(isEspn).sort(hdFirst);
-    let n = 0;
-    for (const c of espn) if (n < 3 && add(c, n === 0 ? 'ESPN' : `ESPN backup ${n}`, undefined, true)) n++;
-  }
-  // The game's own streams: channels named after it and channels whose guide shows it (guide-confirmed first). For
-  // games with local stations, another city's station never counts as a game stream.
-  const game = picks
-    .filter((p) => p.kind === 'event' || p.kind === 'guide' || guideShowsGame(p.ch, g, guide))
-    .filter((p) => !(win !== 'prime' && LOCAL_NETWORKS.some((n) => onGameNetwork(p.ch, [n])) && !marketOf(p.ch, g) && p.kind !== 'event'))
-    .map((p) => ({ ...p, guide: p.kind === 'guide' || guideShowsGame(p.ch, g, guide) }))
-    .sort((a, b) => Number(b.guide) - Number(a.guide));
-  let n = 0;
-  for (const p of game) if (n < 6 && add(p.ch, p.guide ? 'Game stream · in the guide' : 'Game stream')) n++;
-  // Any other kind of game: the earlier rules (guide matches, each team's market station, a national network).
-  if (win === 'other') for (const s of blitzStreams(g, picks.map((p) => p.ch), lineup, guide)) add(s.ch, s.guide ? 'In the guide' : s.market ? `${abbr(s.market)} market` : 'National', s.market);
   return out;
 }

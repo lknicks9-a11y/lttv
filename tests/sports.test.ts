@@ -198,19 +198,15 @@ test('Blitz: Arizona plays in Phoenix; the same station from two providers is li
   assert.deepEqual(keys, ['p1', 'k1']);
 });
 
-import { blitzPlan, blitzWindow } from '../src/core/blitz';
+import { blitzPlan } from '../src/core/blitz';
 
-test('Blitz rules by kind of game: Prime streams only, NBC / CBS / FOX one local per team, ESPN first on Monday', () => {
+test('Blitz: only the game\'s own streams for every game — no locals, no network channels', () => {
   const t = (name: string, short: string, location: string, abbr: string) => ({ id: abbr, name, short, location, abbr });
-  const mk = (b: string) => ({ id: b, league: 'nfl', start: 10_000_000, state: 'pre', detail: '', name: '', home: t('Kansas City Chiefs', 'Chiefs', 'Kansas City', 'KC'), away: t('Arizona Cardinals', 'Cardinals', 'Arizona', 'ARI'), broadcasts: [{ name: b, market: 'national', kind: b === 'Prime Video' ? 'streaming' : 'tv' }] }) as never;
+  const mk = (b: string) => ({ id: b, league: 'nfl', start: 10_000_000, state: 'pre', detail: '', name: '', home: t('Kansas City Chiefs', 'Chiefs', 'Kansas City', 'KC'), away: t('Arizona Cardinals', 'Cardinals', 'Arizona', 'ARI'), broadcasts: [{ name: b, market: 'national', kind: 'tv' }] }) as never;
   const ch = (key: string, name: string, number: number) => ({ key, name, originalName: name, group: 'US', number, playlistId: 'p', index: number, hidden: false, category: 'general' }) as never;
-  const lineup = [ch('cb-kc', 'CBS 5 Kansas City HD', 1), ch('cb-ph', 'CBS 5 Phoenix', 2), ch('nb-kc', 'NBC 41 Kansas City', 3), ch('nb-ph', 'NBC 12 Phoenix HD', 4), ch('e', 'ESPN HD', 5), ch('e2', 'ESPN2', 6), ch('eb', 'US: ESPN', 7), ch('ev', 'NFL 03: Cardinals @ Chiefs', 8)];
-  const picks = [{ ch: lineup[7], kind: 'event' }] as never;
-  const none = { range: () => [] } as never;
-  const keys = (b: string) => blitzPlan(mk(b), picks, lineup as never, none).map((f) => (f.ch as { key: string }).key);
-  assert.equal(blitzWindow(mk('Prime Video')), 'prime');
-  assert.deepEqual(keys('Prime Video'), ['ev']);
-  assert.deepEqual(keys('NBC'), ['nb-ph', 'nb-kc', 'ev']);
-  assert.deepEqual(keys('CBS'), ['cb-ph', 'cb-kc', 'ev']);
-  assert.deepEqual(keys('ESPN'), ['e', 'eb', 'ev']);
+  const fox = ch('f', 'FOX 4 Kansas City', 1);
+  const ev = ch('ev', 'NFL 03: Cardinals @ Chiefs', 2);
+  const picks = [{ ch: fox, kind: 'local' }, { ch: ev, kind: 'event' }, { ch: ch('g', 'FOX 10 Phoenix', 3), kind: 'guide' }] as never;
+  for (const b of ['FOX', 'CBS', 'NBC', 'ESPN', 'Prime Video'])
+    assert.deepEqual(blitzPlan(mk(b), picks, [] as never, { range: () => [] } as never).map((f) => (f.ch as { key: string }).key), ['ev']);
 });
