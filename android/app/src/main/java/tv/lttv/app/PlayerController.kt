@@ -329,6 +329,12 @@ class PlayerController(
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             size = videoSize
             applySdFrame()
+            // The page learns there's a picture (League Pass counts a stream as working only then).
+            if (videoSize.width > 0 && exo?.isPlaying == true) send("playing")
+        }
+
+        override fun onRenderedFirstFrame() {
+            if (size.width > 0 && exo?.isPlaying == true) send("playing")
         }
 
         override fun onTracksChanged(tracks: Tracks) {

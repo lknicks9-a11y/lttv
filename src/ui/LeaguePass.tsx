@@ -7,7 +7,7 @@ import { cachedLiveness, canCheck, checkStream, markLiveness, type Liveness } fr
 import { blitzPlan } from '../core/blitz';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { getState, player, setState, tune, useApp } from '../app/state';
+import { getState, player, setState, toast, tune, useApp } from '../app/state';
 import { focusFirst, onBack } from '../app/nav';
 import { openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
@@ -293,11 +293,36 @@ export function LeaguePass() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // What happened when a stream was actually played is remembered (played → first next time, failed → last).
   const [, setLiveVer] = useState(0);
-  useEffect(() => player.subscribe((st) => {
-    if (!st.key) return;
-    if (st.state === 'playing') { if (cachedLiveness(st.key) !== 'live') { markLiveness(st.key, 'live'); setLiveVer((n) => n + 1); } }
-    else if (st.state === 'error' && (st.noRetry || !st.maxAttempts || (st.attempt ?? 0) >= st.maxAttempts)) { markLiveness(st.key, 'dead'); setLiveVer((n) => n + 1); }
-  }), []);
+  // "Playing" alone isn't enough: off-air channels play a black screen or sound only. A stream counts as working
+  // once the player has a picture; playing for 6 seconds without one marks it "no picture" (to the bottom).
+  useEffect(() => {
+    let noPic: { key: string; timer: number } | null = null;
+    const clear = () => { if (noPic) window.clearTimeout(noPic.timer); noPic = null; };
+    const unsub = player.subscribe((st) => {
+      if (!st.key) return;
+      if (st.state === 'playing') {
+        if ((st.videoWidth ?? 0) > 0) {
+          clear();
+          if (cachedLiveness(st.key) !== 'live') { markLiveness(st.key, 'live'); setLiveVer((n) => n + 1); }
+        } else if (noPic?.key !== st.key) {
+          clear();
+          const key = st.key;
+          noPic = { key, timer: window.setTimeout(() => {
+            noPic = null;
+            if (player.currentKey !== key) return;
+            markLiveness(key, 'dead');
+            setLiveVer((n) => n + 1);
+            toast('No picture on this stream — try the next one', 'info', 5000);
+          }, 6000) };
+        }
+      } else if (st.state === 'error' && (st.noRetry || !st.maxAttempts || (st.attempt ?? 0) >= st.maxAttempts)) {
+        clear();
+        markLiveness(st.key, 'dead');
+        setLiveVer((n) => n + 1);
+      } else if (st.state === 'idle' || st.key !== noPic?.key) clear();
+    });
+    return () => { clear(); unsub(); };
+  }, []);
   const settingsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!settingsOpen) return;

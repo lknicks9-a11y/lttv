@@ -3,7 +3,7 @@
 import type { LineupChannel } from '../core/types';
 import { openRemote, serverCaps } from './platform';
 import { getState, player } from './state';
-import { judgeStreamStart as judge } from '../core/liveness';
+import { judgeStreamStart as judge, judgePicture } from '../core/liveness';
 
 export type { Liveness } from '../core/liveness';
 import type { Liveness } from '../core/liveness';
@@ -82,30 +82,49 @@ export async function checkStream(ch: LineupChannel, signal?: AbortSignal): Prom
   return v;
 }
 
-/** Looks at the start of the response: MPEG-TS packets or an HLS playlist with media = live. */
+/**
+ * Looks at the start of the response: MPEG-TS packets or an HLS playlist with media = live. For MPEG-TS it then
+ * keeps reading a couple of seconds to see a real picture: off-air channels often send a stream that's black, a
+ * still slate or sound only — those used to count as live and played as a black screen.
+ */
 async function sniff(stream: ReadableStream<Uint8Array>): Promise<Liveness> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let got = 0;
-  try {
-    while (got < 8192) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value?.length) {
-        chunks.push(value);
-        got += value.length;
+  const merge = (max: number) => {
+    const out = new Uint8Array(Math.min(got, max));
+    let o = 0;
+    for (const c of chunks) {
+      if (o >= out.length) break;
+      out.set(c.subarray(0, Math.min(c.length, out.length - o)), o);
+      o += c.length;
+    }
+    return out;
+  };
+  const read = async (until: number, deadline: number) => {
+    while (got < until && Date.now() < deadline) {
+      const r = await Promise.race([reader.read(), new Promise<null>((res) => setTimeout(() => res(null), Math.max(0, deadline - Date.now())))]);
+      if (!r || r.done) return false;
+      if (r.value?.length) {
+        chunks.push(r.value);
+        got += r.value.length;
       }
     }
+    return true;
+  };
+  try {
+    await read(8192, Date.now() + TIMEOUT_MS);
+    if (!got) return 'dead';
+    const head = merge(8192);
+    const first = judge(head, got);
+    if (first === 'dead') return 'dead';
+    const sync = head.indexOf(0x47);
+    const isTs = sync >= 0 && sync < 188 && head[sync + 188] === 0x47;
+    if (!isTs) return first; // HLS / other: the first look decides
+    // MPEG-TS: ~2.5 seconds more (at most 1.5 MB) to look at the picture itself.
+    await read(1_500_000, Date.now() + 2500);
+    return judgePicture(merge(1_500_000)) ?? first;
   } finally {
     void reader.cancel().catch(() => undefined);
   }
-  if (!got) return 'dead';
-  const head = new Uint8Array(Math.min(got, 8192));
-  let o = 0;
-  for (const c of chunks) {
-    head.set(c.subarray(0, Math.min(c.length, head.length - o)), o);
-    o += c.length;
-    if (o >= head.length) break;
-  }
-  return judge(head, got);
 }
