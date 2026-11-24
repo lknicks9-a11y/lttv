@@ -1,3 +1,4 @@
+import { noteInput } from '../core/yield';
 /**
  * Spatial (D-pad) navigation for TV remotes, also used with arrow keys on desktop.
  *
@@ -270,6 +271,9 @@ export function installNavigation(): void {
     lastInputWasPointer = true;
     document.documentElement.classList.add('pointer');
   }, true);
+  // Any press: background work steps aside right away (see core/yield).
+  window.addEventListener('keydown', () => noteInput(), true);
+  window.addEventListener('pointerdown', () => noteInput(), true);
   window.addEventListener('keydown', (e) => {
     lastInputWasPointer = false;
     document.documentElement.classList.remove('pointer');

@@ -1,3 +1,4 @@
+import { yieldToInput } from '../core/yield';
 import { TEAM_VAR_NAMES, mix, teamAccent, teamTheme, teamThemeVars } from '../core/teamthemes';
 import { accountKey, currentAccount, currentDbName } from './accounts';
 import { addProfileRecent, initProfiles, profileRecents, setFavorite, isFavorite, withProfileFavorites } from './profiles';
@@ -377,7 +378,7 @@ function epgNamesOf(data: LoadedData): Map<string, string[]> {
 
 /** Reload everything from storage (after imports or on startup). */
 /** Let the screen paint between heavy steps (keeps the remote responsive on slow devices). */
-const breathe = () => new Promise<void>((r) => setTimeout(r, 0));
+const breathe = () => yieldToInput();
 
 export async function reloadAll() {
   setState({ loadingPhase: 'Reading settings' });

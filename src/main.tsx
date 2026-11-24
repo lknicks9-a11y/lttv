@@ -1,3 +1,5 @@
+import { options } from 'preact';
+import { sinceInput } from './core/yield';
 import { h, Fragment } from 'preact';
 import { startUpdateChecks } from './app/updates';
 import { prefetchVodHomes, startVodDetection, saveProgress } from './app/vod';
@@ -47,6 +49,12 @@ async function boot() {
   if (APP_MODE === 'lttv') preloadProfiles();
   // League Pass / Blitz: the pass is the whole app, shown from the first moment (it fills in as your provider loads).
   if (isPassApp) setState({ leaguePass: true, passLeague: APP_MODE === 'leaguepass' ? 'nba' : 'nfl' });
+  // A redraw that lands while you're pressing buttons waits for the next frame, so the move you just made is
+  // drawn first (a redraw from background work used to hold the highlight back on slow TVs).
+  options.debounceRendering = (cb) => {
+    if (sinceInput() < 250) requestAnimationFrame(() => setTimeout(cb, 0));
+    else void Promise.resolve().then(cb);
+  };
   render(<App />, document.getElementById('app')!);
   document.getElementById('boot')?.remove();
 

@@ -13,6 +13,7 @@ import { openRemote } from '../app/platform';
 import { scheduleBase, useGames } from '../app/schedule';
 import { scheduleDay, type Game } from '../core/schedule';
 import { bestStreams, buildGameIndexAsync, type GameIndexEntry } from '../core/streamfinder';
+import { yieldToInput } from '../core/yield';
 import { parseBoxScore, parseNflBox, summaryUrl, type BoxTeam, type StatTeam } from '../core/boxscore';
 import type { LineupChannel } from '../core/types';
 import type { ScheduleLeagueId } from '../core/schedule';
@@ -403,7 +404,7 @@ export function LeaguePass() {
       const m = new Map<string, Feed[]>();
       for (const g of list) {
         m.set(g.id, feedsFor(g, idx));
-        await new Promise((r) => setTimeout(r, 0));
+        await yieldToInput();
         if (!alive) return;
       }
       setIndex(idx);

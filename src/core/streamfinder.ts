@@ -3,6 +3,7 @@
 //  2. channels whose guide lists the game,
 //  3. the networks carrying it (national), and the home/away local broadcasts (RSNs).
 // Ranked by how sure we are it's the game, which broadcast the user picked, and quality.
+import { slicer, yieldToInput } from './yield';
 import type { LineupChannel } from './types';
 import type { GuideIndex } from './guide';
 import { isEventChannel } from './events';
@@ -93,9 +94,10 @@ function addPrepared(p: PreparedIndex, index: GameIndexEntry[], from: number, to
 async function prepareAsync(index: GameIndexEntry[]): Promise<void> {
   if (prepCache.has(index)) return;
   const p: PreparedIndex = { texts: new Array(index.length), byWord: new Map() };
-  for (let i = 0; i < index.length; i += 400) {
-    addPrepared(p, index, i, Math.min(index.length, i + 400));
-    await new Promise<void>((r) => setTimeout(r, 0));
+  const due = slicer();
+  for (let i = 0; i < index.length; i += 100) {
+    addPrepared(p, index, i, Math.min(index.length, i + 100));
+    if (due()) await yieldToInput();
   }
   prepCache.set(index, p);
 }
@@ -106,7 +108,6 @@ function candidates(p: PreparedIndex, names: string[]): number[] {
   return [...seen].sort((a, b) => a - b);
 }
 
-const yieldNow = () => new Promise<void>((r) => setTimeout(r, 0));
 const asyncCache = new WeakMap<object, Map<string, Promise<GameIndexEntry[]>>>();
 
 /**
@@ -121,9 +122,10 @@ export function buildGameIndexAsync(lineup: LineupChannel[], guide: GuideIndex, 
   if (hit) return hit;
   const job = (async () => {
     const out: GameIndexEntry[] = [];
-    for (let i = 0; i < lineup.length; i += 250) {
-      out.push(...buildGameIndex(lineup.slice(i, i + 250), guide, from, to));
-      await yieldNow();
+    const due = slicer();
+    for (let i = 0; i < lineup.length; i += 50) {
+      out.push(...buildGameIndex(lineup.slice(i, i + 50), guide, from, to));
+      if (due()) await yieldToInput();
     }
     await prepareAsync(out);
     return out;

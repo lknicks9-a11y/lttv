@@ -373,8 +373,11 @@ class HomeActivity : Activity() {
     /** Set once you press anything, so the "start on the first app" check never pulls you back. */
     private var userKey = false
 
+    /** A direction held down: tiles jump straight to each app (no animations queueing up behind the remote). */
+    private var holding = false
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN) userKey = true
+        if (event.action == KeyEvent.ACTION_DOWN) { userKey = true; holding = event.repeatCount > 0 }
+        else if (event.action == KeyEvent.ACTION_UP) holding = false
         return super.dispatchKeyEvent(event)
     }
 
@@ -687,7 +690,7 @@ class HomeActivity : Activity() {
         slide?.cancel()
         if (animate) {
             slide = android.animation.ObjectAnimator.ofInt(rowScroll, "scrollX", rowScroll.scrollX, x).apply {
-                duration = 200; interpolator = ease }.also { it.start() }
+                duration = 120; interpolator = ease }.also { it.start() }
         } else rowScroll.scrollTo(x, 0)
     }
 
@@ -697,8 +700,8 @@ class HomeActivity : Activity() {
         val prev = selected
         selected = e
         val i = entries.indexOfFirst { it.key == e.key }.coerceAtLeast(0)
-        placeTiles(i, prev != null)
-        slideTo(i, prev != null)
+        placeTiles(i, prev != null && !holding)
+        slideTo(i, prev != null && !holding)
         show(e, instant = prev == null)
     }
 
@@ -726,10 +729,11 @@ class HomeActivity : Activity() {
         else {
             val k = tileSmall / tileBig.toFloat()
             slotCard.scaleX = k; slotCard.scaleY = k
-            slotCard.animate().scaleX(1f).scaleY(1f).setDuration(190).setInterpolator(ease).start()
+            if (holding) { slotCard.scaleX = 1f; slotCard.scaleY = 1f }
+            else slotCard.animate().scaleX(1f).scaleY(1f).setDuration(120).setInterpolator(ease).start()
         }
         tileName.text = e.title
-        tileName.alpha = 0f; tileName.animate().alpha(1f).setDuration(180).start()
+        tileName.alpha = 0f; tileName.animate().alpha(1f).setDuration(100).start()
         main.removeCallbacks(heroSwap); main.removeCallbacks(infoIn)
         if (instant) {
             paintHero(e, true); fillInfo(e)
