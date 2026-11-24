@@ -210,3 +210,15 @@ test('Blitz: only the game\'s own streams for every game — no locals, no netwo
   for (const b of ['FOX', 'CBS', 'NBC', 'ESPN', 'Prime Video'])
     assert.deepEqual(blitzPlan(mk(b), picks, [] as never, { range: () => [] } as never).map((f) => (f.ch as { key: string }).key), ['ev']);
 });
+
+test('Blitz: Sunday game channels named with abbreviations ("NFL 05: BUF @ KC") are found', async () => {
+  const { namesGameByAbbr } = await import('../src/core/streamfinder');
+  const game = { league: 'nfl', away: { abbr: 'BUF' }, home: { abbr: 'KC' } } as unknown as Parameters<typeof namesGameByAbbr>[1];
+  assert.ok(namesGameByAbbr('NFL 05: BUF @ KC', game));
+  assert.ok(namesGameByAbbr('US: NFL Sunday Ticket 712 | KC vs BUF', game));
+  assert.ok(namesGameByAbbr('NFL 3 - BUF at KC 1:00 PM', game));
+  assert.ok(!namesGameByAbbr('NFL 05: BUF @ MIA', game));
+  assert.ok(!namesGameByAbbr('KCBUF News', game));
+  const wsh = { league: 'nfl', away: { abbr: 'WSH' }, home: { abbr: 'DAL' } } as unknown as Parameters<typeof namesGameByAbbr>[1];
+  assert.ok(namesGameByAbbr('NFL 09: WAS @ DAL', wsh));
+});

@@ -161,6 +161,32 @@ export interface FindOptions {
   guide?: GuideIndex;
 }
 
+/** Other abbreviations providers use for pro teams (ESPN's on the left). */
+const ABBR_ALIASES: Record<string, string[]> = {
+  WSH: ['WAS'], WAS: ['WSH'], JAX: ['JAC'], JAC: ['JAX'], LAR: ['LA'], LV: ['LVR'], NO: ['NOR'], GB: ['GNB'], KC: ['KAN'], SF: ['SFO'], NE: ['NWE'], TB: ['TAM'],
+  NY: ['NYK'], GS: ['GSW'], SA: ['SAS'], UTAH: ['UTA'], PHX: ['PHO'], BKN: ['BRK'], CHA: ['CHO'],
+};
+const NOT_GAME_CH = /\b(kids?|junior|cartoon|news|radio|music|movies?)\b/i;
+const PRO = new Set(['nfl', 'nba', 'wnba', 'nhl', 'mlb']);
+function abbrsOf(abbr: string): string[] {
+  const a = abbr.toUpperCase();
+  return [a, ...(ABBR_ALIASES[a] ?? [])].filter((x) => x.length >= 2);
+}
+/**
+ * An event channel named with the teams' abbreviations ("NFL 05: BUF @ KC", "NFL 05 | BUF vs KC") — the full-name
+ * match misses these (Sunday's game channels are often named this way). Pro leagues only: college abbreviations
+ * clash too often.
+ */
+export function namesGameByAbbr(name: string, game: Game): boolean {
+  if (!PRO.has(game.league)) return false;
+  const alt = (abbr: string) => abbrsOf(abbr).map((x) => x.replace(/[^A-Z0-9]/g, '')).join('|');
+  const a = alt(game.away.abbr), h = alt(game.home.abbr);
+  if (!a || !h) return false;
+  const sep = '\\s*(?:@|vs\\.?|v\\.?|at|-)\\s*';
+  const re = new RegExp(`(?:^|[^A-Za-z0-9])(?:(?:${a})${sep}(?:${h})|(?:${h})${sep}(?:${a}))(?![A-Za-z0-9])`, 'i');
+  return re.test(name);
+}
+
 export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptions): StreamPick[] {
   const picks = new Map<string, StreamPick>();
   const add = (p: StreamPick) => {
@@ -201,6 +227,14 @@ export function findStreams(game: Game, lineup: LineupChannel[], opts: FindOptio
       side,
       reason: e.event ? (side ? `Event channel · ${teamOfSide(game, side).short} broadcast` : 'Event channel for this game') : `Guide: ${e.text}`,
     });
+  }
+  // Event channels named with abbreviations ("NFL 05: BUF @ KC").
+  if (PRO.has(game.league)) {
+    for (const e of index) {
+      if (!e.event || e.text !== e.ch.originalName || picks.has(e.ch.key)) continue;
+      if (NOT_GAME_CH.test(e.ch.originalName) || !namesGameByAbbr(e.ch.originalName, game)) continue;
+      add({ ch: e.ch, score: 99, kind: 'event', reason: 'Event channel for this game' });
+    }
   }
 
   // 3. Networks carrying the game.
