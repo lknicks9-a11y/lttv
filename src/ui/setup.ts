@@ -94,6 +94,7 @@ export async function handleSetupSubmission(json: string) {
       step('Signing in to your provider…')();
       const { result: acc, ua } = await withClientFallback(undefined, (u) => checkXtreamLogin(login, u));
       if (!acc.ok) throw new Error(acc.message ?? 'Login failed.');
+      if (acc.message) toast(acc.message, 'info', 10000);
       login.output = chooseOutput('ts', acc.formats);
       const urls = xtreamUrls(login);
       const headers = ua ? { 'User-Agent': ua } : undefined;

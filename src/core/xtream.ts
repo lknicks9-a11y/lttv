@@ -88,7 +88,7 @@ export function parseAccount(json: unknown): XtreamAccount {
   const status = String(ui.status ?? '');
   const exp = Number(ui.exp_date);
   const account: XtreamAccount = {
-    ok: !/expired|banned|disabled/i.test(status),
+    ok: !/banned|disabled/i.test(status),
     status: status || undefined,
     expires: Number.isFinite(exp) && exp > 0 ? exp * 1000 : undefined,
     maxConnections: ui.max_connections !== undefined ? Number(ui.max_connections) : undefined,
@@ -96,9 +96,11 @@ export function parseAccount(json: unknown): XtreamAccount {
     formats: Array.isArray(ui.allowed_output_formats) ? (ui.allowed_output_formats as string[]) : undefined,
   };
   if (!account.ok) account.message = `Your subscription is ${status.toLowerCase()}. Contact your provider.`;
-  else if (account.expires && account.expires < Date.now()) {
-    account.ok = false;
-    account.message = 'Your subscription has expired. Contact your provider.';
+  else if (/expired/i.test(status) || (account.expires && account.expires < Date.now())) {
+    // Not a stop: right after buying or renewing, many providers still report the old end date for a while (or
+    // the new plan came with new login details). The provider is added anyway; this is shown as a heads-up.
+    const on = account.expires ? ` (${new Date(account.expires).toLocaleDateString()})` : '';
+    account.message = `Your provider still says this subscription has expired${on}. If you just bought or renewed it, it can take a little while to update — or your provider may have sent you new login details. Added anyway.`;
   }
   return account;
 }

@@ -29,7 +29,11 @@ test('account status: success, wrong password, expired, banned', () => {
   assert.equal(ok.maxConnections, 2);
   assert.equal(ok.expires, future * 1000);
   assert.match(parseAccount({ user_info: { auth: 0 } }).message!, /username or password/);
-  assert.match(parseAccount({ user_info: { auth: 1, status: 'Active', exp_date: '1000' } }).message!, /expired/);
+  // An end date in the past (or "Expired") is a heads-up, not a stop: just-renewed accounts often still show it.
+  const late = parseAccount({ user_info: { auth: 1, status: 'Active', exp_date: '1000' } });
+  assert.equal(late.ok, true);
+  assert.match(late.message!, /expired/);
+  assert.equal(parseAccount({ user_info: { auth: 1, status: 'Expired' } }).ok, true);
   assert.match(parseAccount({ user_info: { auth: 1, status: 'Banned' } }).message!, /banned/);
   assert.match(parseAccount({ hello: 1 }).message!, /IPTV provider/);
 });

@@ -39,7 +39,9 @@ async function boot() {
   // LTTV Home opens a section of LTTV via its app tile / nav (extra "screen").
   window.lttvHost.openScreen = (name: string) => {
     if (OPENABLE.includes(name as Screen) && !getState().onboarding) {
-      setState({ screen: name as Screen, fullscreen: false });
+      // League Pass opened inside LTTV is a layer over everything: Home's "LTTV Settings" (or Guide, Sports…)
+      // showed League Pass again instead of the screen asked for. The layer is closed first.
+      setState({ screen: name as Screen, fullscreen: false, ...(APP_MODE === 'lttv' ? { leaguePass: false } : {}) });
     }
   };
 

@@ -1,6 +1,6 @@
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { withClientFallback, addPlaylist, addEpgSource, navigate, rematchAndReload, reloadAll, repo, useApp, getState, deletePlaylist, deleteEpgSource } from '../app/state';
+import { withClientFallback, addPlaylist, addEpgSource, navigate, rematchAndReload, reloadAll, repo, useApp, getState, toast, deletePlaylist, deleteEpgSource } from '../app/state';
 import type { EpgImportSummary, PlaylistImportSummary } from '../core/pipeline';
 import type { JobProgress } from '../app/importer';
 import type { EpgSource, PlaylistSource } from '../core/types';
@@ -86,6 +86,7 @@ export function ImportWizard() {
         setAccount(acc);
         maxConnections = acc.maxConnections && acc.maxConnections > 0 ? acc.maxConnections : undefined;
         if (!acc.ok) throw new Error(acc.message ?? 'Login failed.');
+        if (acc.message) toast(acc.message, 'info', 10000);
         login.output = chooseOutput(output, acc.formats);
       } catch (e) {
         const st = (e as { status?: number }).status;
