@@ -86,8 +86,9 @@ export const NETWORKS: Network[] = [
   // New York RSNs
   N('yes', 'YES Network', ['yesnetwork', 'yes'], { local: [631], rsn: true }),
   N('sny', 'SNY', ['sny', 'sportsnetnewyork'], { local: [639], rsn: true }),
-  N('msg', 'MSG', ['msg', 'msgnetwork', 'msgalt', 'msgalt1'], { local: [634], rsn: true }), // MSG ALT-1: MSG's alternate feed
-  N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2'], { local: [635], rsn: true }),
+  N('msg', 'MSG', ['msg', 'msgnetwork'], { local: [634], rsn: true }),
+  // "MSG ALT-1" on this provider is MSG SportsNet, not MSG.
+  N('msgsn', 'MSG SportsNet', ['msgsportsnet', 'msgsn', 'msgplus', 'msg2', 'msgalt', 'msgalt1'], { local: [635], rsn: true }),
   // Other RSNs
   N('nesn', 'NESN', ['nesn', 'newenglandsportsnetwork'], { local: [628], rsn: true }),
   N('nesnplus', 'NESN+', ['nesnplus']),

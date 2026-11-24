@@ -175,7 +175,7 @@ test('redactUrl hides credentials, tokens and query strings', () => {
   assert.equal(redactUrl('https://epg.example/guide.xml.gz'), 'https://epg.example/guide.xml.gz');
 });
 
-test('MSG ALT-1 RAW shows as MSG HD and counts as MSG for games', async () => {
+test('MSG ALT-1 RAW shows as MSG SportsNet and counts as MSG SportsNet (not MSG) for games', async () => {
   const { cleanChannelNames } = await import('../src/core/normalize');
   const { networkForBroadcast, channelKeys } = await import('../src/core/networks');
   const names = cleanChannelNames([
@@ -183,17 +183,18 @@ test('MSG ALT-1 RAW shows as MSG HD and counts as MSG for games', async () => {
     { key: 'b', originalName: 'US: MSG HD', groupTitle: 'USA' },
     { key: 'c', originalName: 'US: ESPN HD', groupTitle: 'USA' },
   ]);
-  assert.equal(names.get('a'), 'MSG HD');
-  const { keys } = networkForBroadcast('MSG');
-  assert.ok(channelKeys('US: MSG ALT-1 RAW').some((k) => keys.includes(k)));
+  assert.equal(names.get('a'), 'MSG SportsNet');
+  assert.ok(!channelKeys('US: MSG ALT-1 RAW').some((k) => networkForBroadcast('MSG').keys.includes(k)));
+  assert.ok(channelKeys('US: MSG ALT-1 RAW').some((k) => networkForBroadcast('MSG SportsNet').keys.includes(k)));
 });
 
-test('League Pass: MSG ALT-1 is the Knicks channel when MSG has the game', async () => {
+test('League Pass: the Knicks channel is US: MSG HD (not MSG ALT-1, which is MSG SportsNet)', async () => {
   const { nbaMainChannels } = await import('../src/core/nbachannels');
   const ch = (key: string, originalName: string) => ({ key, originalName, name: originalName, group: 'USA', hidden: false }) as unknown as import('../src/core/types').LineupChannel;
   const lineup = [ch('alt', 'US: MSG ALT-1 RAW'), ch('msg', 'US: MSG HD')];
   const team = (name: string, short: string) => ({ id: name, name, short, abbr: short.slice(0, 3).toUpperCase(), score: 0 });
   const game = { home: team('New York Knicks', 'Knicks'), away: team('Boston Celtics', 'Celtics') } as unknown as import('../src/core/schedule').Game;
   const mains = nbaMainChannels(game, { home: ['MSG'], away: [], national: [] }, lineup);
-  assert.equal(mains.find((m) => m.side === 'home')?.ch.key, 'alt');
+  assert.equal(mains.find((m) => m.side === 'home')?.ch.key, 'msg');
+  assert.ok(!mains.some((m) => m.ch.key === 'alt'));
 });

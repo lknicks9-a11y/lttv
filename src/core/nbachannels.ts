@@ -35,8 +35,8 @@ export const NBA_TEAM_CHANNELS: Record<string, Pick[]> = {
   'Milwaukee Bucks': [P('NBA: MILWAUKEE BUCKS ᴴᴰ', PPV)],
   'Minnesota Timberwolves': [P('US: NBC 11 (KARE) MINNEAPOLIS (H) ᴿᴬᵂ', NBC), P('NBA: MINNESOTA TIMBERWOLVES ᴴᴰ', PPV)],
   'New Orleans Pelicans': [P('NBA: NEW ORLEANS PELICANS ᴴᴰ', PPV)],
-  // MSG ALT-1 (shown as MSG HD) is the Knicks' MSG feed: first, and it counts as "MSG" on tonight's listing.
-  'New York Knicks': [P('MSG ALT-1 RAW', '', { re: /\bmsg\s*alt\W*1\b/i, listAs: 'MSG' }), P('US: MSG HD', ENT)],
+  // The Knicks' MSG is "US: MSG HD" (on this provider "MSG ALT-1" is MSG SportsNet, not MSG: not offered).
+  'New York Knicks': [P('US: MSG HD', ENT)],
   'Oklahoma City Thunder': [P('NBA: OKLAHOMA CITY THUNDER ᴴᴰ', PPV)],
   'Orlando Magic': [P('NBA: ORLANDO MAGIC ᴴᴰ', PPV)],
   'Philadelphia 76ers': [P('US: NBC SPORTS PHILADELPHIA (D) ᴿᴬᵂ', NBC)],

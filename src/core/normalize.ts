@@ -58,8 +58,8 @@ function tidyNameRaw(name: string): string {
   return s;
 }
 
-/** Channels shown under a clearer name: "MSG ALT-1 RAW" is MSG's feed → "MSG HD". */
-const RENAMES: [RegExp, string][] = [[/^msg\s*alt\W*1\b.*$/i, 'MSG HD']];
+/** Channels shown under a clearer name: "MSG ALT-1 RAW" is MSG SportsNet → "MSG SportsNet". */
+const RENAMES: [RegExp, string][] = [[/^msg\s*alt\W*1\b.*$/i, 'MSG SportsNet']];
 function renamed(name: string): string {
   for (const [re, to] of RENAMES) if (re.test(name.trim())) return to;
   return name;

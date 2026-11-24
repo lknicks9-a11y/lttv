@@ -664,17 +664,18 @@ class HomeActivity : Activity() {
      * room: both are drawing-only changes the TV's graphics chip does for free.
      */
     private fun placeTiles(sel: Int, animate: Boolean) {
-        val push = (tileBig - tileSmall).toFloat()
-        val first = (sel - 3).coerceAtLeast(0); val last = sel + 14
+        // Room for the big tile is real space after the one you're on (its gap grows), not the following tiles slid
+        // over: a slid tile was cut off at the edge of its old place (the last one, All Apps, lost half of itself).
+        // Only the two tiles whose gap changes are touched, so it stays one small layout per move.
+        val push = tileBig - tileSmall
         tiles.forEachIndexed { j, t ->
             val box = t.parent as View
-            val tx = if (j > sel) push else 0f
-            // The one you're on shows as the big tile above the row; its small copy stays (focusable) but hidden.
+            box.animate().cancel(); box.translationX = 0f
             t.alpha = if (j == sel) 0f else 1f
             t.scaleX = 1f; t.scaleY = 1f
-            if (!animate || j < first || j > last) {
-                box.animate().cancel(); box.translationX = tx
-            } else if (box.translationX != tx) box.animate().translationX(tx).setDuration(190).setInterpolator(ease).start()
+            val lp = box.layoutParams as LinearLayout.LayoutParams
+            val want = if (j == sel) tileGap + push else tileGap
+            if (lp.marginEnd != want) { lp.marginEnd = want; box.layoutParams = lp }
         }
     }
     private val ease = android.view.animation.DecelerateInterpolator(1.6f)
