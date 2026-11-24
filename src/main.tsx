@@ -85,6 +85,14 @@ async function boot() {
     else if (!signInSkipped()) setState({ signIn: true });
   }
   startSharing();
+  // League Pass / Blitz / Movies & Shows: coming back to the app (it stayed open while you changed the provider in
+  // LTTV) takes LTTV's provider again — nothing is read again unless it really changed.
+  if (APP_MODE !== 'lttv') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      void pullFromLttv().then(async (changed) => { if (changed) { await reloadAll(); void refreshAll({ onlyStale: true }); } }).catch(() => undefined);
+    });
+  }
   // League Pass / Blitz start with only what they need (faster): no live-sports alerts, update checks or movie
   // library checks — LTTV and LTTV Home do those.
   if (APP_MODE === 'lttv') void startLiveSports();

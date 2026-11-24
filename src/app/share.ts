@@ -47,14 +47,26 @@ export async function pullFromLttv(): Promise<boolean> {
   const sources = hash([(data.playlists ?? []).map((p) => [p.id, p.url, p.enabled]), (data.epgSources ?? []).map((e) => [e.id, e.url, e.enabled])]);
   const all = hash({ ...data, exportedAt: undefined });
   const [prevAll, prevSources] = await Promise.all([repo.getKv<string>('lttvSharedHash'), repo.getKv<string>('lttvSharedSources')]);
-  const have = (await repo.listPlaylists().catch(() => [])).length;
-  if (have > 0 && prevAll === all) return false;
-  if (have > 0 && prevSources === sources) {
+  const mine = await repo.listPlaylists().catch(() => []);
+  const myEpg = await repo.listEpgSources().catch(() => []);
+  const have = mine.length;
+  // This app keeps exactly LTTV's provider: a playlist / guide LTTV no longer has (your old provider) is removed
+  // here too — before, it stayed, so League Pass / Blitz still offered (and tried first) the old provider's
+  // channels, which don't play any more.
+  const keepPl = new Set((data.playlists ?? []).map((p) => p.id));
+  const keepEpg = new Set((data.epgSources ?? []).map((e) => e.id));
+  const stale = mine.filter((p) => !keepPl.has(p.id));
+  const staleEpg = myEpg.filter((e) => !keepEpg.has(e.id));
+  const mirrored = stale.length === 0 && staleEpg.length === 0;
+  if (have > 0 && mirrored && prevAll === all) return false;
+  if (have > 0 && mirrored && prevSources === sources) {
     // Same provider: only settings / customisations changed — apply them, read nothing again.
     if (data.settings) await repo.saveSettings({ ...(await repo.getSettings()), ...data.settings } as Awaited<ReturnType<typeof repo.getSettings>>);
     await repo.setKv('lttvSharedHash', all);
     return false;
   }
+  for (const p of stale) await repo.deletePlaylist(p.id).catch(() => undefined);
+  for (const e of staleEpg) await repo.deleteEpgSource(e.id).catch(() => undefined);
   await repo.importSettings(data);
   await repo.setKv('lttvSharedHash', all);
   await repo.setKv('lttvSharedSources', sources);

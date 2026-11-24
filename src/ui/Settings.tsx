@@ -16,6 +16,9 @@ import { native, serverCaps, isTV } from '../app/platform';
 import { redactUrl } from '../core/util';
 import { isValidTimeZone } from '../core/time';
 import { clock, when } from './fmt';
+import { APP_MODE } from '../app/appmode';
+import { pullFromLttv, lttvHasSetup } from '../app/share';
+import { refreshAll } from '../app/state';
 
 
 const COMMON_ZONES = ['', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu', 'America/Toronto', 'America/Mexico_City', 'America/Sao_Paulo', 'Europe/London', 'Europe/Dublin', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Athens', 'Europe/Istanbul', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney', 'UTC'];
@@ -108,12 +111,23 @@ export function SettingsScreen() {
       <div class="settings-grid">
         <UpdateCenter />
         <ProfilesSection />
-        <div class="card settings-section" data-group="set-sources">
+        {(APP_MODE === 'leaguepass' || APP_MODE === 'blitz') ? <div class="card settings-section" data-group="set-sources">
+          <h3>Provider</h3>
+          <p class="hint">{lttvHasSetup() ? `From LTTV · ${playlists.length} playlist${playlists.length === 1 ? '' : 's'} · ${epg.length} guide${epg.length === 1 ? '' : 's'}.` : 'LTTV isn’t set up on this TV yet.'} This app always uses the provider you set up in LTTV — change it there and it reaches this app the next time it opens.</p>
+          <div class="row gap"><Button icon="sources" onClick={async () => {
+            try {
+              const changed = await pullFromLttv();
+              await reloadAll();
+              if (changed) void refreshAll({ onlyStale: true });
+              toast(changed ? 'Took LTTV’s provider' : 'Already using LTTV’s provider', 'info', 3000);
+            } catch (e) { toast('Couldn’t take LTTV’s provider: ' + (e as Error).message, 'error', 6000); }
+          }}>Get LTTV’s provider now</Button></div>
+        </div> : <div class="card settings-section" data-group="set-sources">
           <h3>Playlists &amp; guides</h3>
           <p class="hint">{playlists.length ? `${playlists.length} playlist${playlists.length === 1 ? '' : 's'} · ${epg.length} guide${epg.length === 1 ? '' : 's'}` : 'No playlist yet.'} Add, update or remove your provider’s playlists and TV guides.</p>
           <div class="row gap"><Button icon="sources" onClick={() => navigate('sources')}>Open Sources</Button></div>
           {playlists.length > 1 && <Toggle label="Back up channels with my other playlists" hint="When a channel fails or a login is at its stream limit, LTTV plays the same channel from your next playlist. Multiview spreads its games over your playlists." checked={s.providerFailover !== false} onChange={(v) => set({ providerFailover: v })} />}
-        </div>
+        </div>}
         <div class="card settings-section" data-group="set-colors">
           <h3>Colors</h3>
           <ColorPicker value={s.accent} onChange={(v) => set({ accent: v })} />
