@@ -551,6 +551,7 @@ export class WebBackend implements Backend {
           if (data.details === 'manifestParsingError') msg = kind === 'unknown' ? 'This stream is not HLS and the browser cannot play it.' : 'The stream returned invalid data.';
           else if (status === 401 || status === 403) msg = 'Access denied by the stream server (403). Your subscription or token may have expired.';
           else if (status === 404) msg = 'Stream not found (404). The channel may be offline.';
+          else if (status === 429 || status === 456 || status === 458 || status === 509) msg = `Your provider is refusing streams right now (HTTP ${status}: the account is over its limit or blocked for a while). Close LTTV on other devices, wait a few minutes, then try again — if it keeps happening, ask your provider.`;
           else if (!status && !useProxy && caps.proxy) {
             // Probably CORS: retry through the local helper.
             this.forceProxy = true;

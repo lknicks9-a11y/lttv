@@ -3,7 +3,7 @@ import { isPassApp } from '../app/appmode';
 // with Up, Up, Left, Right (League Pass) / Up ×5, Down ×2, Right (Blitz).
 // The game you pick plays in the big window with its box score beside it; add games to watch several at once.
 import { SettingsScreen } from './Settings';
-import { cachedLiveness, canCheck, checkStream, markLiveness, type Liveness } from '../app/streamcheck';
+import { cachedLiveness, canCheck, checkStream, markLiveness, type Liveness, noteRefusal } from '../app/streamcheck';
 import { blitzPlan } from '../core/blitz';
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -315,6 +315,10 @@ export function LeaguePass() {
             toast('No picture on this stream — try the next one', 'info', 5000);
           }, 6000) };
         }
+      } else if (st.state === 'error' && /\b(401|403|429|456|458|509)\b|refusing streams|Access denied/i.test(st.error ?? '')) {
+        // The provider refused (over its limit / blocked): not this channel's fault — and no more checks for a while.
+        clear();
+        noteRefusal(getState().lineup.find((c) => c.key === st.key)?.playlistId, st.error);
       } else if (st.state === 'error' && (st.noRetry || !st.maxAttempts || (st.attempt ?? 0) >= st.maxAttempts)) {
         clear();
         markLiveness(st.key, 'dead');

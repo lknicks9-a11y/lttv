@@ -17,6 +17,23 @@ const TIMEOUT_MS = 7000;
 /** A provider that refused a check (401/403) isn't checked again for a while: extra knocking can extend a ban. */
 const refusedUntil = new Map<string, number>();
 const REFUSED_PAUSE_MS = 15 * 60_000;
+/** Answers that mean "you're over your limit / blocked", not "this channel is off". */
+const REFUSALS = new Set([401, 403, 429, 456, 458, 509]);
+/** Spacing between checks of one provider, and a cap per 10 minutes: each check is a connection to them, and too
+ *  many in a row can get the account limited (HTTP 456). */
+const GAP_MS = 4000;
+const MAX_PER_10_MIN = 25;
+const recent = new Map<string, number[]>();
+
+/** Stop checking this provider for a while (it refused, or the player was refused). */
+export function pauseChecks(playlistId: string, ms = REFUSED_PAUSE_MS) {
+  refusedUntil.set(playlistId, Math.max(refusedUntil.get(playlistId) ?? 0, Date.now() + ms));
+}
+
+/** An error the player showed: a refusal pauses checks of that provider. */
+export function noteRefusal(playlistId: string | undefined, error: string | undefined) {
+  if (playlistId && error && /\b(401|403|429|456|458|509)\b|refusing streams|Access denied/i.test(error)) pauseChecks(playlistId);
+}
 
 /** What actually happened when a stream was played (it played / it failed): the best check there is. */
 export function markLiveness(key: string, v: Liveness) {
@@ -40,6 +57,9 @@ export function cachedLiveness(key: string): Liveness | undefined {
  */
 export function canCheck(ch: LineupChannel): boolean {
   if ((refusedUntil.get(ch.playlistId) ?? 0) > Date.now()) return false;
+  const times = (recent.get(ch.playlistId) ?? []).filter((t) => Date.now() - t < 10 * 60_000);
+  recent.set(ch.playlistId, times);
+  if (times.length >= MAX_PER_10_MIN || (times.length && Date.now() - times[times.length - 1] < GAP_MS)) return false;
   const s = getState();
   const playlistOf = (key: string | undefined) => (key ? s.lineup.find((c) => c.key === key)?.playlistId : undefined);
   let inUse = playlistOf(player.currentKey) === ch.playlistId ? 1 : 0;
@@ -53,6 +73,8 @@ export async function checkStream(ch: LineupChannel, signal?: AbortSignal): Prom
   const hit = cachedLiveness(ch.key);
   if (hit) return hit;
   if (!(await serverCaps()).proxy || !/^https?:\/\//i.test(ch.url)) return undefined;
+  if (!canCheck(ch)) return undefined;
+  recent.set(ch.playlistId, [...(recent.get(ch.playlistId) ?? []), Date.now()]);
   const ctl = new AbortController();
   let timedOut = false;
   const timer = window.setTimeout(() => {
@@ -68,7 +90,7 @@ export async function checkStream(ch: LineupChannel, signal?: AbortSignal): Prom
   } catch (e) {
     // An error answer (403/404/5xx…), no answer, or nothing sent before the timeout. A cancel isn't a verdict.
     const st = (e as { status?: number }).status;
-    if (st === 401 || st === 403) {
+    if (st && REFUSALS.has(st)) {
       // Refused: that says nothing about the channel, and the provider shouldn't be asked again for a while.
       refusedUntil.set(ch.playlistId, Date.now() + REFUSED_PAUSE_MS);
       v = undefined;

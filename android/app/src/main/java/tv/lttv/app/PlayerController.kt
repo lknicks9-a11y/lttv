@@ -385,6 +385,8 @@ class PlayerController(
                 return when (code) {
                     401, 403 -> "Access denied by the stream server ($code). Your subscription or token may have expired." to false
                     404 -> "Stream not found (404). The channel may be offline." to false
+                    // Providers use these when the account is over its limit or blocked for a while.
+                    429, 456, 458, 509 -> "Your provider is refusing streams right now (HTTP $code: the account is over its limit or blocked for a while). Close LTTV on other devices, wait a few minutes, then try again — if it keeps happening, ask your provider." to false
                     else -> "The stream server answered HTTP $code." to false
                 }
             }
