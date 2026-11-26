@@ -58,5 +58,6 @@ test('stream check: a black screen, a still slate or sound only is "no picture";
   assert.equal(judgePicture(fakeTs(0x1b, 2, 400_000)), 'live');
   assert.equal(judgePicture(fakeTs(0x1b, 2, 8_000)), 'dead');
   assert.equal(judgePicture(fakeTs(0x0f, 2, 400_000)), 'dead'); // AAC audio only
+  assert.equal(judgePicture(fakeTs(0x06, 2, 400_000)), undefined); // a video kind we don't recognise: no verdict, not "dead"
   assert.equal(judgePicture(fakeTs(0x1b, 0.5, 400_000)), undefined); // too short to tell
 });

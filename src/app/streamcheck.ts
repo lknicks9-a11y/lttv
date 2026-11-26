@@ -86,7 +86,7 @@ export async function checkStream(ch: LineupChannel, signal?: AbortSignal): Prom
   let v: Liveness | undefined;
   try {
     const { stream } = await openRemote(ch.url, ctl.signal, ch.headers);
-    v = await sniff(stream);
+    v = await sniff(stream, () => window.clearTimeout(timer));
   } catch (e) {
     // An error answer (403/404/5xx…), no answer, or nothing sent before the timeout. A cancel isn't a verdict.
     const st = (e as { status?: number }).status;
@@ -109,7 +109,7 @@ export async function checkStream(ch: LineupChannel, signal?: AbortSignal): Prom
  * keeps reading a couple of seconds to see a real picture: off-air channels often send a stream that's black, a
  * still slate or sound only — those used to count as live and played as a black screen.
  */
-async function sniff(stream: ReadableStream<Uint8Array>): Promise<Liveness> {
+async function sniff(stream: ReadableStream<Uint8Array>, onData?: () => void): Promise<Liveness> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let got = 0;
@@ -137,6 +137,7 @@ async function sniff(stream: ReadableStream<Uint8Array>): Promise<Liveness> {
   try {
     await read(8192, Date.now() + TIMEOUT_MS);
     if (!got) return 'dead';
+    onData?.(); // it's sending: the "nothing within 7 s" limit no longer applies (it used to cut the picture look short = "dead")
     const head = merge(8192);
     const first = judge(head, got);
     if (first === 'dead') return 'dead';
@@ -144,7 +145,11 @@ async function sniff(stream: ReadableStream<Uint8Array>): Promise<Liveness> {
     const isTs = sync >= 0 && sync < 188 && head[sync + 188] === 0x47;
     if (!isTs) return first; // HLS / other: the first look decides
     // MPEG-TS: ~2.5 seconds more (at most 1.5 MB) to look at the picture itself.
-    await read(1_500_000, Date.now() + 2500);
+    try {
+      await read(1_500_000, Date.now() + 2500);
+    } catch {
+      return first; // the longer look failed part-way: the stream did send, so the first look stands
+    }
     return judgePicture(merge(1_500_000)) ?? first;
   } finally {
     void reader.cancel().catch(() => undefined);

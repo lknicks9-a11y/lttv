@@ -22,6 +22,8 @@ export interface TsPicture {
   /** The stream's table of tracks was found. */
   tables: boolean;
   hasVideo: boolean;
+  /** Every track listed is a known audio kind (so "no video" is certain, not just a video kind we don't know). */
+  audioOnly: boolean;
   videoBytes: number;
   /** Seconds of video covered by the sample (from its timestamps). */
   seconds: number;
@@ -37,6 +39,7 @@ export function analyzeTs(buf: Uint8Array): TsPicture | undefined {
   if (s < 0) return undefined;
   const pmtPids = new Set<number>();
   const videoPids = new Set<number>();
+  const types: number[] = [];
   let tables = false;
   const payloadAt = (o: number) => {
     const afc = (buf[o + 3] >> 4) & 3;
@@ -67,6 +70,7 @@ export function analyzeTs(buf: Uint8Array): TsPicture | undefined {
         const type = buf[q];
         const epid = ((buf[q + 1] & 0x1f) << 8) | buf[q + 2];
         const esLen = ((buf[q + 3] & 0x0f) << 8) | buf[q + 4];
+        types.push(type);
         if (VIDEO_TYPES.has(type)) videoPids.add(epid);
         q += 5 + esLen;
       }
@@ -92,14 +96,15 @@ export function analyzeTs(buf: Uint8Array): TsPicture | undefined {
   }
   let seconds = first >= 0 ? (last - first) / 90000 : 0;
   if (seconds < 0 || seconds > 60) seconds = 0; // a clock wrap or a jump: no verdict on the rate
-  return { tables, hasVideo: videoPids.size > 0, videoBytes, seconds };
+  const AUDIO = new Set([0x03, 0x04, 0x0f, 0x11, 0x81, 0x87]);
+  return { tables, hasVideo: videoPids.size > 0, audioOnly: types.length > 0 && types.every((t) => AUDIO.has(t)), videoBytes, seconds };
 }
 
 /** A real picture? 'dead' for no video track, or a black / still picture (almost no picture data per second). */
 export function judgePicture(buf: Uint8Array): Liveness | undefined {
   const a = analyzeTs(buf);
   if (!a || !a.tables) return undefined;
-  if (!a.hasVideo) return 'dead';
+  if (!a.hasVideo) return a.audioOnly ? 'dead' : undefined; // a video kind we don't know: no verdict
   if (a.seconds >= 1.2) return a.videoBytes / a.seconds < 25_000 ? 'dead' : 'live';
   return undefined;
 }
