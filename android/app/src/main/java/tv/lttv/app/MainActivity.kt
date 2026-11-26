@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
         root = FrameLayout(this)
-        // The start screen (logo, "a YKGR Studios product") stays up until the app itself has drawn.
+        // The start screen (logo, "YKGR") stays up until the app itself has drawn.
         root.setBackgroundResource(R.drawable.splash)
 
         player = PlayerController(this) { json -> sendToPage("window.lttvHost && window.lttvHost.onPlayerEvent(${JSONObject.quote(json)})") }
