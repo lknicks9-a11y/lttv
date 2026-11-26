@@ -108,24 +108,40 @@ function dice(a: Map<string, number>, b: Map<string, number>): number {
  * (e.g. "Sports 1" vs "Sports 2", "+1" timeshifts) or regional feeds
  * (East/West) differ always score 0: they are different schedules.
  */
+/** What a name is compared by, worked out once per name (it used to be redone for every single comparison). */
+interface Feat { n: string; set: string[]; nums: string; regions: string; bi: Map<string, number>; compact: string }
+const featCache = new Map<string, Feat | null>();
+function feat(name: string): Feat | null {
+  let f = featCache.get(name);
+  if (f !== undefined) return f;
+  const n = normalizeForMatch(name);
+  if (!n) f = null;
+  else {
+    const toks = n.split(' ');
+    const { nums, regions } = distinctive(toks);
+    f = { n, set: [...new Set(toks)], nums, regions, bi: bigrams(n), compact: n.replace(/ /g, '') };
+  }
+  if (featCache.size > 300_000) featCache.clear();
+  featCache.set(name, f);
+  return f;
+}
+
 export function nameSimilarity(a: string, b: string): number {
-  const na = normalizeForMatch(a);
-  const nb = normalizeForMatch(b);
-  if (!na || !nb) return 0;
+  const fa = feat(a);
+  const fb = feat(b);
+  if (!fa || !fb) return 0;
+  const na = fa.n;
+  const nb = fb.n;
   if (na === nb) return 1;
-  const ta = na.split(' ');
-  const tb = nb.split(' ');
-  const da = distinctive(ta);
-  const db = distinctive(tb);
-  if (da.nums !== db.nums || da.regions !== db.regions) return 0;
-  const sa = [...new Set(ta)];
-  const sb = [...new Set(tb)];
+  if (fa.nums !== fb.nums || fa.regions !== fb.regions) return 0;
+  const sa = fa.set;
+  const sb = fb.set;
   let common = 0;
   for (const t of sa) if (sb.some((u) => tokensClose(t, u))) common++;
   const tokenScore = common / Math.max(sa.length, sb.length);
-  const charScore = dice(bigrams(na), bigrams(nb));
+  const charScore = dice(fa.bi, fb.bi);
   // Containment bonus: "bbc one" vs "bbc one london" is closer than token ratio suggests
-  const contained = na.replace(/ /g, '').includes(nb.replace(/ /g, '')) || nb.replace(/ /g, '').includes(na.replace(/ /g, ''));
+  const contained = fa.compact.includes(fb.compact) || fb.compact.includes(fa.compact);
   let score = 0.45 * tokenScore + 0.55 * charScore;
   if (contained) score = Math.max(score, 0.6 + 0.3 * Math.min(na.length, nb.length) / Math.max(na.length, nb.length));
   return Math.min(score, 0.99);
@@ -181,7 +197,7 @@ function buildIndex(epg: EpgChannel[]): Index {
  *   4. fuzzy similarity -> "pending" until the user approves (unless auto-approve is configured)
  * User decisions always win over automatic results.
  */
-const indexCache = new WeakMap<EpgChannel[], { idx: ReturnType<typeof buildIndex>; allRefs: Set<string> }>();
+const indexCache = new WeakMap<EpgChannel[], { idx: ReturnType<typeof buildIndex>; allRefs: Set<string>; memo: WeakMap<Map<string, MatchDecision>, Map<string, Map<string, MatchResult>>> }>();
 
 export function matchChannels(
   channels: ParsedChannel[],
@@ -193,13 +209,22 @@ export function matchChannels(
   let cached = indexCache.get(epg);
   if (!cached) {
     const built = buildIndex(epg);
-    cached = { idx: built, allRefs: new Set(built.names.keys()) };
+    cached = { idx: built, allRefs: new Set(built.names.keys()), memo: new WeakMap() };
     indexCache.set(epg, cached);
   }
   const { idx, allRefs } = cached;
   const threshold = opts.fuzzyThreshold ?? 0.62;
   const auto = opts.fuzzyAutoApprove ?? 0;
   const out = new Map<string, MatchResult>();
+  // Channels whose names come out the same (a provider's HD / FHD / 4K / backup copies of one channel) get the
+  // same answer: worked out once and reused, instead of searching the whole guide again for every copy.
+  const memoKey = `${threshold}|${auto}`;
+  let memo = cached.memo.get(decisions)?.get(memoKey);
+  if (!memo) {
+    let byDec = cached.memo.get(decisions);
+    if (!byDec) cached.memo.set(decisions, (byDec = new Map()));
+    byDec.set(memoKey, (memo = new Map()));
+  }
 
   for (const ch of channels) {
     const decision = decisions.get(ch.key);
@@ -215,12 +240,27 @@ export function matchChannels(
     }
     const rejected = decision?.status === 'rejected' ? decision.epgChannelId : undefined;
     const ok = (ref: string | undefined) => !!ref && ref !== rejected;
+    const baseNames = [opts.displayNames?.get(ch.key), ch.originalName, ch.tvgName].filter((n): n is string => !!n);
+    const allNames = [...new Set([...baseNames, ...baseNames.map(stripCountry).filter((n): n is string => !!n)])];
+    const sameKey = decision ? undefined : `${ch.tvgId?.trim().toLowerCase() ?? ''}\u0001${ch.tvgName?.trim().toLowerCase() ?? ''}\u0001${countryOf(ch.originalName) ?? ''}\u0001${allNames.map((n) => normalizeForMatch(n)).join('\u0002')}`;
+    const seen = sameKey !== undefined ? memo.get(sameKey) : undefined;
+    if (seen) {
+      out.set(ch.key, { ...seen, key: ch.key });
+      continue;
+    }
+    const put = (r: MatchResult) => {
+      out.set(ch.key, r);
+      if (sameKey !== undefined) {
+        if (memo!.size > 200_000) memo!.clear();
+        memo!.set(sameKey, r);
+      }
+    };
 
     // 1. tvg-id
     if (ch.tvgId) {
       const ref = idx.byId.get(ch.tvgId.trim().toLowerCase());
       if (ok(ref)) {
-        out.set(ch.key, { key: ch.key, epgChannelId: ref, method: 'tvg-id', confidence: 1, status: 'auto' });
+        put({ key: ch.key, epgChannelId: ref, method: 'tvg-id', confidence: 1, status: 'auto' });
         continue;
       }
     }
@@ -229,13 +269,12 @@ export function matchChannels(
       const refs = [...(idx.byName.get(ch.tvgName.trim().toLowerCase()) ?? [])].filter(ok);
       const pick = refs.length === 1 ? refs[0] : refs.length > 1 ? breakTie(refs, countryOf(ch.originalName)) : undefined;
       if (pick) {
-        out.set(ch.key, { key: ch.key, epgChannelId: pick, method: 'tvg-name', confidence: 0.97, status: 'auto' });
+        put({ key: ch.key, epgChannelId: pick, method: 'tvg-name', confidence: 0.97, status: 'auto' });
         continue;
       }
     }
     // 3. normalised name (unique)
-    const base = [opts.displayNames?.get(ch.key), ch.originalName, ch.tvgName].filter((n): n is string => !!n);
-    const names = [...new Set([...base, ...base.map(stripCountry).filter((n): n is string => !!n)])];
+    const names = allNames;
     const country = countryOf(ch.originalName);
     let ambiguous: string[] | null = null;
     let found: string | undefined;
@@ -255,14 +294,16 @@ export function matchChannels(
       }
     }
     if (found) {
-      out.set(ch.key, { key: ch.key, epgChannelId: found, method: 'name', confidence: 0.9, status: 'auto' });
+      put({ key: ch.key, epgChannelId: found, method: 'name', confidence: 0.9, status: 'auto' });
       continue;
     }
 
     // 4. fuzzy
     // Candidates from the rarest words first (common words like "tv" or "hd" add hundreds of useless
     // comparisons); at most ~160 are compared, which keeps big lineups fast on a TV.
-    const candidateRefs = new Set<string>(ambiguous ?? []);
+    // Guides often give one name to many channels (50 "ESPN"s): at most 160 of those are compared too.
+    const ambiguousSet = new Set((ambiguous ?? []).slice(0, 160));
+    const candidateRefs = new Set<string>(ambiguousSet);
     const tokenSets = names.flatMap((n) => normalizeForMatch(n).split(' ')).map((t) => idx.byToken.get(t)).filter((s): s is Set<string> => !!s && s.size < 250).sort((a, b) => a.size - b.size);
     for (const s of tokenSets) {
       if (candidateRefs.size >= 160) break;
@@ -282,7 +323,7 @@ export function matchChannels(
           }
         }
       }
-      if (ambiguous?.includes(ref)) best = Math.min(best, 0.8);
+      if (ambiguousSet.has(ref)) best = Math.min(best, 0.8);
       if (best >= threshold) scored.push({ id: ref, score: Math.round(best * 100) / 100, name: bestName });
     }
     scored.sort((a, b) => b.score - a.score);
@@ -292,9 +333,9 @@ export function matchChannels(
       const margin = scored[1] ? top.score - scored[1].score : 1;
       const confidence = Math.round((margin < 0.05 ? top.score * 0.9 : top.score) * 100) / 100;
       const status = auto > 0 && confidence >= auto ? 'auto' : 'pending';
-      out.set(ch.key, { key: ch.key, epgChannelId: top.id, method: 'fuzzy', confidence, status, candidates: scored.slice(0, 5) });
+      put({ key: ch.key, epgChannelId: top.id, method: 'fuzzy', confidence, status, candidates: scored.slice(0, 5) });
     } else {
-      out.set(ch.key, { key: ch.key, method: 'none', confidence: 0, status: rejected ? 'rejected' : 'unmatched' });
+      put({ key: ch.key, method: 'none', confidence: 0, status: rejected ? 'rejected' : 'unmatched' });
     }
   }
   return out;

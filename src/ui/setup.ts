@@ -1,7 +1,7 @@
 import { currentAccount, renameAccount } from '../app/accounts';
 import { openCloudAccount, signInWithRefreshToken } from '../app/cloud';
 import { notifyAccountsChanged } from './Accounts';
-import { addEpgSource, addPlaylist, finishTask, rematchAndReload, reloadAll, repo, showTask, toast, withClientFallback } from '../app/state';
+import { addEpgSource, addPlaylist, finishTask, matchThenReload, repo, showTask, toast, withClientFallback } from '../app/state';
 import type { JobProgress } from '../app/importer';
 import { checkXtreamLogin, loadXtreamPlaylist } from '../app/xtream-login';
 import { chooseOutput, normalizeServer, xtreamUrls, type XtreamLogin } from '../core/xtream';
@@ -108,9 +108,7 @@ export async function handleSetupSubmission(json: string) {
       } catch (e) {
         toast('Channels added, but the provider guide could not be loaded: ' + (e as Error).message, 'error', 10000);
       }
-      step('Matching channels to the guide…')();
-      await rematchAndReload(false);
-      await reloadAll();
+      await matchThenReload(step('Matching channels to the guide…'));
       showTask({ id, label: 'Your channels are ready', done: true });
       finishTask(id, 4000);
       return;
@@ -132,9 +130,7 @@ export async function handleSetupSubmission(json: string) {
         }
       }
     }
-    step('Matching channels to the guide…')();
-    await rematchAndReload(false);
-    await reloadAll();
+    await matchThenReload(step('Matching channels to the guide…'));
     showTask({ id, label: 'Done — your channels are ready', done: true });
     finishTask(id, 4000);
   } catch (e) {

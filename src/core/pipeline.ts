@@ -231,7 +231,7 @@ export interface MatchSummary {
 }
 
 /** Recompute EPG matches for all enabled channels and store them. */
-export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>, data?: LoadedData): Promise<{ matches: Map<string, MatchResult>; summary: MatchSummary }> {
+export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuzzyAutoApprove'>, data?: LoadedData, onProgress?: (done: number, total: number) => void): Promise<{ matches: Map<string, MatchResult>; summary: MatchSummary }> {
   const d = data ?? (await loadSources(repo));
   const decisions = await repo.getDecisions();
   const displayNames = cleanChannelNames(d.channels);
@@ -241,6 +241,7 @@ export async function recomputeMatches(repo: Repo, settings: Pick<Settings, 'fuz
   for (let i = 0; i < d.channels.length; i += 400) {
     const part = matchChannels(d.channels.slice(i, i + 400), d.epgChannels, decisions, { fuzzyAutoApprove: settings.fuzzyAutoApprove, displayNames });
     for (const [k, v] of part) matches.set(k, v);
+    onProgress?.(Math.min(d.channels.length, i + 400), d.channels.length);
     await new Promise((r) => setTimeout(r, 0));
   }
   await repo.setKv('matches', [...matches.values()]);

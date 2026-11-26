@@ -83,7 +83,7 @@ async function run(m: Start) {
   const progress = (p: object) => post({ type: 'progress', id: m.id, ...p });
   try {
     if (m.job === 'match') {
-      const { summary } = await recomputeMatches(repo, m.settings);
+      const { summary } = await recomputeMatches(repo, m.settings, undefined, (done, total) => progress({ phase: `Matched ${done.toLocaleString()} of ${total.toLocaleString()} channels` }));
       post({ type: 'done', id: m.id, result: summary });
       return;
     }

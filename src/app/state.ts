@@ -666,11 +666,21 @@ async function matchMissingAndReload() {
   }
 }
 
+/**
+ * After adding a provider: match, then load everything once. (It used to match, load the guide, then load
+ * everything — the guide a second time — all under "Matching channels to the guide".)
+ */
+export async function matchThenReload(onProgress?: (p: JobProgress) => void) {
+  await rematch(state.settings, onProgress);
+  onProgress?.({ phase: 'Loading your channels and guide' });
+  await reloadAll();
+}
+
 export async function rematchAndReload(showTask = true) {
   const id = 'match';
   if (showTask) setTask({ id, label: 'Matching channels to guide' });
   try {
-    await rematch(state.settings);
+    await rematch(state.settings, showTask ? (p) => setTask({ id, label: 'Matching channels to guide', progress: p }) : undefined);
     rawMatches = await loadMatches(repo);
     refreshLineupLocal();
     await loadGuide();

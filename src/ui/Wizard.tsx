@@ -1,6 +1,6 @@
 import { h, Fragment } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { withClientFallback, addPlaylist, addEpgSource, navigate, rematchAndReload, reloadAll, repo, useApp, getState, toast, deletePlaylist, deleteEpgSource } from '../app/state';
+import { matchThenReload, withClientFallback, addPlaylist, addEpgSource, navigate, repo, useApp, getState, toast, deletePlaylist, deleteEpgSource } from '../app/state';
 import type { EpgImportSummary, PlaylistImportSummary } from '../core/pipeline';
 import type { JobProgress } from '../app/importer';
 import type { EpgSource, PlaylistSource } from '../core/types';
@@ -172,8 +172,7 @@ export function ImportWizard() {
       const ids = src ? [src.id] : epgMode === 'existing' ? useExisting : [];
       if (plRes) await repo.savePlaylist({ ...(await repo.listPlaylists()).find((p) => p.id === plRes.playlist.id)!, epgIds: ids });
       setStep('matching');
-      await rematchAndReload(false);
-      await reloadAll();
+      await matchThenReload(setProgress);
       const s = getState();
       const mine = s.lineup.filter((c) => c.playlistId === plRes?.playlist.id);
       setMatchSummary({

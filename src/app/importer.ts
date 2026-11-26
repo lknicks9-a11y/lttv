@@ -134,8 +134,8 @@ export function importEpg(source: EpgSource, settings: Settings, input: InputSou
   return start<EpgImportSummary>({ job: 'epg', source, settings }, input, opts.onProgress, opts.signal);
 }
 
-export function rematch(settings: Settings) {
-  return start<MatchSummary>({ job: 'match', settings }, null);
+export function rematch(settings: Settings, onProgress?: (p: JobProgress) => void) {
+  return start<MatchSummary>({ job: 'match', settings }, null, onProgress);
 }
 
 /** Match only channels that have no match yet (startup). */
