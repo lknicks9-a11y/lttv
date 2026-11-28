@@ -1,5 +1,5 @@
 // Settings → Phone remote (desktop): the QR code / address / code the phone uses to pair with this computer.
-import { h } from 'preact';
+import { h, Fragment } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { native } from '../app/platform';
 import { qrMatrix, qrSvgPath } from '../core/qr';
@@ -37,9 +37,11 @@ export function PhoneRemoteSettings() {
       .then((j: Info | null) => setInfo(j && j.enabled ? j : null))
       .catch(() => setInfo(null));
   }, []);
-  if (!info) return null; // Fire TV, a plain browser without the helper, or turned off (--no-remote)
+  if (!info) return <AccountPhone />; // Fire TV, a plain browser without the helper, or turned off (--no-remote)
   const url = info.urls[0];
   return (
+    <>
+    <AccountPhone />
     <div class="card settings-section" data-group="set-remote">
       <h3>Phone remote</h3>
       {url ? (
@@ -54,6 +56,25 @@ export function PhoneRemoteSettings() {
       ) : (
         <p class="muted">This computer isn’t on a network right now, so a phone can’t reach it.</p>
       )}
+    </div>
+    </>
+  );
+}
+
+/** The phone page for your account: works anywhere (not only on the same Wi-Fi), for every LTTV app on this TV. */
+const PHONE_PAGE = 'https://lknicks9-a11y.github.io/lttv/phone.html';
+function AccountPhone() {
+  return (
+    <div class="card settings-section" data-group="set-phone">
+      <h3>LTTV on your phone</h3>
+      <div class="setup setup-split">
+        <Qr text={PHONE_PAGE} />
+        <div class="setup-steps">
+          <p><b>1.</b> Scan the code with your phone’s camera, or open <span class="setup-url">{PHONE_PAGE.replace('https://', '')}</span>.</p>
+          <p><b>2.</b> Sign in with the same LTTV account as this TV.</p>
+          <p class="muted">Pick this TV (LTTV, League Pass, Blitz…) to use your phone as its remote, start or stop what it plays, or watch on the phone — at home or away. On iPhone, Share → Add to Home Screen makes it an app.</p>
+        </div>
+      </div>
     </div>
   );
 }

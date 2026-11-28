@@ -52,6 +52,11 @@ const KEYS: Record<string, string> = { up: 'ArrowUp', down: 'ArrowDown', left: '
 const APP_KEYS = new Set<AppKey>(['menu', 'playpause', 'chup', 'chdown', 'info', 'guide', 'ffwd', 'rewind']);
 const SCREENS = new Set<Screen>(['home', 'sports', 'movies', 'shows', 'channels', 'search', 'sources', 'settings']);
 
+/** Carry out one phone command (also used by the account device link, see devicelink.ts). */
+export async function runRemoteCommand(cmd: string, a: Args): Promise<unknown> {
+  return run(cmd, a);
+}
+
 async function run(cmd: string, a: Args): Promise<unknown> {
   switch (cmd) {
     case 'key':
@@ -164,7 +169,7 @@ function chInfo(c: LineupChannel) {
   return { key: c.key, name: c.name, number: c.number, logo: c.logo, now: nowOn(c) };
 }
 
-function snapshot() {
+export function snapshot() {
   const s = getState();
   const cur = player.currentKey ? s.lineup.find((c) => c.key === player.currentKey) : undefined;
   const mv = s.multiview;

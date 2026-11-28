@@ -7,12 +7,15 @@
 import { APP_MODE } from './appmode';
 import { native } from './platform';
 import { repo } from './state';
+import { localLinkSecret, takeSharedLinkSecret } from './devicelink';
 
 let lastShared = '';
 
 export async function shareToApps(): Promise<void> {
   if (APP_MODE !== 'lttv' || !native?.shareSetup) return;
-  const data = await repo.exportSettings();
+  // The account's phone-link channel goes along (not the sign-in itself), so League Pass / Blitz / Movies & Shows
+  // show up on the LTTV phone page too.
+  const data = { ...(await repo.exportSettings()), link: localLinkSecret() };
   const sameAsBefore = JSON.stringify({ ...data, exportedAt: undefined });
   if (sameAsBefore === lastShared) return;
   lastShared = sameAsBefore;
@@ -43,7 +46,8 @@ export async function pullFromLttv(): Promise<boolean> {
   let raw = '';
   try { raw = native.sharedSetup() || ''; } catch { return false; }
   if (!raw) return false;
-  const data = JSON.parse(raw) as { settings?: Record<string, unknown>; playlists?: { id: string; url?: string; enabled?: boolean }[]; epgSources?: { id: string; url?: string; enabled?: boolean }[]; exportedAt?: string };
+  const data = JSON.parse(raw) as { settings?: Record<string, unknown>; playlists?: { id: string; url?: string; enabled?: boolean }[]; epgSources?: { id: string; url?: string; enabled?: boolean }[]; exportedAt?: string; link?: string };
+  takeSharedLinkSecret(data.link);
   const sources = hash([(data.playlists ?? []).map((p) => [p.id, p.url, p.enabled]), (data.epgSources ?? []).map((e) => [e.id, e.url, e.enabled])]);
   const all = hash({ ...data, exportedAt: undefined });
   const [prevAll, prevSources] = await Promise.all([repo.getKv<string>('lttvSharedHash'), repo.getKv<string>('lttvSharedSources')]);

@@ -6,6 +6,7 @@ import { getState, refreshAll, reloadAll, repo, setState, showTask, finishTask, 
 import type { ExportedSettings } from '../core/storage';
 import { exportProfiles, mergeProfiles, onProfilesChanged, type ProfilesBundle } from './profiles';
 import { resetResumeCache } from './vod';
+import { localLinkSecret } from './devicelink';
 
 /** Per-account values outside the settings export that should follow the account (profiles travel separately). */
 const KV_KEYS = ['liveSports', 'reminders'];
@@ -32,7 +33,8 @@ async function snapshot(): Promise<Record<string, unknown>> {
     const v = await repo.getKv(k).catch(() => undefined);
     if (v !== undefined) kv[k] = v;
   }
-  return { export: exp, kv, profiles: await exportProfiles(), savedFrom: navigator.userAgent.includes('LTTV') || /Android/.test(navigator.userAgent) ? 'tv' : 'browser' };
+  const linkSecret = localLinkSecret();
+  return { export: exp, kv, profiles: await exportProfiles(), ...(linkSecret ? { linkSecret } : {}), savedFrom: navigator.userAgent.includes('LTTV') || /Android/.test(navigator.userAgent) ? 'tv' : 'browser' };
 }
 
 let pushTimer: ReturnType<typeof setTimeout> | undefined;

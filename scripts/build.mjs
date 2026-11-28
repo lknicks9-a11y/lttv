@@ -86,6 +86,17 @@ const appCtx = await esbuild.context({
   // Background photos are copied from public/ and loaded at runtime.
   external: ['/bg/*', '/fonts/*'],
 });
+// The phone page (phone.html): sign in, pick one of your TVs, remote / play / stop / watch on the phone.
+const phoneCtx = await esbuild.context({
+  ...common,
+  entryPoints: { phone: join(root, 'src/phone/phone.tsx') },
+  outdir: out,
+  format: 'esm',
+  jsx: 'transform',
+  jsxFactory: 'h',
+  jsxFragment: 'Fragment',
+  inject: [join(root, 'src/jsx-shim.ts')],
+});
 // Team Channel Picker: a separate page of the desktop helper (picker.html), not part of the app.
 const pickerCtx = await esbuild.context({
   ...common,
@@ -104,11 +115,14 @@ if (watch) {
   await appCtx.watch();
   await workerCtx.watch();
   await pickerCtx.watch();
+  await phoneCtx.watch();
   console.log('Watching for changes…');
 } else {
   await appCtx.rebuild();
   await workerCtx.rebuild();
   await pickerCtx.rebuild();
+  await phoneCtx.rebuild();
+  await phoneCtx.dispose();
   await appCtx.dispose();
   await workerCtx.dispose();
   await pickerCtx.dispose();

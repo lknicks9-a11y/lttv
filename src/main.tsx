@@ -95,6 +95,8 @@ async function boot() {
     else if (!signInSkipped()) setState({ signIn: true });
   }
   startSharing();
+  // Your phone: this TV shows up on the LTTV phone page (signed in, or the account LTTV shared) — after start-up.
+  setTimeout(() => void import('./app/devicelink').then((m) => m.startDeviceLink()).catch(() => undefined), 4000);
   // League Pass / Blitz / Movies & Shows: coming back to the app (it stayed open while you changed the provider in
   // LTTV) takes LTTV's provider again — nothing is read again unless it really changed.
   if (APP_MODE !== 'lttv') {
