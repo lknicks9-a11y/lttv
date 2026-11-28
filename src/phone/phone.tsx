@@ -1,7 +1,7 @@
 // LTTV on your phone: sign in to your LTTV account, pick one of your TVs (LTTV, League Pass, Blitz, Movies & Shows
 // — wherever they are), then use the phone as its remote, start or stop what it plays, or watch on the phone.
 // The phone and TVs meet on the account's private link channel (see app/devicelink.ts).
-import { render } from 'preact';
+import { h, Fragment, render } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { cloudConfig, signInEmail, signInWithRefreshToken, type CloudSession } from '../app/cloud';
 import { LinkRpc, RealtimeLink, linkTopic, randomId, type LinkStatus, type PresenceMember } from '../core/realtime';
